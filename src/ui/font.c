@@ -103,6 +103,8 @@ GlyphSlot *glyph_cache_get (GlyphCache *cache, GlyphInfo *info) {
     cache->sentinel.lru_next = slot;
 
     if (atlas_update_needed) {
+        tmem_new(tm);
+
         Font *font = array_ref(&cache->font_slots, slot->font_slot);
 
         if (FT_Load_Glyph(font->ft_face, slot->glyph_index, FT_LOAD_RENDER | (FT_HAS_COLOR(font->ft_face) ? FT_LOAD_COLOR : 0))) {
@@ -130,7 +132,6 @@ GlyphSlot *glyph_cache_get (GlyphCache *cache, GlyphInfo *info) {
             goto done;
         }
 
-        tmem_new(tm);
         U8 *buf = mem_alloc(tm, U8, .zeroed=true, .size=(cache->atlas_slot_size * cache->atlas_slot_size * 4));
 
         switch (ft_bitmap.pixel_mode) {

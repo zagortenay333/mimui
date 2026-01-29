@@ -17,7 +17,8 @@ Void push_stack_trace (AString *a, U64 indent, U64 caller_frames_to_skip) {
     // We use the libc allocator (CMem) for this array so that
     // __asan_get_alloc_stack can return a stack trace for the
     // allocation at address 'frames.data'.
-    Array(Void*) frames; array_init_cap(&frames, &(Mem){cmem_op}, 32);
+    Array(Void*) frames;
+    array_init_cap(&frames, mem_root, 32);
     frames.count = __asan_get_alloc_stack(frames.data, frames.data, 32 * array_esize(&frames), /*@todo*/0);
 
     tmem_new(tm);

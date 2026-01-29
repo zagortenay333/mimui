@@ -822,7 +822,7 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     map_init(&ui->box_cache, mem);
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->glyph_cache = glyph_cache_new(mem, 64, 16);
+    ui->glyph_cache = glyph_cache_new(mem, 128, 12);
 }
 
 static UiKey ui_build_key (String string) {
@@ -2244,7 +2244,7 @@ static Void build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signal.clicked) {
+            if (ui_button("F oo1")->signal.clicked) {
                 overlay_shown = !overlay_shown;
             }
 

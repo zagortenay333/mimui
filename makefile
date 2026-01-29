@@ -15,7 +15,7 @@ DEBUG_FLAGS   := -g3 -DBUILD_RELEASE=0 -DBUILD_DEBUG=1 -fno-omit-frame-pointer
 CFLAGS        := -std=c23 -fno-delete-null-pointer-checks -fno-strict-aliasing -fwrapv -Werror=vla \
                  -Wall -Wextra -Wimplicit-fallthrough -Wswitch -Wno-unused-function -Wno-unused-value -Wno-unused-parameter -Wno-missing-braces \
 				 -I$(SRC_DIR) -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=600 $(shell pkg-config --cflags glfw3 freetype2)
-LDFLAGS       := -fuse-ld=mold -lm -lGL -lX11 -lpthread -lXrandr -lXi -ldl \
+LDFLAGS       := -lm -lGL -lX11 -lpthread -lXrandr -lXi -ldl \
 				 $(shell pkg-config --static --libs glfw3 assimp freetype2)
 
 ifeq ($(CC), clang)

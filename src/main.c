@@ -58,7 +58,7 @@ Int main (Int argc, CString *argv) {
     tmem_setup(mem_root, 1*MB);
     log_setup(mem_root, 4*KB);
     log_scope(ls, 1);
-
+ 
     // cli_parse(argc, argv);
     ui_test();
 }
