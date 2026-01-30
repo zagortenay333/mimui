@@ -1484,51 +1484,35 @@ static Void find_topmost_hovered_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) ui_pop_clip();
 }
 
-static Void render_text (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
+static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
     tmem_new(tm);
 
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
 
-    ArrayString lines;
-    array_init(&lines, tm);
-    str_split(text, str("\n"), 0, 0, &lines);
+    U32 line_width = 0;
+    SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
-    U32 line_height = ui->glyph_cache->font_size;
-    U32 line_spacing = 2;
-    U32 widest_line = 0;
-    U32 y_offset = 0;
+    array_iter (info, &infos, *) {
+        GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
 
-    array_iter (line, &lines) {
-        tmem_new(tm);
-        SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, line);
+        Vec2 top_left = {x + info->x + slot->bearing_x, y + info->y - slot->bearing_y};
+        Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
-        array_iter (info, &infos, *) {
-            GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
+        draw_rect(
+            .top_left     = top_left,
+            .bottom_right = bottom_right,
+            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
+            .text_color   = color,
+            .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+        );
 
-            Vec2 top_left = {x + info->x + slot->bearing_x, y + y_offset + info->y - slot->bearing_y};
-            Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-
-            draw_rect(
-                .top_left     = top_left,
-                .bottom_right = bottom_right,
-                .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-                .text_color   = color,
-                .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
-            );
-
-            if (ARRAY_ITER_DONE) {
-                U32 line_width = info->x + slot->bearing_x + info->x_advance;
-                widest_line = max(widest_line, line_width);
-            }
-        }
-
-        y_offset += line_height + line_spacing;
+        if (ARRAY_ITER_DONE) line_width = info->x + slot->bearing_x + info->x_advance;
     }
 
     out_rect->x = x;
     out_rect->y = y;
-    out_rect->w = widest_line;
-    out_rect->h = y_offset - line_spacing;
+    out_rect->w = line_width;
+    out_rect->h = ui->glyph_cache->font_size;
 }
 
 static Void render_box (UiBox *box) {
@@ -1627,7 +1611,7 @@ static Void render_box (UiBox *box) {
     if (box->flags & UI_BOX_DRAW_TEXT) {
         F32 x = floor(box->rect.x + box->rect.w/2 - box->text_rect.w/2);
         F32 y = floor(box->rect.y + box->rect.h/2 + box->text_rect.h/2);
-        render_text(box->label, box->style.text_color, x, y, &box->text_rect);
+        render_text_line(box->label, box->style.text_color, x, y, &box->text_rect);
     }
 
     if (box->flags & UI_BOX_CLIPPING) {
