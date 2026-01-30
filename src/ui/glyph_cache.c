@@ -6,25 +6,19 @@
 //   hold a glyph to be rendered so long in the batch that it gets
 //   evicted before being rendered.
 //
-// - The font size is set just once when calling glyph_cache_new().
-//   One solution is to index into the glyph cache using font size
-//   as well. Then we would internally maintain multiple atlases,
-//   one for a certain range of font sizes.
 // =============================================================================
 
 #include "vendor/glad/glad.h"
 #include <freetype/freetype.h>
 #include <freetype/ftmodapi.h>
 #include "vendor/plutosvg/src/plutosvg.h"
-#include "vendor/stb/stb_image_write.h"
-#include "ui/font.h"
+#include "ui/glyph_cache.h"
 #include "base/array.h"
 #include "base/string.h"
 #include "base/log.h"
 #include "base/map.h"
 #include "os/fs.h"
 #include "os/time.h"
-#include "ui/ui.h"
 
 #define LOG_HEADER "Glyph cache"
 
@@ -321,6 +315,7 @@ static SliceScriptRange get_ranges (Mem *mem, String data) {
 
 SliceGlyphInfo get_glyph_infos (GlyphCache *cache, Mem *mem, String data) {
     tmem_new(tm);
+
     Auto ranges = get_ranges(tm, data);
 
     ArrayGlyphInfo infos;
