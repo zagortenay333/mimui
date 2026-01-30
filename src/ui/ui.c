@@ -2244,7 +2244,7 @@ static Void build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("F oo1")->signal.clicked) {
+            if (ui_button("Foo1")->signal.clicked) {
                 overlay_shown = !overlay_shown;
             }
 
