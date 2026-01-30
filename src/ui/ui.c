@@ -2,7 +2,7 @@
 #include <GLFW/glfw3.h>
 #include "vendor/stb/stb_image.h"
 #include "vendor/stb/stb_image_write.h"
-#include "ui/glyph_cache.h"
+#include "ui/glyph.h"
 #include "base/log.h"
 #include "base/math.h"
 #include "base/string.h"

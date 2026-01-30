@@ -12,7 +12,7 @@
 #include <freetype/freetype.h>
 #include <freetype/ftmodapi.h>
 #include "vendor/plutosvg/src/plutosvg.h"
-#include "ui/glyph_cache.h"
+#include "ui/glyph.h"
 #include "base/array.h"
 #include "base/string.h"
 #include "base/log.h"
@@ -20,7 +20,7 @@
 #include "os/fs.h"
 #include "os/time.h"
 
-#define LOG_HEADER "Glyph cache"
+#define LOG_HEADER "Glyph"
 
 istruct (ScriptRange) {
     hb_script_t script;
@@ -211,7 +211,7 @@ GlyphCache *glyph_cache_new (Mem *mem, U16 atlas_size, U32 font_size) {
     if (FT_Init_FreeType(&cache->ft_lib)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't init freetype.");
     array_init(&cache->font_slots, mem);
     array_ensure_count(&cache->font_slots, FONT_COUNT, false);
-    font_init(cache, array_ref(&cache->font_slots, FONT_LATIN), fs_read_entire_file(mem, str("./data/fonts/FiraMono-Medium Powerline.otf"), 0));
+    font_init(cache, array_ref(&cache->font_slots, FONT_LATIN), fs_read_entire_file(mem, str("./data/fonts/FiraMono-Bold Powerline.otf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_ARABIC), fs_read_entire_file(mem, str("./data/fonts/NotoSansArabic-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_JAPANESE), fs_read_entire_file(mem, str("./data/fonts/NotoSansJP-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_EMOJI), fs_read_entire_file(mem, str("./data/fonts/NotoColorEmoji-COLRv1.ttf"), 0));
