@@ -697,6 +697,8 @@ fenum (UiBoxFlags, U8) {
     UI_BOX_DRAW_TEXT     = flag(5),
 };
 
+typedef Void (*UiBoxRenderFn)(UiBox*);
+
 istruct (UiBox) {
     UiBox *parent;
     ArrayUiBox children;
@@ -712,6 +714,7 @@ istruct (UiBox) {
     U64 scratch;
     UiRect rect;
     UiRect text_rect;
+    UiBoxRenderFn render_fn;
 
     // The x/y components of this field are set independently
     // by the user build code for the purpose of scrolling the
@@ -848,6 +851,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
     if (box) {
         if (box->gc_flag == ui->gc_flag) error_fmt("UiBox label hash collision: [%.*s] vs [%.*s].", STR(box->label), STR(label));
         box->parent = 0;
+        box->render_fn = 0;
         box->tags.count = 0;
         box->children.count = 0;
         box->style_rules.count = 0;
@@ -862,6 +866,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->text_rect = (UiRect){};
         box->content = (UiRect){};
         box->scratch = 0;
+        box->render_fn = 0;
         map_add(&ui->box_cache, key, box);
     } else {
         box = mem_new(ui->mem, UiBox);
@@ -1509,13 +1514,20 @@ static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out
         if (ARRAY_ITER_DONE) line_width = info->x + slot->bearing_x + info->x_advance;
     }
 
-    out_rect->x = x;
-    out_rect->y = y;
-    out_rect->w = line_width;
-    out_rect->h = ui->glyph_cache->font_size;
+    if (out_rect) {
+        out_rect->x = x;
+        out_rect->y = y;
+        out_rect->w = line_width;
+        out_rect->h = ui->glyph_cache->font_size;
+    }
 }
 
 static Void render_box (UiBox *box) {
+    if (box->render_fn) {
+        box->render_fn(box);
+        return;
+    }
+
     if (box->style.blur_radius) {
         flush_vertices();
 
@@ -1844,6 +1856,30 @@ static Void ui_scroll_box_pop_ (Void *) {
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
+static Void render_text_box (UiBox *box) {
+    ui_push_clip_box(box);
+
+    String line = str("The quick brown fox jumps over the lazy dog.");
+
+    U32 text_height = ui->glyph_cache->font_size;
+    U32 line_spacing = 2;
+    U32 n_lines = (box->rect.h - 2*box->style.padding.y) / (text_height + line_spacing);
+
+    F32 y = text_height;
+    for (U64 i = 0; i < n_lines; ++i) {
+        render_text_line(line, (Vec4){1,1,1,1}, box->rect.x + box->style.padding.x, box->rect.y + box->style.padding.y + y, 0);
+        y += text_height + line_spacing;
+    }
+
+    ui_pop_clip();
+}
+
+static UiBox *ui_text_box (String text, String label) {
+    UiBox *box = ui_box_str(0, label);
+    box->render_fn = render_text_box;
+    return box;
+}
+
 static UiBox *ui_slider_str (String label, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, label) {
         ui_tag("slider");
@@ -2009,6 +2045,13 @@ static Void ui_grid_cell_pop_ (Void *) { ui_grid_cell_pop(); }
 // Frame:
 // =============================================================================
 static Void build_main_view () {
+    UiBox *box = ui_text_box(str(""), str("asdf"));
+    ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
+    ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
+
+    return;
+
     ui_scroll_box("main_view") {
         ui_tag("vbox");
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
@@ -2133,10 +2176,10 @@ static Bool show_modal () {
                 ui_style_vec2(UI_PADDING, vec2(8, 8));
                 ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .6));
                 ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
-                ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 2);
+                ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
-                ui_style_f32(UI_ANIMATION_TIME, 1);
                 ui_style_f32(UI_BLUR_RADIUS, 2);
+                ui_style_f32(UI_ANIMATION_TIME, 1);
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
 
                 ui_style_rule(".button") {
