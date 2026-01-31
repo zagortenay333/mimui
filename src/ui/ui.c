@@ -90,11 +90,11 @@ Int win_height = 600;
 #define BLUR_SHRINK 4
 U32 blur_shader;
 U32 blur_VBO, blur_VAO;
-Array(struct { Vec2 pos; }) blur_vertices;
 U32 blur_buffer1;
 U32 blur_buffer2;
 U32 blur_tex1;
 U32 blur_tex2;
+Array(struct { Vec2 pos; }) blur_vertices;
 
 ArrayVertex vertices;
 ArrayEvent events;
@@ -793,18 +793,15 @@ static Void compute_signals (UiBox *box) {
         }
     }
 
-    if (! pressed) {
-        sig->hovered = hovered;
-        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
-    } else {
-        sig->hovered = hovered;
+    sig->hovered = hovered;
 
-        if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
-            sig->pressed = false;
-            if (hovered) sig->clicked = true;
-        } else {
-            sig->pressed = true;
-        }
+    if (! pressed) {
+        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
+    } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
+        sig->pressed = false;
+        if (hovered) sig->clicked = true;
+    } else {
+        sig->pressed = true;
     }
 }
 
