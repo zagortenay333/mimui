@@ -924,12 +924,10 @@ static UiRect ui_pop_clip () {
 }
 
 static Void animate_f32 (F32 *current, F32 final, F32 duration) {
-    F32 epsilon = 0.001;
-    if (fabs(*current - final) <= epsilon) {
-        *current = final;
-    } else {
-        *current = *current + (final - *current) * (1 - powf(epsilon, ui->dt/duration));
-    }
+    const F32 epsilon = 0.001f;
+    if (duration <= 0.0f) { *current = final; return; }
+    if (fabsf(*current - final) <= epsilon) { *current = final; return; }
+    *current = lerp_f32(*current, final, 1.0f - powf(epsilon, ui->dt / duration));
 }
 
 static Void animate_vec2 (Vec2 *current, Vec2 final, F32 duration) {
@@ -1049,7 +1047,8 @@ static UiPattern *parse_pattern_and (String chunk, Mem *mem) {
 static UiPattern *parse_pattern (String pattern, Mem *mem) {
     tmem_new(tm);
 
-    ArrayString chunks; array_init(&chunks, tm);
+    ArrayString chunks;
+    array_init(&chunks, tm);
     str_split(pattern, str(" "), false, false, &chunks);
 
     Auto p = pattern_alloc(mem, UI_PATTERN_PATH);
@@ -1162,11 +1161,11 @@ static Void ui_style_box_size (UiBox *box, UiStyleAttribute attr, UiSize val) {
     if (ui->current_style_rule) ui->current_style_rule->mask |= style_attr_to_mask(attr);
 }
 
-static Void ui_style_u32  (UiStyleAttribute attr, U32 val)    { ui_style_box_u32 (array_get_last(&ui->box_stack), attr, val); }
-static Void ui_style_f32  (UiStyleAttribute attr, F32 val)    { ui_style_box_f32 (array_get_last(&ui->box_stack), attr, val); }
+static Void ui_style_u32  (UiStyleAttribute attr, U32 val)    { ui_style_box_u32(array_get_last(&ui->box_stack), attr, val); }
+static Void ui_style_f32  (UiStyleAttribute attr, F32 val)    { ui_style_box_f32(array_get_last(&ui->box_stack), attr, val); }
 static Void ui_style_vec2 (UiStyleAttribute attr, Vec2 val)   { ui_style_box_vec2(array_get_last(&ui->box_stack), attr, val); }
 static Void ui_style_vec4 (UiStyleAttribute attr, Vec4 val)   { ui_style_box_vec4(array_get_last(&ui->box_stack), attr, val); }
-static Void ui_style_size (UiStyleAttribute attr, UiSize val) { ui_style_box_size (array_get_last(&ui->box_stack), attr, val); }
+static Void ui_style_size (UiStyleAttribute attr, UiSize val) { ui_style_box_size(array_get_last(&ui->box_stack), attr, val); }
 
 static Void ui_style_rule_push (UiBox *box, String pattern) {
     if (ui->current_style_rule) error_fmt("Style rule declarations cannot be nested.");
