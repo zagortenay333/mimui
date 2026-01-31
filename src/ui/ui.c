@@ -1843,8 +1843,6 @@ static Void ui_scroll_box_pop_ (Void *) {
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
 static Void render_text_box (UiBox *box) {
-    ui_push_clip_box(box);
-
     String line = str("The quick brown fox jumps over the lazy dog.");
 
     U32 text_height = ui->glyph_cache->font_size;
@@ -1856,8 +1854,6 @@ static Void render_text_box (UiBox *box) {
         render_text_line(line, (Vec4){1,1,1,1}, box->rect.x + box->style.padding.x, box->rect.y + box->style.padding.y + y, 0);
         y += text_height + line_spacing;
     }
-
-    ui_pop_clip();
 }
 
 static UiBox *ui_text_box (String text, String label) {
