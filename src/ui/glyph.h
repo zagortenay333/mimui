@@ -56,7 +56,6 @@ istruct (GlyphCache) {
     U16 atlas_slot_size;
     U32 atlas_texture;
     U32 font_size;
-    U32 dpr; // Device pixel ratio. @todo What the fuck is this for?
     Array(Font) font_slots;
     FT_Library ft_lib;
     GlyphSlot **map;

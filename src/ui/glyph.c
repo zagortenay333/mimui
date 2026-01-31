@@ -1,13 +1,3 @@
-// =============================================================================
-// @todo
-//
-// - We do not signal to the caller that a glyph got evicted from
-//   the atlas. If the caller is batching render calls, they might
-//   hold a glyph to be rendered so long in the batch that it gets
-//   evicted before being rendered.
-//
-// =============================================================================
-
 #include "vendor/glad/glad.h"
 #include <freetype/freetype.h>
 #include <freetype/ftmodapi.h>
@@ -176,23 +166,22 @@ static Void font_init (GlyphCache *cache, Font *font, String font_binary) {
         .memory_size = font_binary.count,
     };
     if (FT_Open_Face(cache->ft_lib, &args, 0, &font->ft_face)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't open freetype face.");
-    FT_Set_Pixel_Sizes(font->ft_face, cache->font_size * cache->dpr, cache->font_size * cache->dpr);
+    FT_Set_Pixel_Sizes(font->ft_face, 0, cache->font_size);
 
     font->hb_face = hb_ft_face_create_referenced(font->ft_face);
     font->hb_font = hb_font_create(font->hb_face);
 
-    I32 hb_font_size = cache->font_size * cache->dpr * 64;
+    I32 hb_font_size = cache->font_size * 64;
     hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
 }
 
 GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size, U32 font_size) {
     Auto cache = mem_new(mem, GlyphCache);
     cache->mem = mem;
-    cache->dpr = 1;
     cache->evict_fn = evict_fn;
     cache->font_size = font_size;
     cache->atlas_size = atlas_size;
-    cache->atlas_slot_size = cache->font_size * cache->dpr * 2;
+    cache->atlas_slot_size = cache->font_size * 2;
     cache->slots = mem_alloc(mem, GlyphSlot, .size=(atlas_size * atlas_size * sizeof(GlyphSlot)));
     cache->map = mem_alloc(mem, GlyphSlot*, .zeroed=true, .size=(atlas_size * sizeof(GlyphSlot*)));
     cache->sentinel.lru_next = &cache->sentinel;
