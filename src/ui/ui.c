@@ -694,7 +694,7 @@ fenum (UiBoxFlags, U8) {
     UI_BOX_INVISIBLE     = flag(2),
     UI_BOX_CLIPPING      = flag(3),
     UI_BOX_CLICK_THROUGH = flag(4),
-    UI_BOX_DRAW_TEXT     = flag(5),
+    UI_DRAW_LABEL        = flag(5),
 };
 
 typedef Void (*UiBoxRenderFn)(UiBox*);
@@ -732,7 +732,6 @@ istruct (Ui) {
     Map(U32, U8) pressed_keys;
     F32 dt;
     UiBox *root;
-    UiBox *active;
     UiBox *hovered;
     UiBox *focused;
     U64 focus_idx;
@@ -777,6 +776,7 @@ static UiRect compute_rect_intersect (UiRect r0, UiRect r1) {
 
 static Void compute_signals (UiBox *box) {
     UiSignal *sig = &box->signal;
+    Bool pressed = sig->pressed;
     *sig = (UiSignal){};
 
     if (! (box->flags & UI_BOX_REACTIVE)) return;
@@ -793,22 +793,16 @@ static Void compute_signals (UiBox *box) {
         }
     }
 
-    if (! ui->active) {
+    if (! pressed) {
         sig->hovered = hovered;
-
-        if (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
-            ui->active = box;
-            sig->pressed = true;
-        }
-    } else if (ui->active == box) {
+        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
+    } else {
         sig->hovered = hovered;
-        sig->pressed = false;
 
         if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
-            ui->active = 0;
+            sig->pressed = false;
             if (hovered) sig->clicked = true;
         } else {
-            sig->hovered = hovered;
             sig->pressed = true;
         }
     }
@@ -877,8 +871,8 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         map_add(&ui->box_cache, key, box);
     }
 
-    box->next_style = default_box_style;
     array_push(&ui->depth_first, box);
+    box->next_style = default_box_style;
     box->label = str_copy(ui->frame_mem, label);
     box->key = key;
     box->gc_flag = ui->gc_flag;
@@ -1618,7 +1612,7 @@ static Void render_box (UiBox *box) {
 
     array_iter (c, &box->children) render_box(c);
 
-    if (box->flags & UI_BOX_DRAW_TEXT) {
+    if (box->flags & UI_DRAW_LABEL) {
         F32 x = floor(box->rect.x + box->rect.w/2 - box->text_rect.w/2);
         F32 y = floor(box->rect.y + box->rect.h/2 + box->text_rect.h/2);
         render_text_line(box->label, box->style.text_color, x, y, &box->text_rect);
@@ -1645,7 +1639,7 @@ static UiBox *ui_vspacer () {
 }
 
 static UiBox *ui_button_str (String label) {
-    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS|UI_BOX_DRAW_TEXT, label) {
+    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS|UI_DRAW_LABEL, label) {
         ui_tag("button");
 
         if (button->signal.hovered) {
@@ -1922,7 +1916,7 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8));
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
-            ui_box(0, "slider_track_fill") {
+            ui_box(UI_BOX_CLICK_THROUGH, "slider_track_fill") {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, *val, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 1, .8));
@@ -2382,7 +2376,6 @@ static Void ui_frame (F32 dt) {
         map_iter (slot, &ui->box_cache) {
             Auto box = slot->val;
             if (box->gc_flag != ui->gc_flag) {
-                if (box == ui->active) ui->active = 0;
                 array_push(&ui->free_boxes, box);
 
                 // @todo This should be officially supported by the map.
