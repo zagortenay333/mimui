@@ -87,7 +87,7 @@ GLFWwindow *window;
 Int win_width  = 800;
 Int win_height = 600;
 
-#define BLUR_SHRINK 5
+#define BLUR_SHRINK 4
 U32 blur_shader;
 U32 blur_VBO, blur_VAO;
 Array(struct { Vec2 pos; }) blur_vertices;
@@ -1538,8 +1538,6 @@ static Void render_box (UiBox *box) {
         glBlitFramebuffer(0, 0, win_width, win_height, 0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         glViewport(0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK);
 
-        glBindVertexArray(blur_VAO);
-
         blur_vertices.count = 0;
         array_push_lit(&blur_vertices, -1.0f,  1.0f);
         array_push_lit(&blur_vertices, -1.0f, -1.0f);
@@ -1548,6 +1546,7 @@ static Void render_box (UiBox *box) {
         array_push_lit(&blur_vertices,  1.0f, -1.0f);
         array_push_lit(&blur_vertices,  1.0f,  1.0f);
 
+        glBindVertexArray(blur_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, blur_VBO);
         ATTR(AElem(&blur_vertices), 0, 2, pos);
         glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
@@ -1570,6 +1569,7 @@ static Void render_box (UiBox *box) {
         }
 
         glViewport(0, 0, win_width, win_height);
+        glBindTexture(GL_TEXTURE_2D, blur_tex1);
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
         UiRect r = box->rect;
@@ -1589,10 +1589,8 @@ static Void render_box (UiBox *box) {
         set_vec4(blur_shader, "radius", box->style.radius);
         set_float(blur_shader, "blur_shrink", BLUR_SHRINK);
 
-        ATTR(AElem(&blur_vertices), 0, 2, pos);
         glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
@@ -2178,7 +2176,7 @@ static Bool show_modal () {
                 ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
-                ui_style_f32(UI_BLUR_RADIUS, 2);
+                ui_style_f32(UI_BLUR_RADIUS, 3);
                 ui_style_f32(UI_ANIMATION_TIME, 1);
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
 
