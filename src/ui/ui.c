@@ -776,6 +776,8 @@ static UiRect compute_rect_intersect (UiRect r0, UiRect r1) {
 
 static Void compute_signals (UiBox *box) {
     UiSignal *sig = &box->signal;
+    Bool pressed = sig->pressed;
+    *sig = (UiSignal){};
 
     if (! (box->flags & UI_BOX_REACTIVE)) return;
 
@@ -791,8 +793,8 @@ static Void compute_signals (UiBox *box) {
         }
     }
 
-    if (! sig->pressed) {
-        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT);
+    if (! pressed) {
+        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
     } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
         sig->pressed = false;
         if (sig->hovered) sig->clicked = true;
