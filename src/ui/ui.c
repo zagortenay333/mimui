@@ -782,22 +782,20 @@ static Void compute_signals (UiBox *box) {
     sig->focused = (box == ui->focused);
     sig->clicked = sig->focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_ENTER);
 
-    Bool hovered = false;
+    sig->hovered = false;
     for (UiBox *b = ui->hovered; b; b = b->parent) {
         if (b == box) {
             UiRect intersection = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
-            hovered = within_box(intersection, ui->mouse);
+            sig->hovered = within_box(intersection, ui->mouse);
             break;
         }
     }
 
-    sig->hovered = hovered;
-
     if (! sig->pressed) {
-        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
+        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT);
     } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
         sig->pressed = false;
-        if (hovered) sig->clicked = true;
+        if (sig->hovered) sig->clicked = true;
     } else {
         sig->pressed = true;
     }
