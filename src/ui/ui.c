@@ -803,6 +803,10 @@ static Void compute_signals (UiBox *box) {
     }
 }
 
+static Void glyph_eviction_fn () {
+    flush_vertices();
+}
+
 static Void ui_init (Mem *mem, Mem *frame_mem) {
     ui = mem_new(mem, Ui);
     ui->mem = mem;
@@ -814,7 +818,7 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     map_init(&ui->box_cache, mem);
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->glyph_cache = glyph_cache_new(mem, 128, 12);
+    ui->glyph_cache = glyph_cache_new(mem, glyph_eviction_fn, 64, 12);
 }
 
 static UiKey ui_build_key (String string) {

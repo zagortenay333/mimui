@@ -81,6 +81,7 @@ GlyphSlot *glyph_cache_get (GlyphCache *cache, GlyphInfo *info) {
 
     // Evict the lru slot.
     if (! slot) {
+        if (cache->evict_fn) cache->evict_fn();
         assert_dbg(cache->sentinel.lru_prev != &cache->sentinel);
         slot = cache->sentinel.lru_prev;
         cache_remove(cache, slot);
@@ -184,10 +185,11 @@ static Void font_init (GlyphCache *cache, Font *font, String font_binary) {
     hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
 }
 
-GlyphCache *glyph_cache_new (Mem *mem, U16 atlas_size, U32 font_size) {
+GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size, U32 font_size) {
     Auto cache = mem_new(mem, GlyphCache);
     cache->mem = mem;
     cache->dpr = 1;
+    cache->evict_fn = evict_fn;
     cache->font_size = font_size;
     cache->atlas_size = atlas_size;
     cache->atlas_slot_size = cache->font_size * cache->dpr * 2;
