@@ -1518,11 +1518,6 @@ static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out
 }
 
 static Void render_box (UiBox *box) {
-    if (box->render_fn) {
-        box->render_fn(box);
-        return;
-    }
-
     if (box->style.blur_radius) {
         flush_vertices();
 
@@ -1604,6 +1599,10 @@ static Void render_box (UiBox *box) {
         .outset_shadow_width = box->style.outset_shadow_width,
         .shadow_offsets      = box->style.shadow_offsets,
     );
+
+    if (box->render_fn) {
+        box->render_fn(box);
+    }
 
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
@@ -1934,8 +1933,6 @@ static Void render_text_box (UiBox *container) {
         
         y += cell_h + line_spacing;
     }
-
-    array_iter (c, &container->children) render_box(c);
 }
 
 static UiBox *ui_text_box (String text, String label) {
