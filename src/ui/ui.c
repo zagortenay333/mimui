@@ -14,6 +14,7 @@ istruct (Ui);
 static Void ui_init (Mem *, Mem *);
 static Void ui_frame (F32 dt);
 Ui *ui;
+String file;
 
 // =============================================================================
 // Glfw and opengl layer:
@@ -462,6 +463,8 @@ Void ui_test () {
     array_init(&events, parena);
     ui_init(cast(Mem*, parena), cast(Mem*, farena));
     update_projection();
+
+    file = fs_read_entire_file(mem_root, str("src/ui/ui.c"), 0);
 
     dt                  = 0;
     frame_count         = 0;
@@ -1689,7 +1692,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         }
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
-            *val -= (15 * ui->event->y);
+            *val -= (25 * ui->event->y);
             *val = clamp(*val, 0, (1-ratio)*rect.h);
             ui->event->tag = EVENT_EATEN;
         }
@@ -1874,24 +1877,108 @@ static Void render_text_box_line (String text, Vec4 color, F32 x, F32 y) {
     }
 }
 
-static Void render_text_box (UiBox *box) {
-    String line = str("The quick brown fox jumps over the lazy dog.");
+static Void render_text_box (UiBox *container) {
+    tmem_new(tm);
 
+    // 1. Setup Metrics
+    // ----------------
     U32 line_spacing = 2;
     U32 cell_h = ui->glyph_cache->font_height;
-    U32 n_lines = (box->rect.h - 2*box->style.padding.y) / (cell_h + line_spacing);
+    // Use container rect for height to handle padding cleanly
+    F32 visible_h = container->rect.h; 
+    
+    // 2. Calculate Total Content Height
+    // ---------------------------------
+    // (In a real scenario, use box->label or a custom prop, here we use the global 'file')
+    ArrayString lines;
+    array_init(&lines, tm);
+    str_split(file, str("\n"), 0, 1, &lines); // Splitting 'file' as per your context
+    
+    F32 total_height = lines.count * (cell_h + line_spacing);
 
-    F32 y = cell_h;
-    for (U64 i = 0; i < n_lines; ++i) {
-        render_text_box_line(line, (Vec4){1,1,1,1}, box->rect.x + box->style.padding.x, box->rect.y + box->style.padding.y + y);
+    // 3. Feedback Loop: Store total height in parent's scratch for next frame's UI logic
+    *(F32*)&container->scratch = total_height;
+
+    // 4. Calculate Scroll Offset
+    // --------------------------
+    // We read the scrollbar 'knob position' stored in content.y by ui_vscroll_bar
+    F32 knob_pos = container->content.y;
+    F32 text_offset_y = 0;
+
+    if (total_height > visible_h && visible_h > 0) {
+        F32 ratio = visible_h / total_height;
+        // The scrollbar track's scrollable area
+        F32 track_scrollable_area = (1.0f - ratio) * visible_h;
+        
+        if (track_scrollable_area > 0) {
+            // Map knob position (0..track_scrollable_area) to text offset
+            F32 scroll_fraction = knob_pos / track_scrollable_area;
+            text_offset_y = scroll_fraction * (total_height - visible_h);
+        }
+    }
+
+    // 5. Render Lines
+    // ---------------
+    // We start rendering from the calculated offset
+    F32 y = container->rect.y + container->style.padding.y + cell_h - text_offset_y;
+    F32 x = container->rect.x + container->style.padding.x;
+
+    array_iter (line, &lines) {
+        // Simple culling: don't draw if below bottom of box
+        if (y - cell_h > container->rect.y + container->rect.h) break;
+        
+        // Don't draw if completely above top (optimization)
+        if (y > container->rect.y - cell_h) {
+            render_text_box_line(line, container->style.text_color, x, y);
+        }
+        
         y += cell_h + line_spacing;
     }
+
+    array_iter (c, &container->children) render_box(c);
 }
 
 static UiBox *ui_text_box (String text, String label) {
-    UiBox *box = ui_box_str(0, label);
-    box->render_fn = render_text_box;
-    return box;
+    // 1. Create a container box
+    // UI_BOX_CLIPPING ensures text doesn't bleed out
+    UiBox *container = ui_box_push_str(UI_BOX_CLIPPING, label);
+    ui_style_box_vec4(container, UI_BG_COLOR, (Vec4){1,0,0,1});
+    ui_style_box_size(container, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    
+    printf("%f %f\n", container->rect.w, container->rect.h);
+
+    // 2. Retrieve State
+    // Get the total text height calculated during the last render frame
+    F32 total_height = *(F32*)&container->scratch;
+    F32 visible_h = container->rect.h;
+
+
+    // 3. Scrollbar Logic
+    // Only show scrollbar if content overflows
+    if (total_height > visible_h && visible_h > 0) {
+        F32 bar_width = 10;
+        F32 ratio = visible_h / total_height;
+
+        // Position scrollbar on the right edge
+        UiRect scroll_rect = {
+            container->rect.w - bar_width, 
+            0, 
+            bar_width, 
+            container->rect.h
+        };
+
+        // We use &container->content.y to persist the scrollbar's "Knob Position"
+        UiBox *s = ui_vscroll_bar(str("scroll_bar_y"), scroll_rect, ratio, &container->content.y);
+    } else {
+        // Reset scroll if content fits
+        container->content.y = 0;
+    }
+
+    container->render_fn = render_text_box;
+    ui_pop_parent();
+
+    return container;
 }
 
 static UiBox *ui_slider_str (String label, F32 *val) {

@@ -216,8 +216,6 @@ GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size,
     font_init(cache, array_ref(&cache->font_slots, FONT_JAPANESE), fs_read_entire_file(mem, str("./data/fonts/NotoSansJP-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_EMOJI), fs_read_entire_file(mem, str("./data/fonts/NotoColorEmoji-COLRv1.ttf"), 0));
 
-    compute_font_width(cache);
-
     Auto hooks = plutosvg_ft_svg_hooks();
     if (FT_Property_Set(cache->ft_lib, "ot-svg", "svg-hooks", hooks)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't set pluto svg hooks.");
 
@@ -228,6 +226,8 @@ GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    compute_font_width(cache);
 
     return cache;
 }
