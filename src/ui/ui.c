@@ -2235,8 +2235,8 @@ static Bool show_modal () {
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
                 ui_style_f32(UI_BLUR_RADIUS, 3);
-                ui_style_f32(UI_ANIMATION_TIME, 1);
-                ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
+                // ui_style_f32(UI_ANIMATION_TIME, 1);
+                ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
 
                 ui_style_rule(".button") {
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_TEXT, 0, 0});
