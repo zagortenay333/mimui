@@ -702,7 +702,10 @@ typedef Void (*UiBoxRenderFn)(UiBox*);
 istruct (UiTextBox) {
     String text;
     ArrayString lines;
+    U64 widest_line;
     F32 v_knob_pos;
+    F32 h_knob_pos;
+    F32 total_width;
     F32 total_height;
 };
 
@@ -834,6 +837,9 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     text_box->text = fs_read_entire_file(mem_root, str("src/ui/ui.c"), 0);
     array_init(&text_box->lines, mem);
     str_split(text_box->text, str("\n"), 0, 1, &text_box->lines);
+    array_iter (line, &text_box->lines) {
+        if (line.count > text_box->widest_line) text_box->widest_line = line.count;
+    }
 }
 
 static UiKey ui_build_key (String string) {
@@ -1858,29 +1864,51 @@ static Void ui_scroll_box_pop_ (Void *) {
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
-static Void render_text_box_line (String text, Vec4 color, F32 x, F32 y) {
+static Void render_text_box_line (UiBox *container, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
-
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
 
-    U32 cell_h = ui->glyph_cache->font_height;
+    Auto info = cast(UiTextBox*, container->scratch);
+
     U32 cell_w = ui->glyph_cache->font_width;
+    F32 visible_w = container->rect.w;
+
+    F32 text_offset_x = 0;
+    if (info->total_width > visible_w && visible_w > 0) {
+        F32 knob_pos        = info->h_knob_pos;
+        F32 knob_width      = visible_w * (visible_w / info->total_width);
+        F32 max_text_scroll = info->total_width - visible_w;
+        F32 max_knob_scroll = visible_w - knob_width;
+
+        if (max_knob_scroll > 0) {
+            F32 scroll_percent = knob_pos / max_knob_scroll;
+            scroll_percent = clamp(scroll_percent, 0, 1);
+            text_offset_x = scroll_percent * max_text_scroll;
+        }
+    }
 
     SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
+    x -= text_offset_x;
+    x = floor(x);
+
     array_iter (info, &infos, *) {
-        GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
+        if (x > container->rect.x + container->rect.w) break;
 
-        Vec2 top_left = {x + slot->bearing_x, y - slot->bearing_y};
-        Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+        if (x + cell_w > container->rect.x) {
+            GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
 
-        draw_rect(
-            .top_left     = top_left,
-            .bottom_right = bottom_right,
-            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-            .text_color   = color,
-            .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
-        );
+            Vec2 top_left = {x + slot->bearing_x, y - slot->bearing_y};
+            Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+
+            draw_rect(
+                .top_left     = top_left,
+                .bottom_right = bottom_right,
+                .texture_rect = {slot->x, slot->y, slot->width, slot->height},
+                .text_color   = color,
+                .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+            );
+        }
 
         x += cell_w;
     }
@@ -1891,8 +1919,10 @@ static Void render_text_box (UiBox *container) {
 
     U32 line_spacing = 2;
     U32 cell_h = ui->glyph_cache->font_height;
+    U32 cell_w = ui->glyph_cache->font_width;
     F32 visible_h = container->rect.h;
 
+    info->total_width  = info->widest_line * cell_w;
     info->total_height = info->lines.count * (cell_h + line_spacing);
 
     F32 text_offset_y = 0;
@@ -1914,23 +1944,30 @@ static Void render_text_box (UiBox *container) {
 
     array_iter (line, &info->lines) {
         if (y - cell_h > container->rect.y + container->rect.h) break;
-        if (y > container->rect.y - cell_h) render_text_box_line(line, container->style.text_color, x, floor(y));
+        if (y > container->rect.y - cell_h) render_text_box_line(container, line, container->style.text_color, x, floor(y));
         y += cell_h + line_spacing;
     }
 }
 
-static UiBox *ui_text_box (String text, String label, UiTextBox *info) {
+static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(UI_BOX_CLIPPING, label) {
-        F32 visible_h = container->rect.h;
-        container->scratch = cast(U64, info);
+        F32 bar_width = 10;
 
+        F32 visible_h = container->rect.h;
         if (info->total_height > visible_h && visible_h > 0) {
-            F32 bar_width = 10;
             F32 ratio = visible_h / info->total_height;
-            UiRect scroll_rect = { container->rect.w - bar_width, 0, bar_width, container->rect.h };
-            ui_vscroll_bar(str("scroll_bar_y"), scroll_rect, ratio, &info->v_knob_pos);
+            UiRect rect = { container->rect.w - bar_width, 0, bar_width, container->rect.h };
+            ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &info->v_knob_pos);
         }
 
+        F32 visible_w = container->rect.w;
+        if (info->total_width > visible_w && visible_w > 0) {
+            F32 ratio = visible_w / info->total_width;
+            UiRect rect = { 0, container->rect.h - bar_width, container->rect.w, bar_width };
+            ui_hscroll_bar(str("scroll_bar_x"), rect, ratio, &info->h_knob_pos);
+        }
+
+        container->scratch   = cast(U64, info);
         container->render_fn = render_text_box;
     }
 
@@ -2102,7 +2139,7 @@ static Void ui_grid_cell_pop_ (Void *) { ui_grid_cell_pop(); }
 // Frame:
 // =============================================================================
 static Void build_main_view () {
-    UiBox *box = ui_text_box(str(""), str("asdf"), text_box);
+    UiBox *box = ui_text_box(str("asdf"), text_box);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
@@ -2235,7 +2272,6 @@ static Bool show_modal () {
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
                 ui_style_f32(UI_BLUR_RADIUS, 3);
-                // ui_style_f32(UI_ANIMATION_TIME, 1);
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
 
                 ui_style_rule(".button") {
