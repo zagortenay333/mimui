@@ -1954,16 +1954,22 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         F32 bar_width = 10;
 
         F32 visible_h = container->rect.h;
-        if (info->total_height > visible_h && visible_h > 0) {
+        F32 visible_w = container->rect.w;
+
+        Bool scroll_y = info->total_height > visible_h && visible_h > 0;
+        Bool scroll_x = info->total_width > visible_w && visible_w > 0;
+
+        if (scroll_y) {
             F32 ratio = visible_h / info->total_height;
             UiRect rect = { container->rect.w - bar_width, 0, bar_width, container->rect.h };
+            if (scroll_x) rect.h -= bar_width;
             ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &info->v_knob_pos);
         }
 
-        F32 visible_w = container->rect.w;
-        if (info->total_width > visible_w && visible_w > 0) {
+        if (scroll_x) {
             F32 ratio = visible_w / info->total_width;
             UiRect rect = { 0, container->rect.h - bar_width, container->rect.w, bar_width };
+            if (scroll_y) rect.w -= bar_width;
             ui_hscroll_bar(str("scroll_bar_x"), rect, ratio, &info->h_knob_pos);
         }
 
