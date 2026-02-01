@@ -13,7 +13,7 @@
 #define LOG_HEADER "Glyph"
 
 istruct (ScriptRange) {
-    hb_script_t script;
+    FontSlot font;
     U64 start;
     U64 end; // Inclusive
 };
@@ -106,6 +106,7 @@ GlyphSlot *glyph_cache_get (GlyphCache *cache, GlyphInfo *info) {
         slot->height = h;
         slot->bearing_x = ft_glyph->bitmap_left;
         slot->bearing_y = ft_glyph->bitmap_top;
+        slot->advance = (I32)(ft_glyph->advance.x >> 6);
         slot->pixel_mode = ft_bitmap.pixel_mode;
 
         if ((w > cache->atlas_slot_size) || (h > cache->atlas_slot_size)) {
@@ -166,22 +167,29 @@ static Void font_init (GlyphCache *cache, Font *font, String font_binary) {
         .memory_size = font_binary.count,
     };
     if (FT_Open_Face(cache->ft_lib, &args, 0, &font->ft_face)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't open freetype face.");
-    FT_Set_Pixel_Sizes(font->ft_face, 0, cache->font_size);
+    FT_Set_Pixel_Sizes(font->ft_face, 0, cache->font_height);
 
     font->hb_face = hb_ft_face_create_referenced(font->ft_face);
     font->hb_font = hb_font_create(font->hb_face);
 
-    I32 hb_font_size = cache->font_size * 64;
+    I32 hb_font_size = cache->font_height * 64;
     hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
 }
 
-GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size, U32 font_size) {
+static Void compute_font_width (GlyphCache *cache) {
+    Font *font = array_ref(&cache->font_slots, 0);
+    U32 glyph_index = FT_Get_Char_Index(font->ft_face, 'M');
+    GlyphSlot *slot = glyph_cache_get(cache, &(GlyphInfo){.glyph_index = glyph_index});
+    cache->font_width = slot->advance;
+}
+
+GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size, U32 font_height) {
     Auto cache = mem_new(mem, GlyphCache);
     cache->mem = mem;
     cache->evict_fn = evict_fn;
-    cache->font_size = font_size;
+    cache->font_height = font_height;
     cache->atlas_size = atlas_size;
-    cache->atlas_slot_size = cache->font_size * 2;
+    cache->atlas_slot_size = cache->font_height * 2;
     cache->slots = mem_alloc(mem, GlyphSlot, .size=(atlas_size * atlas_size * sizeof(GlyphSlot)));
     cache->map = mem_alloc(mem, GlyphSlot*, .zeroed=true, .size=(atlas_size * sizeof(GlyphSlot*)));
     cache->sentinel.lru_next = &cache->sentinel;
@@ -202,10 +210,13 @@ GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size,
     if (FT_Init_FreeType(&cache->ft_lib)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't init freetype.");
     array_init(&cache->font_slots, mem);
     array_ensure_count(&cache->font_slots, FONT_COUNT, false);
+    // font_init(cache, array_ref(&cache->font_slots, FONT_LATIN), fs_read_entire_file(mem, str("./data/fonts/NotoSans-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_LATIN), fs_read_entire_file(mem, str("./data/fonts/FiraMono-Bold Powerline.otf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_ARABIC), fs_read_entire_file(mem, str("./data/fonts/NotoSansArabic-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_JAPANESE), fs_read_entire_file(mem, str("./data/fonts/NotoSansJP-Regular.ttf"), 0));
     font_init(cache, array_ref(&cache->font_slots, FONT_EMOJI), fs_read_entire_file(mem, str("./data/fonts/NotoColorEmoji-COLRv1.ttf"), 0));
+
+    compute_font_width(cache);
 
     Auto hooks = plutosvg_ft_svg_hooks();
     if (FT_Property_Set(cache->ft_lib, "ot-svg", "svg-hooks", hooks)) log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't set pluto svg hooks.");
@@ -230,38 +241,18 @@ Void glyph_cache_destroy (GlyphCache *cache) {
     }
 }
 
-static hb_direction_t script_to_direction (hb_script_t script) {
-    switch (script) {
-    case HB_SCRIPT_ARABIC:
-    case HB_SCRIPT_HEBREW:
-        return HB_DIRECTION_RTL;
-    default:
-        return HB_DIRECTION_LTR;
-    }
-}
-
-static FontSlot script_to_font (hb_script_t script) {
-    switch (script) {
-    case HB_SCRIPT_LATIN:      return FONT_LATIN;
-    case HB_SCRIPT_CYRILLIC:   return FONT_LATIN;
-    case HB_SCRIPT_DEVANAGARI: return FONT_LATIN;
-    case HB_SCRIPT_ARABIC:     return FONT_ARABIC;
-    case HB_SCRIPT_COMMON:     return FONT_EMOJI;
-    case HB_SCRIPT_HIRAGANA:   return FONT_JAPANESE;
-    case HB_SCRIPT_KATAKANA:   return FONT_JAPANESE;
-    default:                   return FONT_NONE;
-    }
-}
-
-static hb_script_t codepoint_to_script (U32 codepoint) {
+static FontSlot codepoint_to_font (U32 codepoint) {
     switch (codepoint) {
-    case 0x0020 ... 0x007F: case 0x00A0 ... 0x00FF: case 0x0100 ... 0x017F: case 0x0180 ... 0x024F: return HB_SCRIPT_LATIN;
-    case 0x0400 ... 0x04FF: return HB_SCRIPT_CYRILLIC;
-    case 0x0900 ... 0x097F: return HB_SCRIPT_DEVANAGARI;
-    case 0x0600 ... 0x06FF: return HB_SCRIPT_ARABIC;
-    case 0x3041 ... 0x3096: return HB_SCRIPT_HIRAGANA;
-    case 0x30A0 ... 0x30FF: return HB_SCRIPT_KATAKANA;
-    default:                return HB_SCRIPT_COMMON;
+    case 0x0020 ... 0x007F:
+    case 0x00A0 ... 0x00FF:
+    case 0x0100 ... 0x017F:
+    case 0x0180 ... 0x024F: return FONT_LATIN; // HB_SCRIPT_LATIN;
+    case 0x0400 ... 0x04FF: return FONT_LATIN; // HB_SCRIPT_CYRILLIC;
+    case 0x0900 ... 0x097F: return FONT_LATIN; // HB_SCRIPT_DEVANAGARI;
+    case 0x0600 ... 0x06FF: return FONT_ARABIC; // HB_SCRIPT_ARABIC;
+    case 0x3041 ... 0x3096: return FONT_JAPANESE; // HB_SCRIPT_HIRAGANA;
+    case 0x30A0 ... 0x30FF: return FONT_JAPANESE; // HB_SCRIPT_KATAKANA;
+    default:                return FONT_EMOJI; // HB_SCRIPT_COMMON;
     }
 }
 
@@ -274,15 +265,15 @@ static SliceScriptRange get_ranges (Mem *mem, String data) {
     U64 byte_index = 0;
 
     str_utf8_iter (c, data) {
-        Auto script = codepoint_to_script(c.decode.codepoint);
+        Auto font = codepoint_to_font(c.decode.codepoint);
 
         if (have_current_range) {
-            if (current_range.script == script) {
+            if (current_range.font == font) {
                 current_range.end = byte_index + c.decode.inc - 1;
             } else {
                 array_push(&ranges, current_range);
                 current_range = (ScriptRange){
-                    .script = script,
+                    .font = font,
                     .start = byte_index,
                     .end = byte_index + c.decode.inc - 1,
                 };
@@ -290,7 +281,7 @@ static SliceScriptRange get_ranges (Mem *mem, String data) {
         } else {
             have_current_range = true;
             current_range = (ScriptRange){
-                .script = script,
+                .font = font,
                 .start = byte_index,
                 .end = byte_index + c.decode.inc - 1,
             };
@@ -319,19 +310,11 @@ SliceGlyphInfo get_glyph_infos (GlyphCache *cache, Mem *mem, String data) {
         Auto buffer = hb_buffer_create();
         if (! hb_buffer_allocation_successful(buffer)) continue;
 
-        hb_buffer_set_direction(buffer, script_to_direction(range->script));
-        hb_buffer_set_script(buffer, range->script);
-
         String slice = str_slice(data, range->start, range->end - range->start + 1);
         hb_buffer_add_utf8(buffer, slice.data, slice.count, 0, slice.count);
+        hb_buffer_guess_segment_properties(buffer);
 
-        Auto font_slot = script_to_font(range->script);
-        if (font_slot == FONT_NONE) {
-            hb_buffer_destroy(buffer);
-            continue;
-        }
-
-        Auto font = array_ref(&cache->font_slots, font_slot);
+        Auto font = array_ref(&cache->font_slots, range->font);
         hb_shape(font->hb_font, buffer, 0, 0);
 
         Slice(hb_glyph_info_t) hb_infos;
@@ -356,7 +339,7 @@ SliceGlyphInfo get_glyph_infos (GlyphCache *cache, Mem *mem, String data) {
                 .y_advance = pos.y_advance >> 6,
                 .glyph_index = info.codepoint, // After shaping harfbuzz sets this field to the glyph index.
                 .codepoint = codepoint.codepoint,
-                .font_slot = font_slot,
+                .font_slot = range->font,
             );
 
             cursor_x += pos.x_advance >> 6;

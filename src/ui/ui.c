@@ -1510,7 +1510,7 @@ static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out
         out_rect->x = x;
         out_rect->y = y;
         out_rect->w = line_width;
-        out_rect->h = ui->glyph_cache->font_size;
+        out_rect->h = ui->glyph_cache->font_height;
     }
 }
 
@@ -1846,17 +1846,45 @@ static Void ui_scroll_box_pop_ (Void *) {
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
+static Void render_text_box_line (String text, Vec4 color, F32 x, F32 y) {
+    tmem_new(tm);
+
+    glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
+
+    U32 cell_h = ui->glyph_cache->font_height;
+    U32 cell_w = ui->glyph_cache->font_width;
+
+    SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
+
+    array_iter (info, &infos, *) {
+        GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
+
+        Vec2 top_left = {x + slot->bearing_x, y - slot->bearing_y};
+        Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+
+        draw_rect(
+            .top_left     = top_left,
+            .bottom_right = bottom_right,
+            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
+            .text_color   = color,
+            .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+        );
+
+        x += cell_w;
+    }
+}
+
 static Void render_text_box (UiBox *box) {
     String line = str("The quick brown fox jumps over the lazy dog.");
 
-    U32 text_height = ui->glyph_cache->font_size;
     U32 line_spacing = 2;
-    U32 n_lines = (box->rect.h - 2*box->style.padding.y) / (text_height + line_spacing);
+    U32 cell_h = ui->glyph_cache->font_height;
+    U32 n_lines = (box->rect.h - 2*box->style.padding.y) / (cell_h + line_spacing);
 
-    F32 y = text_height;
+    F32 y = cell_h;
     for (U64 i = 0; i < n_lines; ++i) {
-        render_text_line(line, (Vec4){1,1,1,1}, box->rect.x + box->style.padding.x, box->rect.y + box->style.padding.y + y, 0);
-        y += text_height + line_spacing;
+        render_text_box_line(line, (Vec4){1,1,1,1}, box->rect.x + box->style.padding.x, box->rect.y + box->style.padding.y + y);
+        y += cell_h + line_spacing;
     }
 }
 

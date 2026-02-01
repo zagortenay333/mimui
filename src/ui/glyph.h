@@ -31,6 +31,7 @@ istruct (GlyphSlot) {
     U32 height;
     I32 bearing_x;
     I32 bearing_y;
+    I32 advance;
     FT_Pixel_Mode pixel_mode;
     FontSlot font_slot;
     U32 glyph_index;
@@ -55,19 +56,21 @@ istruct (GlyphCache) {
     U16 atlas_size;
     U16 atlas_slot_size;
     U32 atlas_texture;
-    U32 font_size;
     Array(Font) font_slots;
     FT_Library ft_lib;
     GlyphSlot **map;
     GlyphSlot *slots;
     GlyphSlot sentinel;
     GlyphEvictionFn evict_fn;
+    U32 font_height;
+    U32 font_width;
 };
 
 array_typedef(Font, Font);
 array_typedef(GlyphInfo, GlyphInfo);
 
-GlyphCache    *glyph_cache_new     (Mem *, GlyphEvictionFn, U16 atlas_size, U32 font_size);
-Void           glyph_cache_destroy (GlyphCache *);
-GlyphSlot     *glyph_cache_get     (GlyphCache *, GlyphInfo *);
-SliceGlyphInfo get_glyph_infos     (GlyphCache *, Mem *, String);
+GlyphCache    *glyph_cache_new      (Mem *, GlyphEvictionFn, U16 atlas_size, U32 font_size);
+Void           glyph_cache_destroy  (GlyphCache *);
+GlyphSlot     *glyph_cache_get      (GlyphCache *, GlyphInfo *);
+SliceGlyphInfo get_glyph_infos      (GlyphCache *, Mem *, String);
+SliceGlyphInfo get_glyph_infos_fast (GlyphCache *, Mem *, String);
