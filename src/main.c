@@ -2,7 +2,6 @@
 #include "base/mem.h"
 #include "base/array.h"
 #include "os/fs.h"
-#include "ui/ui.h"
 #include "os/info.h"
 #include "os/time.h"
 #include "base/log.h"
@@ -60,5 +59,10 @@ Int main (Int argc, CString *argv) {
     log_scope(ls, 1);
  
     // cli_parse(argc, argv);
+
+    Void ui_test();
     ui_test();
+
+    // Void ui_test2();
+    // ui_test2();
 }

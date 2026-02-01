@@ -10,10 +10,10 @@
 #include "base/map.h"
 #include "os/fs.h"
 
-istruct (Ui);
+static Void app_build ();
+static Void app_init (Mem *, Mem *);
 static Void ui_init (Mem *, Mem *);
-static Void ui_frame (F32 dt);
-Ui *ui;
+static Void ui_frame (Void(*)(), F32 dt);
 
 // =============================================================================
 // Glfw and opengl layer:
@@ -460,8 +460,10 @@ Void ui_test () {
 
     array_init(&vertices, parena);
     array_init(&events, parena);
-    ui_init(cast(Mem*, parena), cast(Mem*, farena));
     update_projection();
+
+    ui_init(cast(Mem*, parena), cast(Mem*, farena));
+    app_init(cast(Mem*, parena), cast(Mem*, farena));
 
     dt                  = 0;
     frame_count         = 0;
@@ -493,7 +495,7 @@ Void ui_test () {
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (events.count == 0) array_push_lit(&events, .tag=EVENT_DUMMY);
-        ui_frame(dt);
+        ui_frame(app_build, dt);
         events.count = 0;
         if (vertices.count) flush_vertices();
 
@@ -707,6 +709,8 @@ istruct (UiTextBox) {
     F32 h_knob_pos;
     F32 total_width;
     F32 total_height;
+    U32 scrollbar_width;
+    U32 line_spacing;
 };
 
 istruct (UiBox) {
@@ -754,7 +758,7 @@ istruct (Ui) {
     GlyphCache *glyph_cache;
 };
 
-static Void ui_tag (CString tag);
+Ui *ui;
 
 UiStyle default_box_style = {
     .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 0},
@@ -767,7 +771,7 @@ UiStyle default_box_style = {
     .animation_time = .15,
 };
 
-UiTextBox *text_box; // @todo Get rid of this eventually.
+static Void ui_tag (CString tag);
 
 static Bool is_key_pressed (Int key) {
     U8 val; Bool pressed = map_get(&ui->pressed_keys, key, &val);
@@ -817,29 +821,6 @@ static Void compute_signals (UiBox *box) {
 
 static Void glyph_eviction_fn () {
     flush_vertices();
-}
-
-static Void ui_init (Mem *mem, Mem *frame_mem) {
-    ui = mem_new(mem, Ui);
-    ui->mem = mem;
-    ui->frame_mem = frame_mem;
-    array_init(&ui->free_boxes, ui->mem);
-    array_init(&ui->box_stack, ui->mem);
-    array_init(&ui->clip_stack, ui->mem);
-    array_init(&ui->depth_first, ui->mem);
-    map_init(&ui->box_cache, mem);
-    map_init(&ui->pressed_keys, mem);
-    array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->glyph_cache = glyph_cache_new(mem, glyph_eviction_fn, 64, 12);
-
-    // @todo Get rid of this eventually.
-    text_box = mem_new(mem, UiTextBox);
-    text_box->text = fs_read_entire_file(mem_root, str("src/ui/ui.c"), 0);
-    array_init(&text_box->lines, mem);
-    str_split(text_box->text, str("\n"), 0, 1, &text_box->lines);
-    array_iter (line, &text_box->lines) {
-        if (line.count > text_box->widest_line) text_box->widest_line = line.count;
-    }
 }
 
 static UiKey ui_build_key (String string) {
@@ -1698,7 +1679,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, rect.h, 0});
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        ui_style_vec2(UI_PADDING, vec2(4, 4));
+        // ui_style_vec2(UI_PADDING, vec2(4, 4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
         if (container->signal.pressed) {
@@ -1747,7 +1728,7 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
-        ui_style_vec2(UI_PADDING, vec2(4, 4));
+        // ui_style_vec2(UI_PADDING, vec2(4, 4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
         if (container->signal.pressed) {
@@ -1869,12 +1850,19 @@ static Void render_text_box_line (UiBox *container, String text, Vec4 color, F32
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
 
     Auto info = cast(UiTextBox*, container->scratch);
-
     U32 cell_w = ui->glyph_cache->font_width;
+
+    F32 visible_h = container->rect.h;
     F32 visible_w = container->rect.w;
 
+    Bool scroll_x = info->total_width > visible_w && visible_w > 0;
+    Bool scroll_y = info->total_height > visible_h && visible_h > 0;
+
+    if (scroll_y) visible_w -= info->scrollbar_width;
+    if (scroll_x) visible_h -= info->scrollbar_width;
+
     F32 text_offset_x = 0;
-    if (info->total_width > visible_w && visible_w > 0) {
+    if (scroll_x) {
         F32 knob_pos        = info->h_knob_pos;
         F32 knob_width      = visible_w * (visible_w / info->total_width);
         F32 max_text_scroll = info->total_width - visible_w;
@@ -1889,8 +1877,7 @@ static Void render_text_box_line (UiBox *container, String text, Vec4 color, F32
 
     SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
-    x -= text_offset_x;
-    x = floor(x);
+    x = floor(x - text_offset_x);
 
     array_iter (info, &infos, *) {
         if (x > container->rect.x + container->rect.w) break;
@@ -1917,16 +1904,23 @@ static Void render_text_box_line (UiBox *container, String text, Vec4 color, F32
 static Void render_text_box (UiBox *container) {
     Auto info = cast(UiTextBox*, container->scratch);
 
-    U32 line_spacing = 2;
     U32 cell_h = ui->glyph_cache->font_height;
     U32 cell_w = ui->glyph_cache->font_width;
-    F32 visible_h = container->rect.h;
 
     info->total_width  = info->widest_line * cell_w;
-    info->total_height = info->lines.count * (cell_h + line_spacing);
+    info->total_height = info->lines.count * (cell_h + info->line_spacing);
+
+    F32 visible_h = container->rect.h;
+    F32 visible_w = container->rect.w;
+
+    Bool scroll_x = info->total_width > visible_w && visible_w > 0;
+    Bool scroll_y = info->total_height > visible_h && visible_h > 0;
+
+    if (scroll_y) visible_w -= info->scrollbar_width;
+    if (scroll_x) visible_h -= info->scrollbar_width;
 
     F32 text_offset_y = 0;
-    if (info->total_height > visible_h && visible_h > 0) {
+    if (scroll_y) {
         F32 knob_pos        = info->v_knob_pos;
         F32 knob_height     = visible_h * (visible_h / info->total_height);
         F32 max_text_scroll = info->total_height - visible_h;
@@ -1943,33 +1937,61 @@ static Void render_text_box (UiBox *container) {
     F32 y = container->rect.y + container->style.padding.y + cell_h - text_offset_y;
 
     array_iter (line, &info->lines) {
-        if (y - cell_h > container->rect.y + container->rect.h) break;
-        if (y > container->rect.y - cell_h) render_text_box_line(container, line, container->style.text_color, x, floor(y));
-        y += cell_h + line_spacing;
+        if (y - cell_h > container->rect.y + container->rect.h - info->scrollbar_width) break;
+        if (y + cell_h > container->rect.y) render_text_box_line(container, line, container->style.text_color, x, floor(y));
+        y += cell_h + info->line_spacing;
+    }
+}
+
+Void ui_text_box_scroll_to (UiBox *box, U64 line, U64 column) {
+    UiTextBox *info = cast(UiTextBox*, box->scratch);
+
+    U32 cell_h = ui->glyph_cache->font_height;
+    U32 cell_w = ui->glyph_cache->font_width;
+    F32 visible_h = box->rect.h;
+    F32 visible_w = box->rect.w;
+
+    F32 target_y_offset = cast(F32, line) * (cell_h + info->line_spacing);
+    F32 max_y_offset = max(0.0f, info->total_height - visible_h);
+
+    if (max_y_offset > 0) {
+        target_y_offset = clamp(target_y_offset, 0.0f, max_y_offset);
+
+        // scroll_percent = text_offset_y / max_text_scroll
+        // knob_pos = scroll_percent * max_knob_scroll
+        F32 max_knob_v = visible_h - (visible_h / info->total_height * visible_h);
+        info->v_knob_pos = (target_y_offset / max_y_offset) * max_knob_v;
+    }
+
+    F32 target_x_offset = cast(F32, column) * cell_w;
+    F32 max_x_offset = max(0.0f, info->total_width - visible_w);
+
+    if (max_x_offset > 0) {
+        target_x_offset = clamp(target_x_offset, 0.0f, max_x_offset);
+        F32 max_knob_h = visible_w - (visible_w / info->total_width * visible_w);
+        info->h_knob_pos = (target_x_offset / max_x_offset) * max_knob_h;
     }
 }
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(UI_BOX_CLIPPING, label) {
-        F32 bar_width = 10;
-
         F32 visible_h = container->rect.h;
         F32 visible_w = container->rect.w;
 
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
-        Bool scroll_x = info->total_width > visible_w && visible_w > 0;
+        Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
 
         if (scroll_y) {
             F32 ratio = visible_h / info->total_height;
-            UiRect rect = { container->rect.w - bar_width, 0, bar_width, container->rect.h };
-            if (scroll_x) rect.h -= bar_width;
+            UiRect rect = { container->rect.w - info->scrollbar_width, 0, info->scrollbar_width, container->rect.h };
+            if (scroll_x) rect.h -= info->scrollbar_width;
             ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &info->v_knob_pos);
         }
 
         if (scroll_x) {
             F32 ratio = visible_w / info->total_width;
-            UiRect rect = { 0, container->rect.h - bar_width, container->rect.w, bar_width };
-            if (scroll_y) rect.w -= bar_width;
+            UiRect rect = { 0, container->rect.h - info->scrollbar_width, container->rect.w, info->scrollbar_width };
+            if (scroll_y) rect.w -= info->scrollbar_width;
             ui_hscroll_bar(str("scroll_bar_x"), rect, ratio, &info->h_knob_pos);
         }
 
@@ -2144,11 +2166,136 @@ static Void ui_grid_cell_pop_ (Void *) { ui_grid_cell_pop(); }
 // =============================================================================
 // Frame:
 // =============================================================================
+static Void update_input_state (Event *event) {
+    ui->event = event;
+
+    switch (event->tag) {
+    case EVENT_DUMMY:       break;
+    case EVENT_EATEN:       break;
+    case EVENT_SCROLL:      break;
+    case EVENT_WINDOW_SIZE: break;
+    case EVENT_KEY_PRESS:   map_add(&ui->pressed_keys, event->key, 0); break;
+    case EVENT_KEY_RELEASE: map_remove(&ui->pressed_keys, event->key); break;
+    case EVENT_MOUSE_MOVE:
+        ui->mouse_dt.x = event->x - ui->mouse.x;
+        ui->mouse_dt.y = event->y - ui->mouse.y;
+        ui->mouse.x = event->x;
+        ui->mouse.y = event->y;
+        break;
+    }
+}
+
+static Void find_next_focus () {
+    U64 start = ui->focus_idx;
+    while (true) {
+        ui->focus_idx = (ui->focus_idx + 1) % ui->depth_first.count;
+        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
+        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
+        if (ui->focus_idx == start) break;
+    }
+}
+
+static Void find_prev_focus () {
+    U64 start = ui->focus_idx;
+    while (true) {
+        ui->focus_idx = (ui->focus_idx - 1);
+        if (ui->focus_idx == UINT64_MAX) ui->focus_idx = ui->depth_first.count - 1;
+        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
+        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
+        if (ui->focus_idx == start) break;
+    }
+}
+
+static Void ui_frame (Void(*app_build)(), F32 dt) {
+    ui->dt = dt;
+
+    array_iter (event, &events, *) {
+        update_input_state(event);
+
+        UiRect *root_clip = array_ref_last(&ui->clip_stack);
+        root_clip->w = win_width;
+        root_clip->h = win_height;
+
+        if (ui->depth_first.count) {
+            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == GLFW_KEY_TAB)) {
+                if (event->mods == GLFW_MOD_SHIFT) find_prev_focus();
+                else                               find_next_focus();
+            }
+        }
+
+        ui->depth_first.count = 0;
+
+        ui->root = ui_box(0, "root") {
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, win_width, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, win_height, 0});
+            ui_style_vec2(UI_PADDING, vec2(0, 0));
+            ui_style_f32(UI_SPACING, 0);
+            ui->root->rect.w = win_width;
+            ui->root->rect.h = win_height;
+
+            app_build();
+        }
+
+        // Remove unused boxes from the cache.
+        map_iter (slot, &ui->box_cache) {
+            Auto box = slot->val;
+            if (box->gc_flag != ui->gc_flag) {
+                array_push(&ui->free_boxes, box);
+
+                // @todo This should be officially supported by the map.
+                slot->hash = MAP_HASH_OF_TOMB_ENTRY;
+                ui->box_cache.umap.count--;
+                ui->box_cache.umap.tomb_count++;
+                MAP_IDX--;
+            }
+        }
+
+        ui->gc_flag = !ui->gc_flag;
+    }
+
+    apply_style_rules();
+    compute_layout();
+    find_topmost_hovered_box(ui->root);
+    render_box(ui->root);
+}
+
+static Void ui_init (Mem *mem, Mem *frame_mem) {
+    ui = mem_new(mem, Ui);
+    ui->mem = mem;
+    ui->frame_mem = frame_mem;
+    array_init(&ui->free_boxes, ui->mem);
+    array_init(&ui->box_stack, ui->mem);
+    array_init(&ui->clip_stack, ui->mem);
+    array_init(&ui->depth_first, ui->mem);
+    map_init(&ui->box_cache, mem);
+    map_init(&ui->pressed_keys, mem);
+    array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
+    ui->glyph_cache = glyph_cache_new(mem, glyph_eviction_fn, 64, 12);
+}
+
+// =============================================================================
+// App layer:
+// =============================================================================
+istruct (App) {
+    Mem *parena;
+    Mem *farena;
+
+    UiTextBox *text_box;
+    UiBox *text_box_widget;
+
+    Bool overlay_shown;
+    Bool show_main_view;
+
+    Vec2 modal_pos;
+};
+
+App *app;
+
 static Void build_main_view () {
-    UiBox *box = ui_text_box(str("asdf"), text_box);
-    ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
-    ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-    ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
+    app->text_box_widget = ui_text_box(str("asdf"), app->text_box);
+    ui_style_box_size(app->text_box_widget, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
+    ui_style_box_size(app->text_box_widget, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_vec2(app->text_box_widget, UI_PADDING, (Vec2){8, 8});
     return;
 
     ui_scroll_box("main_view") {
@@ -2257,17 +2404,14 @@ static Bool show_modal () {
             if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_ESCAPE)) return false;
             if (overlay->signal.clicked) return false;
 
-            static F32 x = 1;
-            static F32 y = 1;
-
             UiBox *modal = ui_box(UI_BOX_REACTIVE, "modal") {
                 if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
-                    x += ui->mouse_dt.x;
-                    y += ui->mouse_dt.y;
+                    app->modal_pos.x += ui->mouse_dt.x;
+                    app->modal_pos.y += ui->mouse_dt.y;
                 }
 
-                ui_style_f32(UI_FLOAT_X, x);
-                ui_style_f32(UI_FLOAT_Y,  y);
+                ui_style_f32(UI_FLOAT_X, app->modal_pos.x);
+                ui_style_f32(UI_FLOAT_Y, app->modal_pos.y);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 400, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .6));
@@ -2293,7 +2437,7 @@ static Bool show_modal () {
     return true;
 }
 
-static Void build () {
+static Void app_build () {
     ui_style_rule(".button") {
         ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
         ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, .6, .8f)));
@@ -2360,9 +2504,6 @@ static Void build () {
         ui_style_f32(UI_SPACING, 0);
         ui_style_vec2(UI_PADDING, vec2(0, 0));
 
-        static Bool show_main_view = true;
-        static Bool overlay_shown = false;
-
         ui_box(0, "box1") {
             ui_tag("vbox");
             ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 0, 0, 0));
@@ -2370,11 +2511,11 @@ static Void build () {
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
             if (ui_button("Foo1")->signal.clicked) {
-                overlay_shown = !overlay_shown;
+                app->overlay_shown = !app->overlay_shown;
             }
 
-            if (overlay_shown) {
-                overlay_shown = show_modal();
+            if (app->overlay_shown) {
+                app->overlay_shown = show_modal();
             }
 
             ui_style_rule("#Foo2") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0}); }
@@ -2383,10 +2524,10 @@ static Void build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
 
-            if (foo2->signal.clicked) show_main_view = true;
-            if (foo3->signal.clicked) show_main_view = false;
+            if (foo2->signal.clicked) app->show_main_view = true;
+            if (foo3->signal.clicked) app->show_main_view = false;
 
-            if (show_main_view) {
+            if (app->show_main_view) {
                 ui_tag_box(foo2, "press");
             } else {
                 ui_tag_box(foo3, "press");
@@ -2396,11 +2537,16 @@ static Void build () {
 
             ui_box(UI_BOX_INVISIBLE, "bottom_sidebar_button") {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
-                ui_button("bar");
+
+                if (ui_button("bar")->signal.clicked) {
+                    if (app->text_box_widget) {
+                        ui_text_box_scroll_to(app->text_box_widget, 40, 0);
+                    }
+                }
             }
         }
 
-        if (show_main_view) {
+        if (app->show_main_view) {
             build_main_view();
         } else {
             build_second_view();
@@ -2408,95 +2554,18 @@ static Void build () {
     }
 }
 
-static Void update_input_state (Event *event) {
-    ui->event = event;
+static Void app_init (Mem *parena, Mem *farena) {
+    app = mem_new(parena, App);
+    app->parena = parena;
+    app->farena = farena;
 
-    switch (event->tag) {
-    case EVENT_DUMMY:       break;
-    case EVENT_EATEN:       break;
-    case EVENT_SCROLL:      break;
-    case EVENT_WINDOW_SIZE: break;
-    case EVENT_KEY_PRESS:   map_add(&ui->pressed_keys, event->key, 0); break;
-    case EVENT_KEY_RELEASE: map_remove(&ui->pressed_keys, event->key); break;
-    case EVENT_MOUSE_MOVE:
-        ui->mouse_dt.x = event->x - ui->mouse.x;
-        ui->mouse_dt.y = event->y - ui->mouse.y;
-        ui->mouse.x = event->x;
-        ui->mouse.y = event->y;
-        break;
-    }
-}
+    app->show_main_view = true;
 
-static Void find_next_focus () {
-    U64 start = ui->focus_idx;
-    while (true) {
-        ui->focus_idx = (ui->focus_idx + 1) % ui->depth_first.count;
-        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
-        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
-        if (ui->focus_idx == start) break;
-    }
-}
-
-static Void find_prev_focus () {
-    U64 start = ui->focus_idx;
-    while (true) {
-        ui->focus_idx = (ui->focus_idx - 1);
-        if (ui->focus_idx == UINT64_MAX) ui->focus_idx = ui->depth_first.count - 1;
-        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
-        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
-        if (ui->focus_idx == start) break;
-    }
-}
-
-static Void ui_frame (F32 dt) {
-    ui->dt = dt;
-
-    array_iter (event, &events, *) {
-        update_input_state(event);
-
-        UiRect *root_clip = array_ref_last(&ui->clip_stack);
-        root_clip->w = win_width;
-        root_clip->h = win_height;
-
-        if (ui->depth_first.count) {
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == GLFW_KEY_TAB)) {
-                if (event->mods == GLFW_MOD_SHIFT) find_prev_focus();
-                else                               find_next_focus();
-            }
-        }
-
-        ui->depth_first.count = 0;
-
-        ui->root = ui_box(0, "root") {
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, win_width, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, win_height, 0});
-            ui_style_vec2(UI_PADDING, vec2(0, 0));
-            ui_style_f32(UI_SPACING, 0);
-            ui->root->rect.w = win_width;
-            ui->root->rect.h = win_height;
-
-            build();
-        }
-
-        // Remove unused boxes from the cache.
-        map_iter (slot, &ui->box_cache) {
-            Auto box = slot->val;
-            if (box->gc_flag != ui->gc_flag) {
-                array_push(&ui->free_boxes, box);
-
-                // @todo This should be officially supported by the map.
-                slot->hash = MAP_HASH_OF_TOMB_ENTRY;
-                ui->box_cache.umap.count--;
-                ui->box_cache.umap.tomb_count++;
-                MAP_IDX--;
-            }
-        }
-
-        ui->gc_flag = !ui->gc_flag;
-    }
-
-    apply_style_rules();
-    compute_layout();
-    find_topmost_hovered_box(ui->root);
-    render_box(ui->root);
+    app->text_box = mem_new(parena, UiTextBox);
+    app->text_box->text = fs_read_entire_file(mem_root, str("src/ui/ui.c"), 0);
+    app->text_box->scrollbar_width = 10;
+    app->text_box->line_spacing = 2;
+    array_init(&app->text_box->lines, parena);
+    str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
+    array_iter (line, &app->text_box->lines) if (line.count > app->text_box->widest_line) app->text_box->widest_line = line.count;
 }
