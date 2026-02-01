@@ -1897,7 +1897,7 @@ static Void render_text_box (UiBox *container) {
 
     F32 text_offset_y = 0;
     if (info->total_height > visible_h && visible_h > 0) {
-        F32 knob_pos        = container->content.y;
+        F32 knob_pos        = info->v_knob_pos;
         F32 knob_height     = visible_h * (visible_h / info->total_height);
         F32 max_text_scroll = info->total_height - visible_h;
         F32 max_knob_scroll = visible_h - knob_height;
@@ -1928,7 +1928,7 @@ static UiBox *ui_text_box (String text, String label, UiTextBox *info) {
             F32 bar_width = 10;
             F32 ratio = visible_h / info->total_height;
             UiRect scroll_rect = { container->rect.w - bar_width, 0, bar_width, container->rect.h };
-            ui_vscroll_bar(str("scroll_bar_y"), scroll_rect, ratio, &container->content.y);
+            ui_vscroll_bar(str("scroll_bar_y"), scroll_rect, ratio, &info->v_knob_pos);
         }
 
         container->render_fn = render_text_box;
