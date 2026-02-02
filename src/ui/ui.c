@@ -1696,6 +1696,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
             *val = clamp(*val, 0, (1-ratio)*rect.h);
             ui->event->tag = EVENT_EATEN;
         }
+
         ui_box(UI_BOX_CLICK_THROUGH|UI_BOX_INVISIBLE, "scroll_bar_spacer") {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, *val, 0});
         }
@@ -1727,6 +1728,11 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
+        ui_style_rule(".hover #scroll_bar_knob") { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
+        ui_style_rule(".press #scroll_bar_knob") { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
+        ui_style_rule("#scroll_bar_knob.hover")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
+        ui_style_rule("#scroll_bar_knob.press")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
+
         F32 knob_size = rect.w * ratio;
 
         if (container->signal.pressed) {
@@ -1739,11 +1745,6 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
             *val = clamp(*val, 0, (1-ratio)*rect.w);
             ui->event->tag = EVENT_EATEN;
         }
-
-        ui_style_rule(".hover #scroll_bar_knob") { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
-        ui_style_rule(".press #scroll_bar_knob") { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
-        ui_style_rule("#scroll_bar_knob.hover")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
-        ui_style_rule("#scroll_bar_knob.press")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
 
         ui_box(UI_BOX_CLICK_THROUGH|UI_BOX_INVISIBLE, "scroll_bar_spacer") {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, *val, 0});
