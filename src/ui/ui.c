@@ -1684,7 +1684,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         ui_style_rule("#scroll_bar_knob.hover")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
         ui_style_rule("#scroll_bar_knob.press")  { ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8)); }
 
-        F32 knob_size = rect.h * ratio;
+        F32 knob_size = round(rect.h * ratio);
 
         if (container->signal.pressed) {
             *val = ui->mouse.y - container->rect.y - knob_size/2;
@@ -1693,7 +1693,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
-            *val = clamp(*val, 0, (1-ratio)*rect.h);
+            *val = clamp(*val, 0, rect.h - knob_size);
             ui->event->tag = EVENT_EATEN;
         }
 
@@ -1712,7 +1712,6 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
                 *val = clamp(*val, 0, rect.h - knob_size);
             }
         }
-
     }
 
     return container;
@@ -1742,7 +1741,7 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
-            *val = clamp(*val, 0, (1-ratio)*rect.w);
+            *val = clamp(*val, 0, rect.w - knob_size);
             ui->event->tag = EVENT_EATEN;
         }
 
@@ -1866,9 +1865,7 @@ static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F3
 
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
-
     U32 cell_w = ui->glyph_cache->font_width;
-
     SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
     x = floor(x - info->scroll_x);
@@ -1878,10 +1875,8 @@ static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F3
 
         if (x + cell_w > box->rect.x) {
             GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
-
             Vec2 top_left = {x + slot->bearing_x, y - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-
             draw_rect(
                 .top_left     = top_left,
                 .bottom_right = bottom_right,
@@ -1932,11 +1927,11 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
                 if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
                     info->scroll_y -= (cell_h + info->line_spacing) * ui->event->y;
-                    info->scroll_y  = clamp(info->scroll_y, 0, info->total_height - visible_h);
+                    info->scroll_y  = clamp(info->scroll_y, 0, info->total_height - visible_h + container->style.padding.y);
                     ui->event->tag  = EVENT_EATEN;
                 } else if (scroll_x) {
                     info->scroll_x -= cell_w * ui->event->y;
-                    info->scroll_x  = clamp(info->scroll_x, 0, info->total_width - visible_w);
+                    info->scroll_x  = clamp(info->scroll_x, 0, info->total_width - visible_w + container->style.padding.x);
                     ui->event->tag  = EVENT_EATEN;
                 }
             }
@@ -1948,10 +1943,10 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             F32 ratio = visible_h / info->total_height;
             UiRect rect = { container->rect.w - info->scrollbar_width, 0, info->scrollbar_width, container->rect.h };
             if (scroll_x) rect.h -= info->scrollbar_width;
+
             F32 max_y_offset = max(0.0f, info->total_height - visible_h);
-            F32 bar_height   = container->rect.h - (scroll_x ? info->scrollbar_width : 0);
-            F32 knob_height  = bar_height * (bar_height / info->total_height);
-            F32 max_knob_v   = bar_height - knob_height;
+            F32 knob_height  = visible_h * (visible_h / info->total_height);
+            F32 max_knob_v   = rect.h - knob_height;
             F32 before       = (info->scroll_y / max_y_offset) * max_knob_v;
             F32 after        = before;
 
@@ -1963,10 +1958,10 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             F32 ratio = visible_w / info->total_width;
             UiRect rect = { 0, container->rect.h - info->scrollbar_width, container->rect.w, info->scrollbar_width };
             if (scroll_y) rect.w -= info->scrollbar_width;
+
             F32 max_x_offset = max(0.0f, info->total_width - visible_w);
-            F32 bar_width    = container->rect.w - (scroll_y ? info->scrollbar_width : 0);
-            F32 knob_width   = bar_width * (bar_width / info->total_width);
-            F32 max_knob_h   = bar_width - knob_width;
+            F32 knob_width   = visible_w * (visible_w / info->total_width);
+            F32 max_knob_h   = rect.w - knob_width;
             F32 before       = (info->scroll_x / max_x_offset) * max_knob_h;
             F32 after        = before;
 
