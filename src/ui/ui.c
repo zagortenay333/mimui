@@ -1671,20 +1671,19 @@ static UiBox *ui_button (CString label) {
 
 static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
-        F32 padding = container->style.padding.x;
-
-        ui_style_f32(UI_FLOAT_X, rect.x - 2*padding);
+        ui_style_f32(UI_FLOAT_X, rect.x - 2*container->style.padding.x);
         ui_style_f32(UI_FLOAT_Y, rect.y);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, rect.h, 0});
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        // ui_style_vec2(UI_PADDING, vec2(4, 4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
+        F32 knob_size = rect.h * ratio;
+
         if (container->signal.pressed) {
-            *val = ui->mouse.y - container->rect.y - ratio*rect.h/2;
-            *val = clamp(*val, 0, (1-ratio)*rect.h);
+            *val = ui->mouse.y - container->rect.y - knob_size/2;
+            *val = clamp(*val, 0, rect.h - knob_size);
         }
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
@@ -1704,13 +1703,13 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         UiBox *knob = ui_box(UI_BOX_REACTIVE, "scroll_bar_knob") {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, rect.w, 1});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, ratio*rect.h, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
             ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .4));
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
             if (knob->signal.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
                 *val += ui->mouse_dt.y;
-                *val = clamp(*val, 0, (1-ratio)*rect.h);
+                *val = clamp(*val, 0, rect.h - knob_size);
             }
         }
     }
@@ -1720,20 +1719,19 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
 static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
-        F32 padding = container->style.padding.y;
-
         ui_style_f32(UI_FLOAT_X, rect.x);
-        ui_style_f32(UI_FLOAT_Y, rect.y - 2*padding);
+        ui_style_f32(UI_FLOAT_Y, rect.y - 2*container->style.padding.y);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, rect.w, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
-        // ui_style_vec2(UI_PADDING, vec2(4, 4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
+        F32 knob_size = rect.w * ratio;
+
         if (container->signal.pressed) {
-            *val = ui->mouse.x - container->rect.x - ratio*rect.w/2;
-            *val = clamp(*val, 0, (1-ratio)*rect.w);
+            *val = ui->mouse.x - container->rect.x - knob_size/2;
+            *val = clamp(*val, 0, rect.w - knob_size);
         }
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
@@ -1753,13 +1751,13 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         UiBox *knob = ui_box(UI_BOX_REACTIVE, "scroll_bar_knob") {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, rect.h, 1});
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, ratio*rect.w, 1});
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
             ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .4));
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
             if (knob->signal.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
                 *val += ui->mouse_dt.x;
-                *val = clamp(*val, 0, (1-ratio)*rect.w);
+                *val = clamp(*val, 0, rect.w - knob_size);
             }
         }
     }
@@ -1990,6 +1988,9 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
 
+        U32 cell_h = ui->glyph_cache->font_height;
+        U32 cell_w = ui->glyph_cache->font_width;
+
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
 
@@ -1997,13 +1998,13 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
                 F32 knob_height = visible_h * (visible_h / info->total_height);
                 F32 max_knob_scroll = visible_h - knob_height + 2*container->style.padding.y;
-                info->v_knob_pos -= 25 * ui->event->y;
+                info->v_knob_pos -= (cell_h / info->total_height) * max_knob_scroll * ui->event->y;
                 info->v_knob_pos = clamp(info->v_knob_pos, 0, max_knob_scroll);
                 ui->event->tag = EVENT_EATEN;
             } else if (scroll_x) {
                 F32 knob_width = visible_w * (visible_w / info->total_width);
-                F32 max_knob_scroll = visible_w - knob_width + 2*container->style.padding.x;
-                info->h_knob_pos -= 25 * ui->event->y;
+                F32 max_knob_scroll = visible_w - knob_width;
+                info->h_knob_pos -= (cell_w / info->total_width) * max_knob_scroll * ui->event->y;
                 info->h_knob_pos = clamp(info->h_knob_pos, 0, max_knob_scroll);
                 ui->event->tag = EVENT_EATEN;
             }
@@ -2590,7 +2591,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->show_main_view = true;
 
     app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->text = fs_read_entire_file(mem_root, str("src/ui/ui.c"), 0);
+    app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     array_init(&app->text_box->lines, parena);
