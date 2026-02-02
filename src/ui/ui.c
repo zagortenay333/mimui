@@ -1949,6 +1949,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             F32 max_knob_v   = rect.h - knob_height;
             F32 before       = (info->scroll_y / max_y_offset) * max_knob_v;
             F32 after        = before;
+            printf("-- %f\n", container->style.padding.y);
 
             ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &after);
             if (before != after) info->scroll_y = clamp(after / max_knob_v, 0, 1) * max_y_offset;
