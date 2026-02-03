@@ -1932,7 +1932,7 @@ static Void render_text_box (UiBox *box) {
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
-        ui_style_f32(UI_ANIMATION_TIME, 1);
+        ui_style_f32(UI_ANIMATION_TIME, 10);
 
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
