@@ -705,8 +705,9 @@ istruct (UiTextBox) {
     String text;
     ArrayString lines;
     U64 widest_line;
-    F32 scroll_x;
-    F32 scroll_y;
+    Vec2 cursor_pos;
+    Vec2 scroll_pos_i;
+    Vec2 scroll_pos;
     F32 total_width;
     F32 total_height;
     U32 scrollbar_width;
@@ -1846,18 +1847,18 @@ static Void ui_scroll_box_pop_ (Void *) {
 Void ui_text_box_scroll_to (UiBox *container, U64 line, U64 column, UiAlign valign) {
     UiTextBox *info = cast(UiTextBox*, container->scratch);
 
-    U32 cell_h = ui->glyph_cache->font_height;
     U32 cell_w = ui->glyph_cache->font_width;
+    U32 cell_h = ui->glyph_cache->font_height;
 
-    info->scroll_y = cast(F32, line) * (cell_h + info->line_spacing);
-    info->scroll_x = cast(F32, column) * cell_w;
+    info->scroll_pos_i.x = cast(F32, column) * cell_w;
+    info->scroll_pos_i.y = cast(F32, line) * (cell_h + info->line_spacing);
 
     F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
     if (valign == UI_ALIGN_MIDDLE) {
-        info->scroll_y -= round(visible_h / 2);
+        info->scroll_pos_i.y -= round(visible_h / 2);
     } else if (valign == UI_ALIGN_END) {
-        info->scroll_y -= visible_h - cell_h - info->line_spacing;
+        info->scroll_pos_i.y -= visible_h - cell_h - info->line_spacing;
     }
 }
 
@@ -1870,7 +1871,7 @@ static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F3
     U32 cell_w = ui->glyph_cache->font_width;
     SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
-    x = floor(x - info->scroll_x);
+    x = floor(x - info->scroll_pos.x);
 
     // Use this for rendering a line backgound:
     //
@@ -1914,16 +1915,25 @@ static Void render_text_box (UiBox *box) {
     info->total_width  = info->widest_line * cell_w;
     info->total_height = info->lines.count * (cell_h + info->line_spacing);
 
-    F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_y;
+    F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_pos.y;
     array_iter (line, &info->lines) {
         if (y - cell_h > box->rect.y + box->rect.h) break;
         if (y + cell_h > box->rect.y) render_text_box_line(box, line, container->style.text_color, box->rect.x, floor(y));
         y += cell_h + info->line_spacing;
     }
+
+    // draw_rect(
+    //     .color = {1,0,0,1},
+    //     .color2 = {1,0,0,1},
+    //     .top_left = {box->rect.x, box->rect.y},
+    //     .bottom_right = { box->rect.x + 2, box->rect.y + cell_h },
+    // );
 }
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
+        ui_style_f32(UI_ANIMATION_TIME, 1);
+
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
@@ -1933,20 +1943,20 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
 
-        UiBox *text_box = ui_box(UI_BOX_REACTIVE|UI_BOX_CLIPPING, "text") {
+        UiBox *text_box = ui_box(UI_BOX_CAN_FOCUS|UI_BOX_REACTIVE|UI_BOX_CLIPPING, "text") {
             ui_style_u32(UI_ANIMATION, UI_MASK_HEIGHT|UI_MASK_WIDTH);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, container->rect.w - container->style.padding.x - (scroll_y ? info->scrollbar_width : 0), 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? info->scrollbar_width : 0), 1});
 
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
                 if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
-                    info->scroll_y -= (cell_h + info->line_spacing) * ui->event->y;
-                    info->scroll_y  = clamp(info->scroll_y, 0, info->total_height - visible_h);
-                    ui->event->tag  = EVENT_EATEN;
+                    info->scroll_pos_i.y -= (cell_h + info->line_spacing) * ui->event->y;
+                    info->scroll_pos_i.y  = clamp(info->scroll_pos_i.y, 0, info->total_height - visible_h);
+                    ui->event->tag        = EVENT_EATEN;
                 } else if (scroll_x) {
-                    info->scroll_x -= cell_w * ui->event->y;
-                    info->scroll_x  = clamp(info->scroll_x, 0, info->total_width - visible_w);
-                    ui->event->tag  = EVENT_EATEN;
+                    info->scroll_pos_i.x -= cell_w * ui->event->y;
+                    info->scroll_pos_i.x  = clamp(info->scroll_pos_i.x, 0, info->total_width - visible_w);
+                    ui->event->tag        = EVENT_EATEN;
                 }
             }
 
@@ -1961,11 +1971,11 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             F32 max_y_offset = max(0.0f, info->total_height - visible_h);
             F32 knob_height  = rect.h * (visible_h / info->total_height);
             F32 max_knob_v   = rect.h - knob_height;
-            F32 before       = (info->scroll_y / max_y_offset) * max_knob_v;
+            F32 before       = (info->scroll_pos.y / max_y_offset) * max_knob_v;
             F32 after        = before;
 
             ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &after);
-            if (before != after) info->scroll_y = clamp(after / max_knob_v, 0, 1) * max_y_offset;
+            if (before != after) info->scroll_pos.y = info->scroll_pos_i.y = clamp(after / max_knob_v, 0, 1) * max_y_offset;
         }
 
         if (scroll_x) {
@@ -1976,13 +1986,14 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             F32 max_x_offset = max(0.0f, info->total_width - visible_w);
             F32 knob_width   = rect.w * (visible_w / info->total_width);
             F32 max_knob_h   = rect.w - knob_width;
-            F32 before       = (info->scroll_x / max_x_offset) * max_knob_h;
+            F32 before       = (info->scroll_pos.x / max_x_offset) * max_knob_h;
             F32 after        = before;
 
             ui_hscroll_bar(str("scroll_bar_x"), rect, ratio, &after);
-            if (before != after) info->scroll_x = clamp(after / max_knob_h, 0, 1) * max_x_offset;
+            if (before != after) info->scroll_pos.x = info->scroll_pos_i.x = clamp(after / max_knob_h, 0, 1) * max_x_offset;
         }
 
+        animate_vec2(&info->scroll_pos, info->scroll_pos_i, container->style.animation_time);
         container->scratch = cast(U64, info);
     }
 
@@ -2528,7 +2539,7 @@ static Void app_build () {
 
                 if (ui_button("bar")->signal.clicked) {
                     if (app->text_box_widget) {
-                        ui_text_box_scroll_to(app->text_box_widget, app->o, 0, UI_ALIGN_START);
+                        ui_text_box_scroll_to(app->text_box_widget, 20, 0, UI_ALIGN_START);
                         app->o++;
                     }
                 }
