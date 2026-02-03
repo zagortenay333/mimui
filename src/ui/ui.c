@@ -1852,11 +1852,13 @@ Void ui_text_box_scroll_to (UiBox *container, U64 line, U64 column, UiAlign vali
     info->scroll_y = cast(F32, line) * (cell_h + info->line_spacing);
     info->scroll_x = cast(F32, column) * cell_w;
 
-    // if (valign == UI_ALIGN_MIDDLE) {
-        // target_y_offset -= round(visible_h / 2);
-    // } else if (valign == UI_ALIGN_END) {
-        // target_y_offset -= visible_h;
-    // }
+    F32 visible_h = container->rect.h - 2*container->style.padding.y;
+
+    if (valign == UI_ALIGN_MIDDLE) {
+        info->scroll_y -= round(visible_h / 2);
+    } else if (valign == UI_ALIGN_END) {
+        info->scroll_y -= visible_h - cell_h - info->line_spacing;
+    }
 }
 
 static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F32 y) {
@@ -1870,7 +1872,7 @@ static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F3
 
     x = floor(x - info->scroll_x);
 
-    // Use this for rendering the line background if you need to.
+    // Use this for rendering a line backgound:
     //
     // draw_rect(
     //     .color = bg,
@@ -1915,9 +1917,7 @@ static Void render_text_box (UiBox *box) {
     F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_y;
     array_iter (line, &info->lines) {
         if (y - cell_h > box->rect.y + box->rect.h) break;
-        if (y + cell_h > box->rect.y) {
-            render_text_box_line(box, line, container->style.text_color, box->rect.x, floor(y));
-        }
+        if (y + cell_h > box->rect.y) render_text_box_line(box, line, container->style.text_color, box->rect.x, floor(y));
         y += cell_h + info->line_spacing;
     }
 }
@@ -2528,7 +2528,7 @@ static Void app_build () {
 
                 if (ui_button("bar")->signal.clicked) {
                     if (app->text_box_widget) {
-                        ui_text_box_scroll_to(app->text_box_widget, app->o, 0, UI_ALIGN_END);
+                        ui_text_box_scroll_to(app->text_box_widget, app->o, 0, UI_ALIGN_START);
                         app->o++;
                     }
                 }
@@ -2553,7 +2553,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     app->text_box->scrollbar_width = 10;
-    app->text_box->line_spacing = 15;
+    app->text_box->line_spacing = 2;
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;
