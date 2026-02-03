@@ -712,6 +712,7 @@ istruct (UiTextBox) {
     F32 total_height;
     U32 scrollbar_width;
     U32 line_spacing;
+    F32 scroll_animation_time;
 };
 
 istruct (UiBox) {
@@ -1932,8 +1933,6 @@ static Void render_text_box (UiBox *box) {
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
-        ui_style_f32(UI_ANIMATION_TIME, 10);
-
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
@@ -1993,7 +1992,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (before != after) info->scroll_pos.x = info->scroll_pos_i.x = clamp(after / max_knob_h, 0, 1) * max_x_offset;
         }
 
-        animate_vec2(&info->scroll_pos, info->scroll_pos_i, container->style.animation_time);
+        animate_vec2(&info->scroll_pos, info->scroll_pos_i, info->scroll_animation_time);
         container->scratch = cast(U64, info);
     }
 
@@ -2565,6 +2564,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
+    app->text_box->scroll_animation_time = default_box_style.animation_time;
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;
