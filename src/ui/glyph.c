@@ -180,7 +180,11 @@ static Void compute_font_width (GlyphCache *cache) {
     Font *font = array_ref(&cache->font_slots, 0);
     U32 glyph_index = FT_Get_Char_Index(font->ft_face, 'M');
     GlyphSlot *slot = glyph_cache_get(cache, &(GlyphInfo){.glyph_index = glyph_index});
-    cache->font_width = slot->advance;
+
+    cache->font_ascent  = font->ft_face->size->metrics.ascender >> 6;
+    cache->font_descent = -(font->ft_face->size->metrics.descender >> 6);
+    cache->font_height  = font->ft_face->size->metrics.height >> 6;
+    cache->font_width   = slot->advance;
 }
 
 GlyphCache *glyph_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size, U32 font_height) {

@@ -64,6 +64,8 @@ istruct (GlyphCache) {
     GlyphEvictionFn evict_fn;
     U32 font_height;
     U32 font_width;
+    U32 font_ascent;
+    U32 font_descent;
 };
 
 array_typedef(Font, Font);

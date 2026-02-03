@@ -1870,12 +1870,24 @@ static Void render_text_box_line (UiBox *box, String text, Vec4 color, F32 x, F3
 
     x = floor(x - info->scroll_x);
 
+    // Use this for rendering the line background if you need to.
+    //
+    // draw_rect(
+    //     .color = bg,
+    //     .color2 = bg,
+    //     .top_left     = {x, y - ui->glyph_cache->font_height - info->line_spacing},
+    //     .bottom_right = {x + info->total_width, y},
+    // );
+
+    F32 descent = cast(F32, ui->glyph_cache->font_descent);
+    F32 line_spacing = info->line_spacing / 2;
+
     array_iter (info, &infos, *) {
         if (x > box->rect.x + box->rect.w) break;
 
         if (x + cell_w > box->rect.x) {
             GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
-            Vec2 top_left = {x + slot->bearing_x, y - slot->bearing_y};
+            Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
             draw_rect(
                 .top_left     = top_left,
@@ -1900,10 +1912,12 @@ static Void render_text_box (UiBox *box) {
     info->total_width  = info->widest_line * cell_w;
     info->total_height = info->lines.count * (cell_h + info->line_spacing);
 
-    F32 y = box->rect.y + cell_h - info->scroll_y;
+    F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_y;
     array_iter (line, &info->lines) {
         if (y - cell_h > box->rect.y + box->rect.h) break;
-        if (y + cell_h > box->rect.y) render_text_box_line(box, line, container->style.text_color, box->rect.x, floor(y));
+        if (y + cell_h > box->rect.y) {
+            render_text_box_line(box, line, container->style.text_color, box->rect.x, floor(y));
+        }
         y += cell_h + info->line_spacing;
     }
 }
@@ -1927,11 +1941,11 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
                 if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
                     info->scroll_y -= (cell_h + info->line_spacing) * ui->event->y;
-                    info->scroll_y  = clamp(info->scroll_y, 0, info->total_height - visible_h + container->style.padding.y);
+                    info->scroll_y  = clamp(info->scroll_y, 0, info->total_height - visible_h);
                     ui->event->tag  = EVENT_EATEN;
                 } else if (scroll_x) {
                     info->scroll_x -= cell_w * ui->event->y;
-                    info->scroll_x  = clamp(info->scroll_x, 0, info->total_width - visible_w + container->style.padding.x);
+                    info->scroll_x  = clamp(info->scroll_x, 0, info->total_width - visible_w);
                     ui->event->tag  = EVENT_EATEN;
                 }
             }
@@ -1945,11 +1959,10 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (scroll_x) rect.h -= info->scrollbar_width;
 
             F32 max_y_offset = max(0.0f, info->total_height - visible_h);
-            F32 knob_height  = visible_h * (visible_h / info->total_height);
+            F32 knob_height  = rect.h * (visible_h / info->total_height);
             F32 max_knob_v   = rect.h - knob_height;
             F32 before       = (info->scroll_y / max_y_offset) * max_knob_v;
             F32 after        = before;
-            printf("-- %f\n", container->style.padding.y);
 
             ui_vscroll_bar(str("scroll_bar_y"), rect, ratio, &after);
             if (before != after) info->scroll_y = clamp(after / max_knob_v, 0, 1) * max_y_offset;
@@ -1961,7 +1974,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (scroll_y) rect.w -= info->scrollbar_width;
 
             F32 max_x_offset = max(0.0f, info->total_width - visible_w);
-            F32 knob_width   = visible_w * (visible_w / info->total_width);
+            F32 knob_width   = rect.w * (visible_w / info->total_width);
             F32 max_knob_h   = rect.w - knob_width;
             F32 before       = (info->scroll_x / max_x_offset) * max_knob_h;
             F32 after        = before;
@@ -2516,7 +2529,6 @@ static Void app_build () {
                 if (ui_button("bar")->signal.clicked) {
                     if (app->text_box_widget) {
                         ui_text_box_scroll_to(app->text_box_widget, app->o, 0, UI_ALIGN_END);
-                        // printf("%i\n", app->o);
                         app->o++;
                     }
                 }
@@ -2541,7 +2553,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     app->text_box->scrollbar_width = 10;
-    app->text_box->line_spacing = 2;
+    app->text_box->line_spacing = 15;
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;
