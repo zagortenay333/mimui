@@ -17,10 +17,12 @@ Buffer *buf_new (Mem *mem, String text) {
     return buf;
 }
 
-BufferLineIter *buf_line_iter_new  (Buffer *buf, Mem *mem) {
+BufferLineIter *buf_line_iter_new  (Buffer *buf, Mem *mem, U64 from) {
+    if (from >= buf->lines.count) from = buf->lines.count - 1;
     Auto it = mem_new(mem, BufferLineIter);
     it->buf = buf;
-    if (buf->lines.count) it->text = array_get(&buf->lines, 0);
+    it->idx = from;
+    if (buf->lines.count) it->text = array_get(&buf->lines, from);
     return it;
 }
 
@@ -37,4 +39,8 @@ String buf_get_line (Buffer *buf, Mem *, U64 idx) {
 
 U64 buf_get_widest_line (Buffer *buf) {
     return buf->widest_line;
+}
+
+U64 buf_get_line_count (Buffer *buf) {
+    return buf->lines.count;
 }
