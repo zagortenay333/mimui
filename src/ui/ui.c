@@ -8,6 +8,7 @@
 #include "base/string.h"
 #include "os/time.h"
 #include "base/map.h"
+#include "buffer/buffer.h"
 #include "os/fs.h"
 
 static Void app_build ();
@@ -707,6 +708,7 @@ istruct (UiTextPos) {
 };
 
 istruct (UiTextBox) {
+    Buffer *buf;
     String text;
     ArrayString lines;
     U64 widest_line;
@@ -2778,13 +2780,15 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->show_main_view = true;
 
     app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
+    app->text_box->buf = buf_new(parena, fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0));
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
     app->text_box->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
     app->text_box->selection_fg_color = vec4(0, 0, 0, 1);
     app->text_box->cursor_color = vec4(1, 0, 0, 1);
+
+    app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;
