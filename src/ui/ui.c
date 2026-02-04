@@ -701,21 +701,30 @@ fenum (UiBoxFlags, U8) {
 
 typedef Void (*UiBoxRenderFn)(UiBox*);
 
+istruct (UiTextPos) {
+    U32 line;
+    U32 column;
+    U32 preferred_column;
+};
+
 istruct (UiTextBox) {
     String text;
     ArrayString lines;
     U64 widest_line;
-    U32 line;
-    U32 column;
-    U32 preferred_column;
+    UiTextPos pos;
     Vec2 cursor_pos;
-    Vec2 scroll_pos_n;
     Vec2 scroll_pos;
+    Vec2 scroll_pos_n;
     F32 total_width;
     F32 total_height;
     U32 scrollbar_width;
     U32 line_spacing;
     F32 scroll_animation_time;
+    UiTextPos selection_start;
+    UiTextPos selection_end;
+    Vec4 selection_bg_color;
+    Vec4 selection_fg_color;
+    Bool dragging;
 };
 
 istruct (UiBox) {
@@ -770,12 +779,13 @@ UiStyle default_box_style = {
     .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 0},
     .bg_color2      = {-1},
     .text_color     = {1, 1, 1, .8},
-    .edge_softness  = .8,
+    .edge_softness  = .75,
     .floating[0]    = NAN,
     .floating[1]    = NAN,
     .animation_time = .2,
 };
 
+static Void ui_eat_event ();
 static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
 
@@ -816,7 +826,8 @@ static Void compute_signals (UiBox *box) {
     }
 
     if (! pressed) {
-        sig->pressed = (ui->hovered == box && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT));
+        Int k = ui->event->key;
+        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (k == GLFW_MOUSE_BUTTON_LEFT || k == GLFW_MOUSE_BUTTON_MIDDLE || k == GLFW_MOUSE_BUTTON_RIGHT);
     } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
         sig->pressed = false;
         if (sig->hovered) sig->clicked = true;
@@ -1700,7 +1711,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
             *val = clamp(*val, 0, rect.h - knob_size);
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         ui_box(UI_BOX_CLICK_THROUGH|UI_BOX_INVISIBLE, "scroll_bar_spacer") {
@@ -1748,7 +1759,7 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
             *val = clamp(*val, 0, rect.w - knob_size);
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         ui_box(UI_BOX_CLICK_THROUGH|UI_BOX_INVISIBLE, "scroll_bar_spacer") {
@@ -1813,7 +1824,7 @@ static Void ui_scroll_box_pop () {
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(GLFW_KEY_LEFT_CONTROL)) {
             container->content.x += speed * ui->event->y;
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         container->content.x = clamp(container->content.x, -(container->content.w - container->rect.w), 0);
@@ -1829,7 +1840,7 @@ static Void ui_scroll_box_pop () {
 
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(GLFW_KEY_LEFT_CONTROL)) {
             container->content.y += speed * ui->event->y;
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         container->content.y = clamp(container->content.y, -(container->content.h - container->rect.h), 0);
@@ -1907,44 +1918,65 @@ static Void text_box_scroll_into_view (UiBox *box, U32 line, U32 column) {
     }
 }
 
-static Void text_box_render_line (UiBox *box, String text, Vec4 bg_color, Vec4 color, F32 x, F32 y) {
+static Int text_pos_cmp (UiTextPos a, UiTextPos b) {
+    if (a.line < b.line) return -1;
+    if (a.line > b.line) return 1;
+    if (a.column < b.column) return -1;
+    if (a.column > b.column) return 1;
+    return 0;
+}
+
+static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
 
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
     U32 cell_w = ui->glyph_cache->font_width;
+    U32 cell_h = ui->glyph_cache->font_height;
     SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
 
     x = floor(x - info->scroll_pos.x);
 
-    draw_rect(
-        .color        = bg_color,
-        .color2       = bg_color,
-        .top_left     = {x, y - ui->glyph_cache->font_height - info->line_spacing},
-        .bottom_right = {x + info->total_width, y},
-    );
-
     F32 descent = cast(F32, ui->glyph_cache->font_descent);
     F32 line_spacing = info->line_spacing / 2;
 
-    array_iter (info, &infos, *) {
+    UiTextPos start = info->selection_start;
+    UiTextPos end   = info->selection_end;
+    if (text_pos_cmp(start, end) > 0) swap(start, end);
+
+    U32 col_idx = 0;
+    array_iter (glyph_info, &infos, *) {
         if (x > box->rect.x + box->rect.w) break;
 
         if (x + cell_w > box->rect.x) {
-            GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
+            UiTextPos current = {line_idx, col_idx, 0};
+            Bool selected = text_pos_cmp(current, start) >= 0 && text_pos_cmp(current, end) < 0;
+
+            if (selected) draw_rect(
+                .color        = info->selection_bg_color,
+                .color2       = info->selection_bg_color,
+                .top_left     = {x, y - cell_h - info->line_spacing},
+                .bottom_right = {x + cell_w, y},
+            );
+
+            GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+
+            Vec4 final_text_color = selected ? info->selection_fg_color : color;
+
             draw_rect(
                 .top_left     = top_left,
                 .bottom_right = bottom_right,
                 .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-                .text_color   = color,
+                .text_color   = final_text_color,
                 .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
             );
         }
 
         x += cell_w;
+        col_idx++;
     }
 }
 
@@ -1961,7 +1993,7 @@ static Void text_box_render (UiBox *box) {
     F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_pos.y;
     array_iter (line, &info->lines) {
         if (y - cell_h > box->rect.y + box->rect.h) break;
-        if (y + cell_h > box->rect.y) text_box_render_line(box, line, ARRAY_IDX%2 ? vec4(0,0,0,.2) : vec4(0,0,0,.5), container->style.text_color, box->rect.x, floor(y));
+        if (y + cell_h > box->rect.y) text_box_render_line(box, cast(U32, ARRAY_IDX), line, container->style.text_color, box->rect.x, floor(y));
         y += cell_h + info->line_spacing;
     }
 
@@ -1975,21 +2007,47 @@ static Void text_box_render (UiBox *box) {
     }
 }
 
+static Void text_box_set_selection (UiTextBox *info, UiTextPos start, UiTextPos end) {
+    info->selection_start = start;
+    info->selection_end = end;
+}
+
+static Void text_box_clear_selection (UiTextBox *info) {
+    info->selection_start = info->pos;
+    info->selection_end = info->pos;
+}
+
+static UiTextPos text_box_coord_to_pos (UiBox *box, UiTextBox *info, Vec2 coord) {
+    UiTextPos pos;
+
+    F32 cell_w = ui->glyph_cache->font_width;
+    F32 cell_h = ui->glyph_cache->font_height;
+
+    coord.x = coord.x - box->rect.x + info->scroll_pos.x;
+    coord.y = coord.y - box->rect.y + info->scroll_pos.y;
+
+    pos.line = coord.y / (cell_h + info->line_spacing);
+    pos.line = clamp(pos.line, 0u, info->lines.count);
+
+    String line = array_get(&info->lines, pos.line);
+
+    pos.column = clamp(round(coord.x / cell_w), 0, line.count);
+    pos.preferred_column = pos.column;
+
+    return pos;
+}
+
 static Void text_box_update_cursor_pos (UiBox *box, UiTextBox *info) {
     info->cursor_pos = vec2(0, 0);
 
     F32 line_height = ui->glyph_cache->font_height + info->line_spacing;
     F32 char_width  = ui->glyph_cache->font_width;
-    info->cursor_pos.y = info->line * line_height + info->line_spacing/2;
+    info->cursor_pos.y = info->pos.line * line_height + info->line_spacing/2;
 
-    if (info->line < info->lines.count) {
-        String line_str = array_get(&info->lines, info->line);
-
-        U32 end_col = min(info->column, line_str.count);
-
-        for (U32 i = 0; i < end_col; ++i) {
-            info->cursor_pos.x += char_width;
-        }
+    if (info->pos.line < info->lines.count) {
+        String line_str = array_get(&info->lines, info->pos.line);
+        U32 end_col = min(info->pos.column, line_str.count);
+        for (U32 i = 0; i < end_col; ++i) info->cursor_pos.x += char_width;
     }
 
     info->cursor_pos.x += box->rect.x - info->scroll_pos.x;
@@ -1998,62 +2056,50 @@ static Void text_box_update_cursor_pos (UiBox *box, UiTextBox *info) {
 
 static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
     if (right) {
-        String line = array_get(&info->lines, info->line);
+        String line = array_get(&info->lines, info->pos.line);
 
-        if (info->preferred_column < line.count) {
-            info->preferred_column++;
-            info->column = info->preferred_column;
-        } else if (info->line < info->lines.count - 1) {
-            info->line++;
-            info->column = 0;
-            info->preferred_column = 0;
+        if (info->pos.preferred_column < line.count) {
+            info->pos.preferred_column++;
+            info->pos.column = info->pos.preferred_column;
+        } else if (info->pos.line < info->lines.count - 1) {
+            info->pos.line++;
+            info->pos.column = 0;
+            info->pos.preferred_column = 0;
         }
     } else {
-        if (info->column > 0) {
-            info->preferred_column--;
-        } else if (info->line > 0) {
-            info->line--;
-            String line = array_get(&info->lines, info->line);
-            info->preferred_column = cast(U32, line.count);
+        if (info->pos.column > 0) {
+            info->pos.preferred_column--;
+        } else if (info->pos.line > 0) {
+            info->pos.line--;
+            String line = array_get(&info->lines, info->pos.line);
+            info->pos.preferred_column = cast(U32, line.count);
         }
 
-        info->column = info->preferred_column;
+        info->pos.column = info->pos.preferred_column;
     }
 
-    text_box_scroll_into_view(box, info->line, info->column);
+    text_box_scroll_into_view(box, info->pos.line, info->pos.column);
 }
 
 static Void text_box_move_cursor_v (UiBox *box, UiTextBox *info, Bool down) {
     if (down) {
-        if (info->line < info->lines.count - 1) info->line++;
+        if (info->pos.line < info->lines.count - 1) info->pos.line++;
     } else {
-        if (info->line > 0) info->line--;
+        if (info->pos.line > 0) info->pos.line--;
     }
 
-    String line = array_get(&info->lines, info->line);
-    if (info->preferred_column > line.count) {
-        info->column = cast(U32, line.count);
+    String line = array_get(&info->lines, info->pos.line);
+    if (info->pos.preferred_column > line.count) {
+        info->pos.column = cast(U32, line.count);
     } else {
-        info->column = info->preferred_column;
+        info->pos.column = info->pos.preferred_column;
     }
 
-    text_box_scroll_into_view(box, info->line, info->column);
+    text_box_scroll_into_view(box, info->pos.line, info->pos.column);
 }
 
-static Void text_box_xy_to_line_col (UiBox *box, UiTextBox *info, Vec2 pos) {
-    F32 cell_w = ui->glyph_cache->font_width;
-    F32 cell_h = ui->glyph_cache->font_height;
-
-    pos.x = pos.x - box->rect.x + info->scroll_pos.x;
-    pos.y = pos.y - box->rect.y + info->scroll_pos.y;
-
-    info->line = pos.y / (cell_h + info->line_spacing);
-    info->line = clamp(info->line, 0u, info->lines.count);
-
-    String line = array_get(&info->lines, info->line);
-
-    info->column = clamp(round(pos.x / cell_w), 0, line.count);
-    info->preferred_column = info->column;
+static Void text_box_move_cursor_to_coord (UiBox *box, UiTextBox *info, Vec2 coord) {
+    info->pos = text_box_coord_to_pos(box, info, coord);
 }
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
@@ -2076,11 +2122,11 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
                     info->scroll_pos_n.y -= (cell_h + info->line_spacing) * ui->event->y;
                     info->scroll_pos_n.y  = clamp(info->scroll_pos_n.y, 0, info->total_height - visible_h);
-                    ui->event->tag        = EVENT_EATEN;
+                    ui_eat_event();
                 } else if (scroll_x) {
                     info->scroll_pos_n.x -= cell_w * ui->event->y;
                     info->scroll_pos_n.x  = clamp(info->scroll_pos_n.x, 0, info->total_width - visible_w);
-                    ui->event->tag        = EVENT_EATEN;
+                    ui_eat_event();
                 }
             }
 
@@ -2119,17 +2165,29 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.focused && ui->event->tag == EVENT_KEY_PRESS) {
             switch (ui->event->key) {
-            case GLFW_KEY_LEFT:  text_box_move_cursor_h(text_box, info, 0); ui->event->tag = EVENT_EATEN; break;
-            case GLFW_KEY_RIGHT: text_box_move_cursor_h(text_box, info, 1); ui->event->tag = EVENT_EATEN; break;
-            case GLFW_KEY_UP:    text_box_move_cursor_v(text_box, info, 0); ui->event->tag = EVENT_EATEN; break;
-            case GLFW_KEY_DOWN:  text_box_move_cursor_v(text_box, info, 1); ui->event->tag = EVENT_EATEN; break;
+            case GLFW_KEY_LEFT:  text_box_move_cursor_h(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
+            case GLFW_KEY_RIGHT: text_box_move_cursor_h(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
+            case GLFW_KEY_UP:    text_box_move_cursor_v(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
+            case GLFW_KEY_DOWN:  text_box_move_cursor_v(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
             }
+
+            
         }
 
-        if (text_box->signal.clicked) {
-            ui->event->tag = EVENT_EATEN;
-            text_box_xy_to_line_col(text_box, info, ui->mouse);
+        if (text_box->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
+            info->dragging = false;
+        }
+
+        if (text_box->signal.pressed) {
             grab_focus(text_box);
+            text_box_move_cursor_to_coord(text_box, info, ui->mouse);
+
+            if (info->dragging) {
+                text_box_set_selection(info, info->pos, info->selection_end);
+            } else {
+                info->dragging = true;
+                text_box_clear_selection(info);
+            }
         }
 
         animate_vec2(&info->scroll_pos, info->scroll_pos_n, info->scroll_animation_time);
@@ -2157,13 +2215,13 @@ static UiBox *ui_slider_str (String label, F32 *val) {
         if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_LEFT)) {
             *val -= .1;
             *val = clamp(*val, 0, 1);
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_RIGHT)) {
             *val += .1;
             *val = clamp(*val, 0, 1);
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         if (container->signal.pressed) {
@@ -2174,7 +2232,7 @@ static UiBox *ui_slider_str (String label, F32 *val) {
         if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val = *val - (10*ui->event->y) / container->rect.w;
             *val = clamp(*val, 0, 1);
-            ui->event->tag = EVENT_EATEN;
+            ui_eat_event();
         }
 
         ui_box(UI_BOX_CLICK_THROUGH, "slider_track") {
@@ -2304,6 +2362,10 @@ static Void ui_grid_cell_pop_ (Void *) { ui_grid_cell_pop(); }
 // =============================================================================
 // Frame:
 // =============================================================================
+static Void ui_eat_event () {
+    ui->event->tag = EVENT_EATEN;
+}
+
 static Void update_input_state (Event *event) {
     ui->event = event;
 
@@ -2548,7 +2610,7 @@ static Bool show_modal () {
             ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
 
             if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_ESCAPE)) return false;
-            if (overlay->signal.clicked) return false;
+            if (overlay->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) return false;
 
             UiBox *modal = ui_box(UI_BOX_REACTIVE, "modal") {
                 if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
@@ -2656,7 +2718,7 @@ static Void app_build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signal.clicked) {
+            if (ui_button("Foo1")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
                 app->overlay_shown = !app->overlay_shown;
             }
 
@@ -2670,8 +2732,8 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
 
-            if (foo2->signal.clicked) app->show_main_view = true;
-            if (foo3->signal.clicked) app->show_main_view = false;
+            if (foo2->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->show_main_view = true;
+            if (foo3->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->show_main_view = false;
 
             if (app->show_main_view) {
                 ui_tag_box(foo2, "press");
@@ -2684,7 +2746,7 @@ static Void app_build () {
             ui_box(UI_BOX_INVISIBLE, "bottom_sidebar_button") {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
 
-                if (ui_button("bar")->signal.clicked) {
+                if (ui_button("bar")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
                     if (app->text_box_widget) {
                         text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
                         app->o++;
@@ -2711,8 +2773,10 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
     app->text_box->scrollbar_width = 10;
-    app->text_box->line_spacing = 20;
+    app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
+    app->text_box->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
+    app->text_box->selection_fg_color = vec4(0, 0, 0, 1);
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;

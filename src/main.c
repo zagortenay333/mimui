@@ -62,7 +62,4 @@ Int main (Int argc, CString *argv) {
 
     Void ui_test();
     ui_test();
-
-    // Void ui_test2();
-    // ui_test2();
 }
