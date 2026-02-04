@@ -709,8 +709,6 @@ istruct (UiTextPos) {
 
 istruct (UiTextBox) {
     Buffer *buf;
-    String text;
-    ArrayString lines;
     UiTextPos pos;
     U32 preferred_column;
     Vec2 cursor_pos;
@@ -2507,29 +2505,29 @@ istruct (App) {
     UiTextBox *text_box;
     UiBox *text_box_widget;
 
-    Bool overlay_shown;
-    Bool show_main_view;
-
+    Bool modal_shown;
     Vec2 modal_pos;
-    U32 o;
+
+    U32 view;
 };
 
 App *app;
 
-static Void build_main_view () {
+static Void build_text_view () {
     app->text_box_widget = ui_text_box(str("asdf"), app->text_box);
     ui_style_box_size(app->text_box_widget, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(app->text_box_widget, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(app->text_box_widget, UI_PADDING, (Vec2){8, 8});
-    return;
+}
 
-    ui_scroll_box("main_view") {
+static Void build_misc_view () {
+    ui_scroll_box("misc_view") {
         ui_tag("vbox");
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH);
 
-        ui_style_rule("#main_view") { ui_style_vec2(UI_PADDING, vec2(80, 16)); }
+        ui_style_rule("#misc_view") { ui_style_vec2(UI_PADDING, vec2(80, 16)); }
 
         ui_box(0, "box2_0") {
             ui_tag("hbox");
@@ -2584,7 +2582,7 @@ static Void build_main_view () {
     }
 }
 
-static Void build_second_view () {
+static Void build_grid_view () {
     ui_scroll_box("second_view") {
         ui_tag("vbox");
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
@@ -2736,26 +2734,29 @@ static Void app_build () {
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
             if (ui_button("Foo1")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
-                app->overlay_shown = !app->overlay_shown;
+                app->modal_shown = !app->modal_shown;
             }
 
-            if (app->overlay_shown) {
-                app->overlay_shown = show_modal();
+            if (app->modal_shown) {
+                app->modal_shown = show_modal();
             }
 
             ui_style_rule("#Foo2") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0}); }
             ui_style_rule("#Foo3") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 0}); }
+            ui_style_rule("#Foo4") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 0}); }
 
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
+            UiBox *foo4 = ui_button("Foo4");
 
-            if (foo2->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->show_main_view = true;
-            if (foo3->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->show_main_view = false;
+            if (foo2->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 0;
+            if (foo3->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 1;
+            if (foo4->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 2;
 
-            if (app->show_main_view) {
-                ui_tag_box(foo2, "press");
-            } else {
-                ui_tag_box(foo3, "press");
+            switch (app->view) {
+            case 0: ui_tag_box(foo2, "press"); break;
+            case 1: ui_tag_box(foo3, "press"); break;
+            case 2: ui_tag_box(foo4, "press"); break;
             }
 
             ui_vspacer();
@@ -2764,18 +2765,15 @@ static Void app_build () {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
 
                 if (ui_button("bar")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
-                    if (app->text_box_widget) {
-                        text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
-                        app->o++;
-                    }
+                    text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
                 }
             }
         }
 
-        if (app->show_main_view) {
-            build_main_view();
-        } else {
-            build_second_view();
+        switch (app->view) {
+        case 0: build_misc_view(); break;
+        case 1: build_grid_view(); break;
+        case 2: build_text_view(); break;
         }
     }
 }
@@ -2785,7 +2783,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->parena = parena;
     app->farena = farena;
 
-    app->show_main_view = true;
+    app->view = 2;
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new(parena, fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0));
@@ -2795,9 +2793,4 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
     app->text_box->selection_fg_color = vec4(0, 0, 0, 1);
     app->text_box->cursor_color = vec4(1, 0, 0, 1);
-
-    app->text_box->text = fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0);
-    array_init(&app->text_box->lines, parena);
-    str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
-    app->text_box->lines.count--;
 }
