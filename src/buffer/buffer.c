@@ -3,9 +3,9 @@
 static Void compute_lines (Buffer *buf) {
     buf->lines.count = 0;
     str_split(buf->text, str("\n"), 0, 1, &buf->lines);
-    array_iter (line, &buf->lines) {
-        if (line.count > buf->widest_line) buf->widest_line = line.count;
-    }
+    buf->lines.count--;
+    tmem_new(tm);
+    buf_iter_lines (line, buf, tm, 0) if (line->text.count > buf->widest_line) buf->widest_line = line->text.count;
 }
 
 Buffer *buf_new (Mem *mem, String text) {

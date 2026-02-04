@@ -711,7 +711,6 @@ istruct (UiTextBox) {
     Buffer *buf;
     String text;
     ArrayString lines;
-    U64 widest_line;
     UiTextPos pos;
     U32 preferred_column;
     Vec2 cursor_pos;
@@ -1910,13 +1909,13 @@ static Void text_box_scroll_into_view (UiBox *box, UiTextPos pos, U32 padding) {
     if (coord.x < box->rect.x + x_padding) {
         text_box_hscroll(box->parent, sat_sub32(pos.column, padding), UI_ALIGN_START);
     } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
-        text_box_hscroll(box->parent, clamp(sat_add32(pos.column, padding), 0u, info->widest_line), UI_ALIGN_END);
+        text_box_hscroll(box->parent, clamp(sat_add32(pos.column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
     }
 
     if (coord.y < box->rect.y + y_padding) {
         text_box_vscroll(box->parent, sat_sub32(pos.line, padding), UI_ALIGN_START);
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(box->parent, clamp(sat_add32(pos.line, padding), 0u, info->lines.count-1), UI_ALIGN_END);
+        text_box_vscroll(box->parent, clamp(sat_add32(pos.line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
     }
 }
 
@@ -1989,8 +1988,8 @@ static Void text_box_render (UiBox *box) {
     U32 cell_h = ui->glyph_cache->font_height;
     U32 cell_w = ui->glyph_cache->font_width;
 
-    info->total_width  = info->widest_line * cell_w;
-    info->total_height = info->lines.count * (cell_h + info->line_spacing);
+    info->total_width  = buf_get_widest_line(info->buf) * cell_w;
+    info->total_height = buf_get_line_count(info->buf) * (cell_h + info->line_spacing);
 
     F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_pos.y;
     array_iter (line, &info->lines) {
@@ -2028,9 +2027,10 @@ static UiTextPos text_box_coord_to_pos (UiBox *box, UiTextBox *info, Vec2 coord)
     coord.x = coord.x - box->rect.x + info->scroll_pos.x;
     coord.y = coord.y - box->rect.y + info->scroll_pos.y;
 
-    pos.line = clamp(coord.y / (cell_h + info->line_spacing), cast(F32, 0), cast(F32, info->lines.count - 1));
+    pos.line = clamp(coord.y / (cell_h + info->line_spacing), cast(F32, 0), cast(F32, buf_get_line_count(info->buf)-1));
 
-    String line = array_get(&info->lines, pos.line);
+    tmem_new(tm);
+    String line = buf_get_line(info->buf, tm, pos.line);
 
     pos.column = clamp(round(coord.x / cell_w), 0, line.count);
 
@@ -2045,8 +2045,9 @@ static Vec2 text_box_pos_to_coord (UiBox *box, UiTextBox *info, UiTextPos pos) {
 
     coord.y = info->pos.line * line_height + info->line_spacing/2;
 
-    if (info->pos.line < info->lines.count) {
-        String line_str = array_get(&info->lines, info->pos.line);
+    if (info->pos.line < buf_get_line_count(info->buf)) {
+        tmem_new(tm);
+        String line_str = buf_get_line(info->buf, tm, info->pos.line);
         U32 end_col = min(info->pos.column, line_str.count);
         for (U32 i = 0; i < end_col; ++i) coord.x += char_width;
     }
@@ -2063,12 +2064,13 @@ static Void text_box_update_cursor_pos (UiBox *box, UiTextBox *info) {
 
 static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
     if (right) {
-        String line = array_get(&info->lines, info->pos.line);
+        tmem_new(tm);
+        String line = buf_get_line(info->buf, tm, info->pos.line);
 
         if (info->preferred_column < line.count) {
             info->preferred_column++;
             info->pos.column = info->preferred_column;
-        } else if (info->pos.line < info->lines.count - 1) {
+        } else if (info->pos.line < buf_get_line_count(info->buf)-1) {
             info->pos.line++;
             info->pos.column = 0;
             info->preferred_column = 0;
@@ -2078,7 +2080,8 @@ static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
             info->preferred_column--;
         } else if (info->pos.line > 0) {
             info->pos.line--;
-            String line = array_get(&info->lines, info->pos.line);
+            tmem_new(tm);
+            String line = buf_get_line(info->buf, tm, info->pos.line);
             info->preferred_column = cast(U32, line.count);
         }
 
@@ -2090,12 +2093,13 @@ static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
 
 static Void text_box_move_cursor_v (UiBox *box, UiTextBox *info, Bool down) {
     if (down) {
-        if (info->pos.line < info->lines.count - 1) info->pos.line++;
+        if (info->pos.line < buf_get_line_count(info->buf)-1) info->pos.line++;
     } else {
         if (info->pos.line > 0) info->pos.line--;
     }
 
-    String line = array_get(&info->lines, info->pos.line);
+    tmem_new(tm);
+    String line = buf_get_line(info->buf, tm, info->pos.line);
     if (info->preferred_column > line.count) {
         info->pos.column = cast(U32, line.count);
     } else {
@@ -2792,5 +2796,4 @@ static Void app_init (Mem *parena, Mem *farena) {
     array_init(&app->text_box->lines, parena);
     str_split(app->text_box->text, str("\n"), 0, 1, &app->text_box->lines);
     app->text_box->lines.count--;
-    array_iter (line, &app->text_box->lines) if (line.count > app->text_box->widest_line) app->text_box->widest_line = line.count;
 }
