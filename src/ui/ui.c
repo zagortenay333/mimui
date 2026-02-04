@@ -777,6 +777,7 @@ UiStyle default_box_style = {
 };
 
 static Void ui_tag (CString tag);
+static Void grab_focus (UiBox *box);
 
 static Bool is_key_pressed (Int key) {
     U8 val; Bool pressed = map_get(&ui->pressed_keys, key, &val);
@@ -2128,6 +2129,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         if (text_box->signal.clicked) {
             ui->event->tag = EVENT_EATEN;
             text_box_xy_to_line_col(text_box, info, ui->mouse);
+            grab_focus(text_box);
         }
 
         animate_vec2(&info->scroll_pos, info->scroll_pos_n, info->scroll_animation_time);
@@ -2319,6 +2321,13 @@ static Void update_input_state (Event *event) {
         ui->mouse.y = event->y;
         break;
     }
+}
+
+static Void grab_focus (UiBox *box) {
+    U64 idx = array_find(&ui->depth_first, IT == box);
+    assert_dbg(idx != ARRAY_NIL_IDX);
+    ui->focus_idx = idx;
+    ui->focused = box;
 }
 
 static Void find_next_focus () {
