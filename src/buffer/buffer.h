@@ -15,6 +15,7 @@ istruct (BufferLineIter) {
     Buffer *buf;
     U64 idx;
     String text;
+    Bool done;
 };
 
 Buffer         *buf_new             (Mem *, String);
@@ -25,4 +26,4 @@ U64             buf_get_widest_line (Buffer *);
 U64             buf_get_line_count  (Buffer *);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
-    for (BufferLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); buf_line_iter_next(IT);)
+    for (BufferLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

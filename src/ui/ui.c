@@ -791,6 +791,7 @@ static Void ui_eat_event ();
 static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
 static Vec2 text_box_pos_to_coord (UiBox *box, UiTextBox *info, UiTextPos pos);
+static UiTextPos text_box_coord_to_pos (UiBox *box, UiTextBox *info, Vec2 coord);
 
 static Bool is_key_pressed (Int key) {
     U8 val; Bool pressed = map_get(&ui->pressed_keys, key, &val);
@@ -1982,6 +1983,8 @@ static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 co
 }
 
 static Void text_box_render (UiBox *box) {
+    tmem_new(tm);
+
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
 
@@ -1991,21 +1994,22 @@ static Void text_box_render (UiBox *box) {
     info->total_width  = buf_get_widest_line(info->buf) * cell_w;
     info->total_height = buf_get_line_count(info->buf) * (cell_h + info->line_spacing);
 
-    F32 y = box->rect.y + cell_h + info->line_spacing - info->scroll_pos.y;
-    array_iter (line, &info->lines) {
-        if (y - cell_h > box->rect.y + box->rect.h) break;
-        if (y + cell_h > box->rect.y) text_box_render_line(box, cast(U32, ARRAY_IDX), line, container->style.text_color, box->rect.x, floor(y));
-        y += cell_h + info->line_spacing;
+    F32 line_height = cell_h + info->line_spacing;
+    UiTextPos pos = text_box_coord_to_pos(box, info, box->rect.top_left);
+    F32 y = box->rect.y + line_height - info->scroll_pos.y + (pos.line * line_height);
+
+    buf_iter_lines (line, info->buf, tm, pos.line) {
+        if (y - line_height > box->rect.y + box->rect.h) break;
+        text_box_render_line(box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
+        y += line_height;
     }
 
-    if (box->signal.focused) {
-        draw_rect(
-            .color = info->cursor_color,
-            .color2 = info->cursor_color,
-            .top_left = info->cursor_pos,
-            .bottom_right = { info->cursor_pos.x + 2, info->cursor_pos.y + cell_h },
-        );
-    }
+    if (box->signal.focused) draw_rect(
+        .color = info->cursor_color,
+        .color2 = info->cursor_color,
+        .top_left = info->cursor_pos,
+        .bottom_right = { info->cursor_pos.x + 2, info->cursor_pos.y + cell_h },
+    );
 }
 
 static Void text_box_set_selection (UiTextBox *info, UiTextPos start, UiTextPos end) {

@@ -27,8 +27,12 @@ BufferLineIter *buf_line_iter_new  (Buffer *buf, Mem *mem, U64 from) {
 }
 
 Bool buf_line_iter_next (BufferLineIter *it) {
+    if (it->done) return false;
     it->idx++;
-    if (it->idx == it->buf->lines.count) return false;
+    if (it->idx == it->buf->lines.count) {
+        it->done = true;
+        return false;
+    }
     it->text = array_get(&it->buf->lines, it->idx);
     return true;
 }
