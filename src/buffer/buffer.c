@@ -2,14 +2,6 @@
 #include "os/fs.h"
 #include "os/time.h"
 
-static Void compute_lines (Buf *buf) {
-    buf->lines.count = 0;
-    str_split(buf->text, str("\n"), 0, 1, &buf->lines);
-    buf->lines.count--;
-    tmem_new(tm);
-    buf_iter_lines (line, buf, tm, 0) if (line->text.count > buf->widest_line) buf->widest_line = line->text.count;
-}
-
 static Void compute_stats (Buf *buf) {
     if (! buf->stats_outdated) return;
     buf->stats_outdated = false;
@@ -27,12 +19,9 @@ static Void compute_stats (Buf *buf) {
 Buf *buf_new (Mem *mem, String text) {
     Auto buf     = mem_new(mem, Buf);
     buf->mem     = mem;
-    buf->text    = text;
     buf->str     = astr_new_cap(mem, 1*KB);
     buf->gap_min = 1*KB;
     buf->stats_outdated = true;
-    array_init(&buf->lines, mem);
-    compute_lines(buf);
     buf_insert(buf, text, 0);
     return buf;
 }

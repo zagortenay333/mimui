@@ -6,14 +6,9 @@
 
 istruct (Buf) {
     Mem *mem;
-
-    String text;
-    ArrayString lines;
-
     U64 line_count;
     U64 widest_line;
     Bool stats_outdated;
-
     AString str;
     U64 gap_min;
     U64 gap_idx;
@@ -28,6 +23,7 @@ istruct (BufLineIter) {
 };
 
 Buf         *buf_new             (Mem *, String);
+Buf         *buf_new_from_file   (Mem *, String filepath);
 BufLineIter *buf_line_iter_new   (Buf *, Mem *, U64);
 Bool         buf_line_iter_next  (BufLineIter *);
 String       buf_get_line        (Buf *, Mem *, U64);

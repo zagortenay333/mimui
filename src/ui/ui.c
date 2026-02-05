@@ -2786,7 +2786,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->view = 2;
 
     app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->buf = buf_new(parena, fs_read_entire_file(mem_root, str("/home/zagor/Documents/test.txt"), 0));
+    app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
