@@ -395,6 +395,9 @@ static Void draw_rect_fn (RectAttributes *a) {
 }
 
 Void ui_test () {
+    parena = arena_new(mem_root, 1*MB);
+    farena = arena_new(mem_root, 1*MB);
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -412,17 +415,14 @@ Void ui_test () {
     glEnable(GL_SCISSOR_TEST);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
     glfwSetScrollCallback(window, mouse_scroll_callback);
     glfwSetCursorPosCallback(window, mouse_move_callback);
     glfwSetMouseButtonCallback(window, mouse_click_callback);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
-
-    parena = arena_new(mem_root, 1*MB);
-    farena = arena_new(mem_root, 1*MB);
 
     framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
     blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
@@ -481,7 +481,7 @@ Void ui_test () {
         log_scope(ls, 1);
         arena_pop_all(farena);
 
-        #if 0
+        #if 1
         if (current_frame - first_counted_frame >= 0.1) {
             tmem_new(tm);
             String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
@@ -708,7 +708,7 @@ istruct (UiTextPos) {
 };
 
 istruct (UiTextBox) {
-    Buffer *buf;
+    Buf *buf;
     UiTextPos pos;
     U32 preferred_column;
     Vec2 cursor_pos;

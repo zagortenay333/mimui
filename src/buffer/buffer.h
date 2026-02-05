@@ -4,26 +4,40 @@
 #include "base/mem.h"
 #include "base/string.h"
 
-istruct (Buffer) {
+istruct (Buf) {
     Mem *mem;
+
     String text;
     ArrayString lines;
+
+    U64 line_count;
     U64 widest_line;
+    Bool stats_outdated;
+
+    AString str;
+    U64 gap_min;
+    U64 gap_idx;
+    U64 gap_count;
 };
 
-istruct (BufferLineIter) {
-    Buffer *buf;
+istruct (BufLineIter) {
+    Buf *buf;
     U64 idx;
     String text;
     Bool done;
 };
 
-Buffer         *buf_new             (Mem *, String);
-BufferLineIter *buf_line_iter_new   (Buffer *, Mem *, U64);
-Bool            buf_line_iter_next  (BufferLineIter *);
-String          buf_get_line        (Buffer *, Mem *, U64);
-U64             buf_get_widest_line (Buffer *);
-U64             buf_get_line_count  (Buffer *);
+Buf         *buf_new             (Mem *, String);
+BufLineIter *buf_line_iter_new   (Buf *, Mem *, U64);
+Bool         buf_line_iter_next  (BufLineIter *);
+String       buf_get_line        (Buf *, Mem *, U64);
+U64          buf_get_widest_line (Buf *);
+U64          buf_get_line_count  (Buf *);
+Void         buf_insert          (Buf *, String str, U64 idx);
+Void         buf_delete          (Buf *, U64 count, U64 idx);
+U64          buf_get_count       (Buf *);
+String       buf_get_str         (Buf *, Mem *);
+U64          buf_line_to_offset  (Buf *, U64 line);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
-    for (BufferLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))
+    for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))
