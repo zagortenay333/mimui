@@ -250,6 +250,12 @@ I64 str_fuzzy_search (String needle, String haystack, ArrayString *tokens) {
     return max(INT64_MIN+1, (consecutives * 4) + (word_beginnings * 3) - gaps);
 }
 
+U64 str_codepoint_count (String s) {
+    U64 count = 0;
+    str_utf8_iter (it, s) count++;
+    return count;
+}
+
 static U8 utf8_class [32] = {
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
 };

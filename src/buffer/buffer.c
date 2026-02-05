@@ -12,7 +12,8 @@ static Void compute_stats (Buf *buf) {
     tmem_new(tm);
     buf_iter_lines (line, buf, tm, 0) {
         buf->line_count++;
-        if (line->text.count > buf->widest_line) buf->widest_line = line->text.count;
+        U64 count = str_codepoint_count(line->text);
+        if (count > buf->widest_line) buf->widest_line = count;
     }
 }
 

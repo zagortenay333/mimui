@@ -788,6 +788,7 @@ UiStyle default_box_style = {
 static Void ui_eat_event ();
 static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
+static Int text_pos_cmp (UiTextPos a, UiTextPos b);
 static Vec2 text_box_pos_to_coord (UiBox *box, UiTextBox *info, UiTextPos pos);
 static UiTextPos text_box_coord_to_pos (UiBox *box, UiTextBox *info, Vec2 coord);
 
@@ -1862,70 +1863,6 @@ static Void ui_scroll_box_pop_ (Void *) {
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
-static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
-    UiTextBox *info = cast(UiTextBox*, container->scratch);
-
-    U32 cell_h = ui->glyph_cache->font_height;
-    info->scroll_pos_n.y = cast(F32, line) * (cell_h + info->line_spacing);
-
-    F32 visible_h = container->rect.h - 2*container->style.padding.y;
-    if (align == UI_ALIGN_MIDDLE) {
-        info->scroll_pos_n.y -= round(visible_h / 2);
-    } else if (align == UI_ALIGN_END) {
-        info->scroll_pos_n.y -= visible_h - cell_h - info->line_spacing;
-    }
-}
-
-static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
-    UiTextBox *info = cast(UiTextBox*, container->scratch);
-
-    U32 cell_w = ui->glyph_cache->font_width;
-    info->scroll_pos_n.x = cast(F32, column) * cell_w;
-
-    // @todo We cannot do container->rect.w because later we might want to
-    // add more boxes inside container. We specifically need the box that
-    // contains the text.
-    F32 visible_w = container->rect.w - 2*container->style.padding.y;
-
-    if (align == UI_ALIGN_MIDDLE) {
-        info->scroll_pos_n.x -= round(visible_w / 2);
-    } else if (align == UI_ALIGN_END) {
-        info->scroll_pos_n.x -= visible_w - cell_w;
-    }
-}
-
-static Void text_box_scroll_into_view (UiBox *box, UiTextPos pos, U32 padding) {
-    UiTextBox *info = cast(UiTextBox*, box->parent->scratch);
-
-    U32 cell_w = ui->glyph_cache->font_width;
-    U32 cell_h = ui->glyph_cache->font_height;
-
-    Vec2 coord = text_box_pos_to_coord(box, info, pos);
-
-    U32 x_padding = padding * cell_w;
-    U32 y_padding = padding * (cell_h + info->line_spacing);
-
-    if (coord.x < box->rect.x + x_padding) {
-        text_box_hscroll(box->parent, sat_sub32(pos.column, padding), UI_ALIGN_START);
-    } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
-        text_box_hscroll(box->parent, clamp(sat_add32(pos.column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
-    }
-
-    if (coord.y < box->rect.y + y_padding) {
-        text_box_vscroll(box->parent, sat_sub32(pos.line, padding), UI_ALIGN_START);
-    } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(box->parent, clamp(sat_add32(pos.line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
-    }
-}
-
-static Int text_pos_cmp (UiTextPos a, UiTextPos b) {
-    if (a.line < b.line) return -1;
-    if (a.line > b.line) return 1;
-    if (a.column < b.column) return -1;
-    if (a.column > b.column) return 1;
-    return 0;
-}
-
 static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
@@ -2010,6 +1947,70 @@ static Void text_box_render (UiBox *box) {
     );
 }
 
+static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
+    UiTextBox *info = cast(UiTextBox*, container->scratch);
+
+    U32 cell_h = ui->glyph_cache->font_height;
+    info->scroll_pos_n.y = cast(F32, line) * (cell_h + info->line_spacing);
+
+    F32 visible_h = container->rect.h - 2*container->style.padding.y;
+    if (align == UI_ALIGN_MIDDLE) {
+        info->scroll_pos_n.y -= round(visible_h / 2);
+    } else if (align == UI_ALIGN_END) {
+        info->scroll_pos_n.y -= visible_h - cell_h - info->line_spacing;
+    }
+}
+
+static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
+    UiTextBox *info = cast(UiTextBox*, container->scratch);
+
+    U32 cell_w = ui->glyph_cache->font_width;
+    info->scroll_pos_n.x = cast(F32, column) * cell_w;
+
+    // @todo We cannot do container->rect.w because later we might want to
+    // add more boxes inside container. We specifically need the box that
+    // contains the text.
+    F32 visible_w = container->rect.w - 2*container->style.padding.y;
+
+    if (align == UI_ALIGN_MIDDLE) {
+        info->scroll_pos_n.x -= round(visible_w / 2);
+    } else if (align == UI_ALIGN_END) {
+        info->scroll_pos_n.x -= visible_w - cell_w;
+    }
+}
+
+static Void text_box_scroll_into_view (UiBox *box, UiTextPos pos, U32 padding) {
+    UiTextBox *info = cast(UiTextBox*, box->parent->scratch);
+
+    U32 cell_w = ui->glyph_cache->font_width;
+    U32 cell_h = ui->glyph_cache->font_height;
+
+    Vec2 coord = text_box_pos_to_coord(box, info, pos);
+
+    U32 x_padding = padding * cell_w;
+    U32 y_padding = padding * (cell_h + info->line_spacing);
+
+    if (coord.x < box->rect.x + x_padding) {
+        text_box_hscroll(box->parent, sat_sub32(pos.column, padding), UI_ALIGN_START);
+    } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
+        text_box_hscroll(box->parent, clamp(sat_add32(pos.column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
+    }
+
+    if (coord.y < box->rect.y + y_padding) {
+        text_box_vscroll(box->parent, sat_sub32(pos.line, padding), UI_ALIGN_START);
+    } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
+        text_box_vscroll(box->parent, clamp(sat_add32(pos.line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
+    }
+}
+
+static Int text_pos_cmp (UiTextPos a, UiTextPos b) {
+    if (a.line < b.line) return -1;
+    if (a.line > b.line) return 1;
+    if (a.column < b.column) return -1;
+    if (a.column > b.column) return 1;
+    return 0;
+}
+
 static Void text_box_set_selection (UiTextBox *info, UiTextPos start, UiTextPos end) {
     info->selection_start = start;
     info->selection_end = end;
@@ -2034,7 +2035,8 @@ static UiTextPos text_box_coord_to_pos (UiBox *box, UiTextBox *info, Vec2 coord)
     tmem_new(tm);
     String line = buf_get_line(info->buf, tm, pos.line);
 
-    pos.column = clamp(round(coord.x / cell_w), 0, line.count);
+    U64 max_col = str_codepoint_count(line);
+    pos.column = clamp(round(coord.x / cell_w), 0u, max_col);
 
     return pos;
 }
@@ -2050,8 +2052,13 @@ static Vec2 text_box_pos_to_coord (UiBox *box, UiTextBox *info, UiTextPos pos) {
     if (info->pos.line < buf_get_line_count(info->buf)) {
         tmem_new(tm);
         String line_str = buf_get_line(info->buf, tm, info->pos.line);
-        U32 end_col = min(info->pos.column, line_str.count);
-        for (U32 i = 0; i < end_col; ++i) coord.x += char_width;
+
+        U64 i = 0;
+        str_utf8_iter (it, line_str) {
+            if (i >= pos.column) break;
+            coord.x += char_width;
+            i++;
+        }
     }
 
     coord.x += box->rect.x - info->scroll_pos.x;
@@ -2068,8 +2075,9 @@ static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
     if (right) {
         tmem_new(tm);
         String line = buf_get_line(info->buf, tm, info->pos.line);
+        U64 count = str_codepoint_count(line);
 
-        if (info->preferred_column < line.count) {
+        if (info->preferred_column < count) {
             info->preferred_column++;
             info->pos.column = info->preferred_column;
         } else if (info->pos.line < buf_get_line_count(info->buf)-1) {
@@ -2084,7 +2092,7 @@ static Void text_box_move_cursor_h (UiBox *box, UiTextBox *info, Bool right) {
             info->pos.line--;
             tmem_new(tm);
             String line = buf_get_line(info->buf, tm, info->pos.line);
-            info->preferred_column = cast(U32, line.count);
+            info->preferred_column = cast(U32, str_codepoint_count(line));
         }
 
         info->pos.column = info->preferred_column;
@@ -2102,8 +2110,9 @@ static Void text_box_move_cursor_v (UiBox *box, UiTextBox *info, Bool down) {
 
     tmem_new(tm);
     String line = buf_get_line(info->buf, tm, info->pos.line);
-    if (info->preferred_column > line.count) {
-        info->pos.column = cast(U32, line.count);
+    U64 count = str_codepoint_count(line);
+    if (info->preferred_column > count) {
+        info->pos.column = cast(U32, count);
     } else {
         info->pos.column = info->preferred_column;
     }
@@ -2113,6 +2122,7 @@ static Void text_box_move_cursor_v (UiBox *box, UiTextBox *info, Bool down) {
 
 static Void text_box_move_cursor_to_coord (UiBox *box, UiTextBox *info, Vec2 coord) {
     info->pos = text_box_coord_to_pos(box, info, coord);
+    info->preferred_column = info->pos.column;
 }
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
@@ -2183,8 +2193,6 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             case GLFW_KEY_UP:    text_box_move_cursor_v(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
             case GLFW_KEY_DOWN:  text_box_move_cursor_v(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
             }
-
-
         }
 
         if (text_box->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {

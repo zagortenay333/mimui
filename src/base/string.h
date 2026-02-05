@@ -60,6 +60,7 @@ String    str_copy              (Mem *, String);
 UtfDecode str_utf8_decode       (String str);
 UtfIter   str_utf8_iter_new     (String str);
 Bool      str_utf8_iter_next    (UtfIter *it);
+U64       str_codepoint_count   (String s);
 
 // =============================================================================
 // AString: Wrapper around Array for string building.
