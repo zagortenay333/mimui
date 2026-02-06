@@ -1,5 +1,4 @@
 #include "vendor/glad/glad.h"
-#include <GLFW/glfw3.h>
 #include <SDL3/SDL.h>
 #include "vendor/stb/stb_image.h"
 #include "vendor/stb/stb_image_write.h"
@@ -15,7 +14,7 @@
 static Void app_build ();
 static Void app_init (Mem *, Mem *);
 static Void ui_init (Mem *, Mem *);
-static Void ui_frame (Void(*)(), F32 dt);
+static Void ui_frame (Void(*)(), F64 dt);
 
 // =============================================================================
 // Glfw and opengl layer:
@@ -85,7 +84,6 @@ array_typedef(Event, Event);
 Arena *parena;
 Arena *farena; // Cleared each frame.
 
-GLFWwindow *window;
 Int win_width  = 800;
 Int win_height = 600;
 
@@ -147,49 +145,6 @@ static Void update_projection () {
     F32 h = cast(F32, win_height);
     F32 w = cast(F32, win_width);
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
-}
-
-static Void framebuffer_size_callback (GLFWwindow *win, Int width, Int height) {
-    win_width = width;
-    win_height = height;
-    update_projection();
-    glViewport(0, 0, width, height);
-    framebuffer = framebuffer_new(&framebuffer_tex, 1,   win_width, win_height);
-    blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    glScissor(0, 0, width, height);
-    Auto e = array_push_slot(&events);
-    e->tag = EVENT_WINDOW_SIZE;
-}
-
-Void mouse_scroll_callback (GLFWwindow *win, F64 x, F64 y) {
-    Auto e = array_push_slot(&events);
-    e->tag = EVENT_SCROLL;
-    e->x = x;
-    e->y = y;
-}
-
-Void mouse_move_callback (GLFWwindow *win, F64 x, F64 y) {
-    Auto e = array_push_slot(&events);
-    e->tag = EVENT_MOUSE_MOVE;
-    e->x = x;
-    e->y = y;
-}
-
-Void mouse_click_callback (GLFWwindow *win, Int button, Int action, Int mods) {
-    if (action != GLFW_PRESS && action != GLFW_RELEASE) return;
-    Auto e = array_push_slot(&events);
-    e->tag = action == GLFW_PRESS ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-    e->key = button;
-    e->mods = mods;
-}
-
-Void key_callback (GLFWwindow* window, Int key, Int scancode, Int action, Int mods) {
-    Auto e = array_push_slot(&events);
-    e->tag = action == GLFW_RELEASE ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
-    e->key = key;
-    e->mods = mods;
-    e->scancode = scancode;
 }
 
 Void write_texture_to_png (CString filepath, U32 texture, U32 w, U32 h, Bool flip) {
@@ -466,13 +421,13 @@ Void ui_test () {
 
     dt                  = 0;
     frame_count         = 0;
-    current_frame       = glfwGetTime();
+    current_frame       = get_time_sec();
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
     Bool running = true;
     while (running) {
-        current_frame = glfwGetTime();
+        current_frame = get_time_sec();
         dt            = current_frame - prev_frame;
         prev_frame    = current_frame;
         frame_count++;
@@ -492,9 +447,62 @@ Void ui_test () {
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = 0;
-            }
+            switch (event.type) {
+            case SDL_EVENT_QUIT: {
+                running = false;
+            } break;
+
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+                Int width  = event.window.data1;
+                Int height = event.window.data2;
+
+                win_width  = width;
+                win_height = height;
+
+                update_projection();
+                glViewport(0, 0, width, height);
+
+                framebuffer = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
+                blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+                blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+
+                glScissor(0, 0, width, height);
+
+                Auto e = array_push_slot(&events);
+                e->tag = EVENT_WINDOW_SIZE;
+            } break;
+
+            case SDL_EVENT_MOUSE_WHEEL: {
+                Auto e = array_push_slot(&events);
+                e->tag = EVENT_SCROLL;
+                e->x = event.wheel.x;
+                e->y = event.wheel.y;
+            } break;
+
+            case SDL_EVENT_MOUSE_MOTION: {
+                Auto e = array_push_slot(&events);
+                e->tag = EVENT_MOUSE_MOVE;
+                e->x = event.motion.x;
+                e->y = event.motion.y;
+            } break;
+
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP: {
+                Auto e  = array_push_slot(&events);
+                e->tag  = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
+                e->key  = event.button.button;
+                e->mods = SDL_GetModState();
+            } break;
+
+            case SDL_EVENT_KEY_DOWN:
+            case SDL_EVENT_KEY_UP: {
+                Auto e = array_push_slot(&events);
+                e->tag = (event.type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
+                e->key = event.key.key;
+                e->scancode = event.key.scancode;
+                e->mods = event.key.mod;
+            } break;
+        }
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
@@ -765,7 +773,7 @@ istruct (Ui) {
     Vec2 mouse_dt;
     Vec2 mouse;
     Map(U32, U8) pressed_keys;
-    F32 dt;
+    F64 dt;
     UiBox *root;
     UiBox *hovered;
     UiBox *focused;
@@ -824,7 +832,7 @@ static Void compute_signals (UiBox *box) {
     if (! (box->flags & UI_BOX_REACTIVE)) return;
 
     sig->focused = (box == ui->focused);
-    sig->clicked = sig->focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_ENTER);
+    sig->clicked = sig->focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RETURN);
 
     sig->hovered = false;
     for (UiBox *b = ui->hovered; b; b = b->parent) {
@@ -837,8 +845,8 @@ static Void compute_signals (UiBox *box) {
 
     if (! pressed) {
         Int k = ui->event->key;
-        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (k == GLFW_MOUSE_BUTTON_LEFT || k == GLFW_MOUSE_BUTTON_MIDDLE || k == GLFW_MOUSE_BUTTON_RIGHT);
-    } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == GLFW_MOUSE_BUTTON_LEFT)) {
+        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (k == SDL_BUTTON_LEFT || k == SDL_BUTTON_MIDDLE || k == SDL_BUTTON_RIGHT);
+    } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == SDL_BUTTON_LEFT)) {
         sig->pressed = false;
         if (sig->hovered) sig->clicked = true;
     } else {
@@ -1805,7 +1813,7 @@ static Void ui_scroll_box_pop () {
     UiBox *container = array_get_last(&ui->box_stack);
 
     Bool contains_focused = (ui->focus_idx >= container->scratch);
-    if (contains_focused && ui->event->tag == EVENT_KEY_PRESS && ui->event->key == GLFW_KEY_TAB) {
+    if (contains_focused && ui->event->tag == EVENT_KEY_PRESS && ui->event->key == SDLK_TAB) {
         F32 fx1 = ui->focused->rect.x + ui->focused->rect.w;
         F32 cx1 = container->rect.x + container->rect.w;
         if (fx1 > cx1) {
@@ -1832,7 +1840,7 @@ static Void ui_scroll_box_pop () {
         ui_hscroll_bar(str("scroll_bar_x"), (UiRect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
         container->content.x = -(scroll_val/container->rect.w*container->content.w);
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(GLFW_KEY_LEFT_CONTROL)) {
+        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(SDLK_LCTRL)) {
             container->content.x += speed * ui->event->y;
             ui_eat_event();
         }
@@ -1848,7 +1856,7 @@ static Void ui_scroll_box_pop () {
         ui_vscroll_bar(str("scroll_bar_y"), (UiRect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
         container->content.y = -(scroll_val/container->rect.h*container->content.h);
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(GLFW_KEY_LEFT_CONTROL)) {
+        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(SDLK_LCTRL)) {
             container->content.y += speed * ui->event->y;
             ui_eat_event();
         }
@@ -2156,7 +2164,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? info->scrollbar_width : 0), 1});
 
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
-                if (scroll_y && !is_key_pressed(GLFW_KEY_LEFT_SHIFT)) {
+                if (scroll_y && !is_key_pressed(SDLK_LSHIFT)) {
                     info->scroll_pos_n.y -= (cell_h + info->line_spacing) * ui->event->y;
                     info->scroll_pos_n.y  = clamp(info->scroll_pos_n.y, 0, info->total_height - visible_h);
                     ui_eat_event();
@@ -2202,14 +2210,14 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.focused && ui->event->tag == EVENT_KEY_PRESS) {
             switch (ui->event->key) {
-            case GLFW_KEY_LEFT:  text_box_move_cursor_h(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
-            case GLFW_KEY_RIGHT: text_box_move_cursor_h(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
-            case GLFW_KEY_UP:    text_box_move_cursor_v(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
-            case GLFW_KEY_DOWN:  text_box_move_cursor_v(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
+            case SDLK_LEFT:  text_box_move_cursor_h(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
+            case SDLK_RIGHT: text_box_move_cursor_h(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
+            case SDLK_UP:    text_box_move_cursor_v(text_box, info, 0); text_box_clear_selection(info); ui_eat_event(); break;
+            case SDLK_DOWN:  text_box_move_cursor_v(text_box, info, 1); text_box_clear_selection(info); ui_eat_event(); break;
             }
         }
 
-        if (text_box->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
+        if (text_box->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
             info->dragging = false;
         }
 
@@ -2249,13 +2257,13 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_vec4(UI_BORDER_COLOR, vec4(1, 1, 1, .8));
         }
 
-        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_LEFT)) {
+        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_LEFT)) {
             *val -= .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
         }
 
-        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_RIGHT)) {
+        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RIGHT)) {
             *val += .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
@@ -2450,7 +2458,7 @@ static Void find_prev_focus () {
     }
 }
 
-static Void ui_frame (Void(*app_build)(), F32 dt) {
+static Void ui_frame (Void(*app_build)(), F64 dt) {
     ui->dt = dt;
 
     array_iter (event, &events, *) {
@@ -2461,8 +2469,8 @@ static Void ui_frame (Void(*app_build)(), F32 dt) {
         root_clip->h = win_height;
 
         if (ui->depth_first.count) {
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == GLFW_KEY_TAB)) {
-                if (event->mods == GLFW_MOD_SHIFT) find_prev_focus();
+            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == SDLK_TAB)) {
+                if (event->mods == SDL_KMOD_SHIFT) find_prev_focus();
                 else                               find_next_focus();
             }
         }
@@ -2646,8 +2654,8 @@ static Bool show_modal () {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
 
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == GLFW_KEY_ESCAPE)) return false;
-            if (overlay->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) return false;
+            if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) return false;
+            if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) return false;
 
             UiBox *modal = ui_box(UI_BOX_REACTIVE, "modal") {
                 if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
@@ -2755,7 +2763,7 @@ static Void app_build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
+            if (ui_button("Foo1")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
                 app->modal_shown = !app->modal_shown;
             }
 
@@ -2771,9 +2779,9 @@ static Void app_build () {
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
 
-            if (foo2->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 0;
-            if (foo3->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 1;
-            if (foo4->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) app->view = 2;
+            if (foo2->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
+            if (foo3->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
+            if (foo4->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
@@ -2786,8 +2794,8 @@ static Void app_build () {
             ui_box(UI_BOX_INVISIBLE, "bottom_sidebar_button") {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
 
-                if (ui_button("bar")->signal.clicked && ui->event->key == GLFW_MOUSE_BUTTON_LEFT) {
-                    text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
+                if (ui_button("bar")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
+                    if (app->text_box) text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 A toy gui application done for the purpose of studying immediate mode graphics UI's.
 
-It's implemented on top of openGl and glfw.
+It's implemented on top of openGl and sdl3.
 
 There is support for:
 
@@ -17,4 +17,4 @@ There is support for:
 Big thanks to the raddbg and orca projects for many of the ideas.
 
 The project is written in C2y, so you need newer versions of gcc/clang.
-You also need glfw, freetype, and harfbuzz devel packages.
+You also need sdl3, freetype, and harfbuzz devel packages.
