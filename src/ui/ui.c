@@ -29,6 +29,7 @@ ienum (EventTag, U8) {
     EVENT_SCROLL,
     EVENT_KEY_PRESS,
     EVENT_KEY_RELEASE,
+    EVENT_TEXT_INPUT,
 };
 
 istruct (Event) {
@@ -38,6 +39,7 @@ istruct (Event) {
     Int key;
     Int mods;
     Int scancode;
+    String text;
 };
 
 istruct (RectAttributes) {
@@ -367,6 +369,7 @@ Void ui_test () {
     SDL_Window *window = SDL_CreateWindow("Mykron", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
     SDL_GLContext gl_ctx = SDL_GL_CreateContext(window);
     gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
+    SDL_StartTextInput(window);
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -501,6 +504,12 @@ Void ui_test () {
                 e->key = event.key.key;
                 e->scancode = event.key.scancode;
                 e->mods = event.key.mod;
+            } break;
+
+            case SDL_EVENT_TEXT_INPUT: {
+                Auto e = array_push_slot(&events);
+                e->tag = EVENT_TEXT_INPUT;
+                e->text = str(cast(Char*, event.text.text));
             } break;
         }
         }
@@ -1905,13 +1914,6 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             UiTextPos current = {line_idx, col_idx};
             Bool selected = text_pos_cmp(current, start) >= 0 && text_pos_cmp(current, end) < 0;
 
-            // if (selected) draw_rounded_rect_with_corners(
-                // (RectRegion){200,200,400,350},
-                // vec4(1,0,0,1),
-                // CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,
-                // 80, 1.0, 1
-            // );
-
             if (selected) draw_rect(
                 .color        = info->selection_bg_color,
                 .color2       = info->selection_bg_color,
@@ -2235,6 +2237,12 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             }
         }
 
+        if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
+            U64 offset = 0;
+            buf_insert(info->buf, ui->event->text, offset);
+            ui_eat_event();
+        }
+
         animate_vec2(&info->scroll_pos, info->scroll_pos_n, info->scroll_animation_time);
         text_box_update_cursor_pos(text_box, info);
         container->scratch = cast(U64, info);
@@ -2419,6 +2427,7 @@ static Void update_input_state (Event *event) {
     case EVENT_EATEN:       break;
     case EVENT_SCROLL:      break;
     case EVENT_WINDOW_SIZE: break;
+    case EVENT_TEXT_INPUT:  break;
     case EVENT_KEY_PRESS:   map_add(&ui->pressed_keys, event->key, 0); break;
     case EVENT_KEY_RELEASE: map_remove(&ui->pressed_keys, event->key); break;
     case EVENT_MOUSE_MOVE:
