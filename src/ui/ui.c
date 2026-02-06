@@ -1914,6 +1914,13 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             UiTextPos current = {line_idx, col_idx};
             Bool selected = text_pos_cmp(current, start) >= 0 && text_pos_cmp(current, end) < 0;
 
+            // if (selected) draw_rounded_rect_with_corners(
+                    // (Rect){250,250,400,400},
+                    // vec4(1,0,0,1),
+                    // CORNER_OUT,CORNER_OUT,CORNER_OUT,CORNER_OUT,
+                    // 8, 1.0
+            // );
+
             if (selected) draw_rect(
                 .color        = info->selection_bg_color,
                 .color2       = info->selection_bg_color,
@@ -2820,7 +2827,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    buf_insert(app->text_box->buf, str("\t"), 0);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;

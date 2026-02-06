@@ -4,16 +4,7 @@
 #include "base/mem.h"
 #include "base/string.h"
 
-istruct (Buf) {
-    Mem *mem;
-    U64 line_count;
-    U64 widest_line;
-    Bool stats_outdated;
-    AString str;
-    U64 gap_min;
-    U64 gap_idx;
-    U64 gap_count;
-};
+istruct (Buf);
 
 istruct (BufLineIter) {
     Buf *buf;

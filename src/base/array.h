@@ -48,6 +48,7 @@ typedef SliceBase(U8) USlice;
 
 array_typedef(U8, U8);
 array_typedef(U32, U32);
+array_typedef(I32, I32);
 array_typedef(U64, U64);
 array_typedef(Char, Char);
 array_typedef(CString, CString);
@@ -67,6 +68,7 @@ Void   uarray_push_many                    (UArray *, USlice *, U64 esize);
 Void   uarray_insert_many                  (UArray *, USlice *, U64 esize, U64 idx);
 USlice uarray_insert_gap                   (UArray *, U64, U64 count, U64 idx, Bool zeroed);
 Void   uarray_remove                       (UArray *, U64 esize, U64 idx);
+Void   uarray_remove_many                  (UArray *, U64 esize, U64 idx, U64 n);
 Void   uarray_sort                         (UArray *, U64 esize, Int(*)(Void*, Void*));
 U64    uarray_bsearch                      (UArray *, U64 esize, Void *, Int(*)(Void*, Void*));
 Int    uarray_cmp_u8                       (Void *, Void *);
@@ -119,6 +121,7 @@ Int    uarray_cmp_u64                      (Void *, Void *);
 #define array_pop(A)                       ({ def1(a, A); AElem(a) e = array_get_last(a); a->count--; e; })
 #define array_pop_or(A, OR)                ({ def2(a, v, A, acast(AElem(A), OR)); a->count ? array_pop(a) : v; })
 #define array_remove(A, I)                 uarray_remove(uarray_from(A), array_esize(A), I);
+#define array_remove_many(A, I, N)         uarray_remove_many(uarray_from(A), array_esize(A), I, N);
 #define array_remove_fast(A, I)            ({ def2(a, i, A, I); array_set(a, i, array_get_last(a)); a->count--; })
 #define array_swap_remove(A, I)            ({ def2(a, i, A, I); array_swap(a, i, a->count-1); a->count--; })
 
