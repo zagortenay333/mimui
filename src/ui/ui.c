@@ -2805,7 +2805,7 @@ static Void app_build () {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
 
                 if (ui_button("bar")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
-                    if (app->text_box) text_box_vscroll(app->text_box_widget, 20, UI_ALIGN_START);
+                    if (app->text_box) text_box_vscroll(app->text_box_widget, 0, UI_ALIGN_START);
                 }
             }
         }
@@ -2826,7 +2826,9 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->view = 2;
 
     app->text_box = mem_new(parena, UiTextBox);
+    U64 s = os_time_ms();
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
+    printf("%lu\n", os_time_ms()-s);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;

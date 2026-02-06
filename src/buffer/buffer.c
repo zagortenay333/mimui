@@ -10,14 +10,20 @@ istruct (Buf) {
     Bool dirty;
 };
 
+Void split (String str, String separators, Bool keep_separators, Bool keep_empties, ArrayString *out) {
+}
+
 static Void compute_aux (Buf *buf) {
     if (! buf->dirty) return;
     buf->dirty = false;
-    str_split(buf->data.as_slice, str("\n"), 0, 1, &buf->lines);
-    buf->lines.count--;
-    array_iter (line, &buf->lines, *) {
-        U64 count = str_codepoint_count(*line);
-        if (count > buf->widest_line) buf->widest_line = count;
+
+    U64 prev_pos = 0;
+    array_iter (c, &buf->data) {
+        if (c != '\n') continue;
+        String s = str_slice(buf->data.as_slice, prev_pos, ARRAY_IDX - prev_pos);
+        if (s.count > buf->widest_line) buf->widest_line = s.count;
+        array_push(&buf->lines, s);
+        prev_pos = ARRAY_IDX + 1;
     }
 }
 
