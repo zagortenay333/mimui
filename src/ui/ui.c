@@ -733,6 +733,7 @@ istruct (UiTextPos) {
 
 istruct (UiTextBox) {
     Buf *buf;
+    BufCursor *cursor;
     UiTextPos pos;
     U32 preferred_column;
     Vec2 cursor_pos;
@@ -2244,6 +2245,11 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             }
         }
 
+        if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
+            buf_insert(info->buf, ui->event->text, 0);
+            ui_eat_event();
+        }
+
         animate_vec2(&info->scroll_pos, info->scroll_pos_n, info->scroll_animation_time);
         text_box_update_cursor_pos(text_box, info);
         container->scratch = cast(U64, info);
@@ -2826,9 +2832,8 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->view = 2;
 
     app->text_box = mem_new(parena, UiTextBox);
-    U64 s = os_time_ms();
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    printf("%lu\n", os_time_ms()-s);
+    app->text_box->cursor = buf_cursor_new(app->text_box->buf);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;

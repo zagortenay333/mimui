@@ -8,15 +8,14 @@ istruct (Buf) {
     ArrayString lines;
     U64 widest_line;
     Bool dirty;
+    BufCursor *cursor;
 };
-
-Void split (String str, String separators, Bool keep_separators, Bool keep_empties, ArrayString *out) {
-}
 
 static Void compute_aux (Buf *buf) {
     if (! buf->dirty) return;
     buf->dirty = false;
 
+    buf->lines.count = 0;
     U64 prev_pos = 0;
     array_iter (c, &buf->data) {
         if (c != '\n') continue;
@@ -94,11 +93,14 @@ U64 buf_get_line_count (Buf *buf) {
 }
 
 Void buf_insert (Buf *buf, String str, U64 idx) {
+    idx = clamp(idx, 0u, buf->data.count);
     array_insert_many(&buf->data, &str, idx);
     buf->dirty = true;
+    compute_aux(buf);
 }
 
 Void buf_delete (Buf *buf, U64 count, U64 idx) {
+    idx = clamp(idx, 0u, buf->data.count - 1);
     count = clamp(count, 0u, buf->data.count - idx);
     array_remove_many(&buf->data, idx, count);
     buf->dirty = true;
@@ -117,4 +119,71 @@ U64 buf_line_to_offset (Buf *buf, U64 line_idx) {
     line_idx = clamp(line_idx, 0u, buf->lines.count-1);
     String line = array_get(&buf->lines, line_idx);
     return line.data - buf->data.data;
+}
+
+static Void update_cursor_byte_offset (BufCursor *cursor) {
+}
+
+BufCursor *buf_cursor_new (Buf *buf) {
+    assert_dbg(! buf->cursor);
+    Auto cursor = mem_new(buf->mem, BufCursor);
+    buf->cursor = cursor;
+    return cursor;
+}
+
+Void buf_cursor_move_left (BufCursor *cursor) {
+    if (cursor->column > 0) {
+        cursor->preferred_column--;
+    } else if (cursor->line > 0) {
+        cursor->line--;
+        String line = buf_get_line(cursor->buf, 0, cursor->line);
+        cursor->preferred_column = str_codepoint_count(line);
+    }
+
+    cursor->column = cursor->preferred_column;
+    update_cursor_byte_offset(cursor);
+}
+
+Void buf_cursor_move_right (BufCursor *cursor) {
+    String line = buf_get_line(cursor->buf, 0, cursor->line);
+    U64 count = str_codepoint_count(line);
+
+    if (cursor->preferred_column < count) {
+        cursor->preferred_column++;
+        cursor->column = cursor->preferred_column;
+    } else if (cursor->line < buf_get_line_count(cursor->buf)-1) {
+        cursor->line++;
+        cursor->column = 0;
+        cursor->preferred_column = 0;
+    }
+
+    update_cursor_byte_offset(cursor);
+}
+
+Void buf_cursor_move_up (BufCursor *cursor) {
+    if (cursor->line > 0) cursor->line--;
+
+    String line = buf_get_line(cursor->buf, 0, cursor->line);
+    U64 count = str_codepoint_count(line);
+    if (cursor->preferred_column > count) {
+        cursor->column = count;
+    } else {
+        cursor->column = cursor->preferred_column;
+    }
+
+    update_cursor_byte_offset(cursor);
+}
+
+Void buf_cursor_move_down (BufCursor *cursor) {
+    if (cursor->line < buf_get_line_count(cursor->buf)-1) cursor->line++;
+
+    String line = buf_get_line(cursor->buf, 0, cursor->line);
+    U64 count = str_codepoint_count(line);
+    if (cursor->preferred_column > count) {
+        cursor->column = count;
+    } else {
+        cursor->column = cursor->preferred_column;
+    }
+
+    update_cursor_byte_offset(cursor);
 }
