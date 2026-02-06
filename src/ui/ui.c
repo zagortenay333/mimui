@@ -2237,12 +2237,6 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             }
         }
 
-        if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
-            U64 offset = 0;
-            buf_insert(info->buf, ui->event->text, offset);
-            ui_eat_event();
-        }
-
         animate_vec2(&info->scroll_pos, info->scroll_pos_n, info->scroll_animation_time);
         text_box_update_cursor_pos(text_box, info);
         container->scratch = cast(U64, info);
@@ -2826,6 +2820,7 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
+    buf_insert(app->text_box->buf, str("\t"), 0);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
