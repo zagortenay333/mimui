@@ -14,6 +14,7 @@ static Void compute_aux (Buf *buf) {
     if (! buf->dirty) return;
     buf->dirty = false;
     str_split(buf->data.as_slice, str("\n"), 0, 1, &buf->lines);
+    buf->lines.count--;
     array_iter (line, &buf->lines, *) {
         U64 count = str_codepoint_count(*line);
         if (count > buf->widest_line) buf->widest_line = count;

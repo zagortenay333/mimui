@@ -78,13 +78,13 @@ Void uarray_remove (UArray *array, U64 esize, U64 idx) {
 }
 
 Void uarray_remove_many (UArray *array, U64 esize, U64 idx, U64 n) {
-    array_bounds_check(array, idx + n);
+    array_bounds_check(array, idx + n - 1);
     if (idx < (array->count - 1)) {
         U8 *src = &array->data[esize * (idx + n)];
         U8 *dst = &array->data[esize * idx];
-        memmove(dst, src, esize * (array->count - idx - 1));
+        memmove(dst, src, esize * (array->count - idx - n));
     }
-    array->count--;
+    array->count -= n;
 }
 
 USlice uarray_insert_gap (UArray *array, U64 esize, U64 count, U64 idx, Bool zeroed) {
