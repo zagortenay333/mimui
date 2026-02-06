@@ -1,3 +1,4 @@
+#include "base/core.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -62,11 +63,7 @@ Int ui_test2 (Void) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
-    SDL_Window *window = SDL_CreateWindow(
-        "Mykron",
-        800, 600,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
-    );
+    SDL_Window *window = SDL_CreateWindow("Mykron", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
 
     SDL_GLContext gl_ctx = SDL_GL_CreateContext(window);
 

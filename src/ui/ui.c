@@ -1,5 +1,6 @@
 #include "vendor/glad/glad.h"
 #include <GLFW/glfw3.h>
+#include <SDL3/SDL.h>
 #include "vendor/stb/stb_image.h"
 #include "vendor/stb/stb_image_write.h"
 #include "ui/glyph.h"
@@ -394,32 +395,29 @@ static Void draw_rect_fn (RectAttributes *a) {
     draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
 }
 
+F64 get_time_sec () {
+    U64 counter = SDL_GetPerformanceCounter();
+    U64 freq    = SDL_GetPerformanceFrequency();
+    return cast(F64, counter) / cast(F64, freq);
+}
+
 Void ui_test () {
     parena = arena_new(mem_root, 1*MB);
     farena = arena_new(mem_root, 1*MB);
 
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_Window *window = SDL_CreateWindow("Mykron", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    SDL_GLContext gl_ctx = SDL_GL_CreateContext(window);
+    gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
 
-    window = glfwCreateWindow(win_width, win_height, "Mykron", 0, 0);
-    if (! window) { glfwTerminate(); return; }
-
-    glfwMakeContextCurrent(window);
-
-    if (! gladLoadGLLoader(cast(GLADloadproc, glfwGetProcAddress))) return;
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glEnable(GL_SCISSOR_TEST);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetScrollCallback(window, mouse_scroll_callback);
-    glfwSetCursorPosCallback(window, mouse_move_callback);
-    glfwSetMouseButtonCallback(window, mouse_click_callback);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -472,7 +470,8 @@ Void ui_test () {
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
-    while(! glfwWindowShouldClose(window)) {
+    Bool running = true;
+    while (running) {
         current_frame = glfwGetTime();
         dt            = current_frame - prev_frame;
         prev_frame    = current_frame;
@@ -490,6 +489,13 @@ Void ui_test () {
             first_counted_frame = current_frame;
         }
         #endif
+
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                running = 0;
+            }
+        }
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -509,17 +515,18 @@ Void ui_test () {
         glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
         glDrawArrays(GL_TRIANGLES, 0, screen_vertices.count);
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        SDL_GL_SwapWindow(window);
     }
 
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(rect_shader);
     glDeleteProgram(screen_shader);
-    glfwTerminate();
     arena_destroy(parena);
     arena_destroy(farena);
+    SDL_GL_DestroyContext(gl_ctx);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
 // =============================================================================
