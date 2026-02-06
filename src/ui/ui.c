@@ -481,7 +481,7 @@ Void ui_test () {
         log_scope(ls, 1);
         arena_pop_all(farena);
 
-        #if 1
+        #if 0
         if (current_frame - first_counted_frame >= 0.1) {
             tmem_new(tm);
             String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
@@ -700,7 +700,7 @@ fenum (UiBoxFlags, U8) {
     UI_DRAW_LABEL        = flag(5),
 };
 
-typedef Void (*UiBoxRenderFn)(UiBox*);
+typedef Void (*UiBoxDrawFn)(UiBox*);
 
 istruct (UiTextPos) {
     U32 line;
@@ -742,7 +742,7 @@ istruct (UiBox) {
     U64 scratch;
     UiRect rect;
     UiRect text_rect;
-    UiBoxRenderFn render_fn;
+    UiBoxDrawFn draw_fn;
 
     // The x/y components of this field are set independently
     // by the user build code for the purpose of scrolling the
@@ -866,7 +866,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
     if (box) {
         if (box->gc_flag == ui->gc_flag) error_fmt("UiBox label hash collision: [%.*s] vs [%.*s].", STR(box->label), STR(label));
         box->parent = 0;
-        box->render_fn = 0;
+        box->draw_fn = 0;
         box->tags.count = 0;
         box->children.count = 0;
         box->style_rules.count = 0;
@@ -881,7 +881,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->text_rect = (UiRect){};
         box->content = (UiRect){};
         box->scratch = 0;
-        box->render_fn = 0;
+        box->draw_fn = 0;
         map_add(&ui->box_cache, key, box);
     } else {
         box = mem_new(ui->mem, UiBox);
@@ -1503,7 +1503,7 @@ static Void find_topmost_hovered_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) ui_pop_clip();
 }
 
-static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
+static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
     tmem_new(tm);
 
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
@@ -1536,7 +1536,7 @@ static Void render_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out
     }
 }
 
-static Void render_box (UiBox *box) {
+static Void draw_box (UiBox *box) {
     if (box->style.blur_radius) {
         flush_vertices();
 
@@ -1625,14 +1625,14 @@ static Void render_box (UiBox *box) {
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 
-    if (box->render_fn) box->render_fn(box);
+    if (box->draw_fn) box->draw_fn(box);
 
-    array_iter (c, &box->children) render_box(c);
+    array_iter (c, &box->children) draw_box(c);
 
     if (box->flags & UI_DRAW_LABEL) {
         F32 x = floor(box->rect.x + box->rect.w/2 - box->text_rect.w/2);
         F32 y = floor(box->rect.y + box->rect.h/2 + box->text_rect.h/2);
-        render_text_line(box->label, box->style.text_color, x, y, &box->text_rect);
+        draw_text_line(box->label, box->style.text_color, x, y, &box->text_rect);
     }
 
     if (box->flags & UI_BOX_CLIPPING) {
@@ -1863,7 +1863,7 @@ static Void ui_scroll_box_pop_ (Void *) {
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
-static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
+static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
 
@@ -1889,6 +1889,13 @@ static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 co
         if (x + cell_w > box->rect.x) {
             UiTextPos current = {line_idx, col_idx};
             Bool selected = text_pos_cmp(current, start) >= 0 && text_pos_cmp(current, end) < 0;
+
+            // if (selected) draw_rounded_rect_with_corners(
+                // (RectRegion){200,200,400,350},
+                // vec4(1,0,0,1),
+                // CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,CORNER_ROUNDING_IN,
+                // 80, 1.0, 1
+            // );
 
             if (selected) draw_rect(
                 .color        = info->selection_bg_color,
@@ -1917,7 +1924,7 @@ static Void text_box_render_line (UiBox *box, U32 line_idx, String text, Vec4 co
     }
 }
 
-static Void text_box_render (UiBox *box) {
+static Void text_box_draw (UiBox *box) {
     tmem_new(tm);
 
     UiBox *container = box->parent;
@@ -1935,7 +1942,7 @@ static Void text_box_render (UiBox *box) {
 
     buf_iter_lines (line, info->buf, tm, pos.line) {
         if (y - line_height > box->rect.y + box->rect.h) break;
-        text_box_render_line(box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
+        text_box_draw_line(box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
         y += line_height;
     }
 
@@ -2153,7 +2160,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 }
             }
 
-            text_box->render_fn = text_box_render;
+            text_box->draw_fn = text_box_draw;
         }
 
         if (scroll_y) {
@@ -2486,7 +2493,7 @@ static Void ui_frame (Void(*app_build)(), F32 dt) {
     apply_style_rules();
     compute_layout();
     find_topmost_hovered_box(ui->root);
-    render_box(ui->root);
+    draw_box(ui->root);
 }
 
 static Void ui_init (Mem *mem, Mem *frame_mem) {

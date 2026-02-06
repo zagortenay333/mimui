@@ -60,6 +60,9 @@ Int main (Int argc, CString *argv) {
  
     // cli_parse(argc, argv);
 
-    Void ui_test();
-    ui_test();
+    // Void ui_test();
+    // ui_test();
+
+    Void ui_test2();
+    ui_test2();
 }
