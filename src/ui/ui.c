@@ -2155,6 +2155,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             case SDLK_A:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     buf_cursor_move_to_end(info->buf, &info->cursor, true);
+                    buf_cursor_move_to_start(info->buf, &info->cursor, false);
+                    text_box_scroll_into_view(text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
                 break;
