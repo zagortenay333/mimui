@@ -14,7 +14,6 @@ istruct (BufLineIter) {
 };
 
 istruct (BufCursor) {
-    Buf *buf;
     U64 byte_offset;
     U64 selection_offset;
     U64 line; // 0-indexed
@@ -36,10 +35,10 @@ String       buf_get_str            (Buf *, Mem *);
 U64          buf_line_col_to_offset (Buf *, U64 line, U64 column);
 Void         buf_offset_to_line_col (Buf *, BufCursor *);
 BufCursor    buf_cursor_new         (Buf *, U64 line, U64 column);
-Void         buf_cursor_move_left   (BufCursor *);
-Void         buf_cursor_move_right  (BufCursor *);
-Void         buf_cursor_move_up     (BufCursor *);
-Void         buf_cursor_move_down   (BufCursor *);
+Void         buf_cursor_move_left   (Buf *, BufCursor *);
+Void         buf_cursor_move_right  (Buf *, BufCursor *);
+Void         buf_cursor_move_up     (Buf *, BufCursor *);
+Void         buf_cursor_move_down   (Buf *, BufCursor *);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
     for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

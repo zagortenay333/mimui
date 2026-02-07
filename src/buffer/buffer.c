@@ -104,7 +104,7 @@ U64 buf_line_col_to_offset (Buf *buf, U64 line, U64 column) {
 }
 
 Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
-    compute_aux(cursor->buf);
+    compute_aux(buf);
     cursor->line = 0;
     cursor->column = 0;
     array_iter (line, &buf->lines) { // @todo Replace this with binary search.
@@ -148,7 +148,6 @@ String buf_get_str (Buf *buf, Mem *) {
 
 BufCursor buf_cursor_new (Buf *buf, U64 line, U64 column) {
     BufCursor cursor = {};
-    cursor.buf = buf;
     cursor.line = line;
     cursor.column = column;
     cursor.preferred_column = column;
@@ -157,39 +156,39 @@ BufCursor buf_cursor_new (Buf *buf, U64 line, U64 column) {
     return cursor;
 }
 
-Void buf_cursor_move_left (BufCursor *cursor) {
+Void buf_cursor_move_left (Buf *buf, BufCursor *cursor) {
     if (cursor->column > 0) {
         cursor->preferred_column--;
     } else if (cursor->line > 0) {
         cursor->line--;
-        String line = buf_get_line(cursor->buf, 0, cursor->line);
+        String line = buf_get_line(buf, 0, cursor->line);
         cursor->preferred_column = str_codepoint_count(line);
     }
 
     cursor->column = cursor->preferred_column;
-    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
+    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
 }
 
-Void buf_cursor_move_right (BufCursor *cursor) {
-    String line = buf_get_line(cursor->buf, 0, cursor->line);
+Void buf_cursor_move_right (Buf *buf, BufCursor *cursor) {
+    String line = buf_get_line(buf, 0, cursor->line);
     U64 count = str_codepoint_count(line);
 
     if (cursor->preferred_column < count) {
         cursor->preferred_column++;
         cursor->column = cursor->preferred_column;
-    } else if (cursor->line < buf_get_line_count(cursor->buf)-1) {
+    } else if (cursor->line < buf_get_line_count(buf)-1) {
         cursor->line++;
         cursor->column = 0;
         cursor->preferred_column = 0;
     }
 
-    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
+    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
 }
 
-Void buf_cursor_move_up (BufCursor *cursor) {
+Void buf_cursor_move_up (Buf *buf, BufCursor *cursor) {
     if (cursor->line > 0) cursor->line--;
 
-    String line = buf_get_line(cursor->buf, 0, cursor->line);
+    String line = buf_get_line(buf, 0, cursor->line);
     U64 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
@@ -197,13 +196,13 @@ Void buf_cursor_move_up (BufCursor *cursor) {
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
+    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
 }
 
-Void buf_cursor_move_down (BufCursor *cursor) {
-    if (cursor->line < buf_get_line_count(cursor->buf)-1) cursor->line++;
+Void buf_cursor_move_down (Buf *buf, BufCursor *cursor) {
+    if (cursor->line < buf_get_line_count(buf)-1) cursor->line++;
 
-    String line = buf_get_line(cursor->buf, 0, cursor->line);
+    String line = buf_get_line(buf, 0, cursor->line);
     U64 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
@@ -211,5 +210,5 @@ Void buf_cursor_move_down (BufCursor *cursor) {
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
+    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
 }

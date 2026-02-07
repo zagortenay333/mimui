@@ -2141,25 +2141,25 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 ui_eat_event();
                 break;
             case SDLK_LEFT:
-                buf_cursor_move_left(&info->cursor);
+                buf_cursor_move_left(info->buf, &info->cursor);
                 text_box_clear_selection(info);
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_RIGHT:
-                buf_cursor_move_right(&info->cursor);
+                buf_cursor_move_right(info->buf, &info->cursor);
                 text_box_clear_selection(info);
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_UP:
-                buf_cursor_move_up(&info->cursor);
+                buf_cursor_move_up(info->buf, &info->cursor);
                 text_box_clear_selection(info);
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_DOWN:
-                buf_cursor_move_down(&info->cursor);
+                buf_cursor_move_down(info->buf, &info->cursor);
                 text_box_clear_selection(info);
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
