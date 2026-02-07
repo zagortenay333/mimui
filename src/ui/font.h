@@ -12,8 +12,6 @@ istruct (GlyphInfo) {
     U32 glyph_index;
 };
 
-typedef U64 GlyphId;
-
 istruct (GlyphSlot) {
     U16 x;
     U16 y;
