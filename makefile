@@ -8,7 +8,7 @@ SRC_FILES     := $(shell find $(SRC_DIR) \
 				   -iname *.c)
 OBJ_FILES     := $(SRC_FILES:.c=.o)
 DEP_FILES     := $(SRC_FILES:.c=.dep)
-EXE           := mykron.bin
+EXE           := mimui.bin
 CC            := gcc
 RELEASE_FLAGS := -fno-omit-frame-pointer -g -O2 -DBUILD_RELEASE=1 -DBUILD_DEBUG=0 -DNDEBUG -Wno-unused-parameter
 DEBUG_FLAGS   := -g3 -DBUILD_RELEASE=0 -DBUILD_DEBUG=1 -fno-omit-frame-pointer
