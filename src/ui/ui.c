@@ -1,8 +1,7 @@
 #include "vendor/glad/glad.h"
 #include <SDL3/SDL.h>
 #include "vendor/stb/stb_image.h"
-#include "vendor/stb/stb_image_write.h"
-#include "ui/glyph.h"
+#include "ui/font.h"
 #include "base/log.h"
 #include "base/math.h"
 #include "base/string.h"
@@ -147,18 +146,6 @@ static Void update_projection () {
     F32 h = cast(F32, win_height);
     F32 w = cast(F32, win_width);
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
-}
-
-Void write_texture_to_png (CString filepath, U32 texture, U32 w, U32 h, Bool flip) {
-    tmem_new(tm);
-    Auto data = mem_alloc(tm, Void, .size=(4*w*h));
-
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-    stbi_flip_vertically_on_write(flip);
-    Int result = stbi_write_png(filepath, w, h, 4, data, w*4);
-    assert_always(result);
 }
 
 U32 load_texture (CString filepath) {
@@ -790,7 +777,8 @@ istruct (Ui) {
     Map(UiKey, UiBox*) box_cache;
     Array(UiRect) clip_stack;
     UiStyleRule *current_style_rule;
-    GlyphCache *glyph_cache;
+    FontCache *font_cache;
+    Font *font;
 };
 
 Ui *ui;
@@ -1527,13 +1515,13 @@ static Void find_topmost_hovered_box (UiBox *box) {
 static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
     tmem_new(tm);
 
-    glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
     U32 line_width = 0;
-    SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
+    SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     array_iter (info, &infos, *) {
-        GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, info);
+        GlyphSlot *slot = font_get_glyph_slot(ui->font, info);
 
         Vec2 top_left = {x + info->x + slot->bearing_x, y + info->y - slot->bearing_y};
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
@@ -1553,7 +1541,7 @@ static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_r
         out_rect->x = x;
         out_rect->y = y;
         out_rect->w = line_width;
-        out_rect->h = ui->glyph_cache->font_height;
+        out_rect->h = ui->font->height;
     }
 }
 
@@ -1886,17 +1874,17 @@ static Void ui_scroll_box_pop_ (Void *) {
 
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
-    glBindTexture(GL_TEXTURE_2D, ui->glyph_cache->atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
-    U32 cell_w = ui->glyph_cache->font_width;
-    U32 cell_h = ui->glyph_cache->font_height;
-    SliceGlyphInfo infos = get_glyph_infos(ui->glyph_cache, tm, text);
+    U32 cell_w = ui->font->width;
+    U32 cell_h = ui->font->height;
+    SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     x = floor(x - info->scroll_coord.x);
 
-    F32 descent = cast(F32, ui->glyph_cache->font_descent);
+    F32 descent = cast(F32, ui->font->descent);
     F32 line_spacing = info->line_spacing / 2;
 
     U64 selection_start = info->cursor.byte_offset;
@@ -1918,7 +1906,7 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
                 .bottom_right = {x + cell_w, y},
             );
 
-            GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, glyph_info);
+            GlyphSlot *slot = font_get_glyph_slot(ui->font, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
             Vec4 final_text_color = selected ? info->selection_fg_color : color;
@@ -1943,8 +1931,8 @@ static Void text_box_draw (UiBox *box) {
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
 
-    U32 cell_h = ui->glyph_cache->font_height;
-    U32 cell_w = ui->glyph_cache->font_width;
+    U32 cell_h = ui->font->height;
+    U32 cell_w = ui->font->width;
 
     info->total_width  = buf_get_widest_line(info->buf) * cell_w;
     info->total_height = buf_get_line_count(info->buf) * (cell_h + info->line_spacing);
@@ -1970,7 +1958,7 @@ static Void text_box_draw (UiBox *box) {
 static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
     UiTextBox *info = cast(UiTextBox*, container->scratch);
 
-    U32 cell_h = ui->glyph_cache->font_height;
+    U32 cell_h = ui->font->height;
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + info->line_spacing);
 
     F32 visible_h = container->rect.h - 2*container->style.padding.y;
@@ -1984,7 +1972,7 @@ static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
 static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
     UiTextBox *info = cast(UiTextBox*, container->scratch);
 
-    U32 cell_w = ui->glyph_cache->font_width;
+    U32 cell_w = ui->font->width;
     info->scroll_coord_n.x = cast(F32, column) * cell_w;
 
     // @todo We cannot do container->rect.w because later we might want to
@@ -2002,8 +1990,8 @@ static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
 static Void text_box_scroll_into_view (UiBox *box, BufCursor *pos, U32 padding) {
     UiTextBox *info = cast(UiTextBox*, box->parent->scratch);
 
-    U32 cell_w = ui->glyph_cache->font_width;
-    U32 cell_h = ui->glyph_cache->font_height;
+    U32 cell_w = ui->font->width;
+    U32 cell_h = ui->font->height;
 
     Vec2 coord = text_box_cursor_to_coord(box, info, pos);
 
@@ -2031,8 +2019,8 @@ static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coo
     U32 line = 0;
     U32 column = 0;
 
-    F32 cell_w = ui->glyph_cache->font_width;
-    F32 cell_h = ui->glyph_cache->font_height;
+    F32 cell_w = ui->font->width;
+    F32 cell_h = ui->font->height;
 
     coord.x = coord.x - box->rect.x + info->scroll_coord.x;
     coord.y = coord.y - box->rect.y + info->scroll_coord.y;
@@ -2051,8 +2039,8 @@ static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coo
 static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *pos) {
     Vec2 coord = {};
 
-    F32 char_width  = ui->glyph_cache->font_width;
-    F32 line_height = ui->glyph_cache->font_height + info->line_spacing;
+    F32 char_width  = ui->font->width;
+    F32 line_height = ui->font->height + info->line_spacing;
 
     coord.y = pos->line * line_height + info->line_spacing/2;
 
@@ -2077,8 +2065,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
-        U32 cell_w = ui->glyph_cache->font_width;
-        U32 cell_h = ui->glyph_cache->font_height;
+        U32 cell_w = ui->font->width;
+        U32 cell_h = ui->font->height;
 
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
@@ -2507,7 +2495,8 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     map_init(&ui->box_cache, mem);
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->glyph_cache = glyph_cache_new(mem, glyph_eviction_fn, 64, 12);
+    ui->font_cache = font_cache_new(mem, glyph_eviction_fn, 64);
+    ui->font = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12);
 }
 
 // =============================================================================

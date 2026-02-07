@@ -1,0 +1,288 @@
+#include "vendor/glad/glad.h"
+#include <freetype/freetype.h>
+#include <freetype/ftmodapi.h>
+#include "vendor/plutosvg/src/plutosvg.h"
+#include "ui/font.h"
+#include "base/array.h"
+#include "base/string.h"
+#include "base/log.h"
+#include "base/map.h"
+#include "os/fs.h"
+#include "os/time.h"
+
+#define LOG_HEADER "FontCache"
+
+static GlyphId info_to_id (GlyphInfo *info) {
+    return cast(GlyphId, info->glyph_index);
+}
+
+static GlyphSlot **cache_get_slot (Font *font, GlyphId id) {
+    return &font->map[hash_u64(id) % font->cache->atlas_size];
+}
+
+static GlyphSlot *cache_get (Font *font, GlyphId id) {
+    GlyphSlot *s = *cache_get_slot(font, id);
+    while (s && (s->id != id)) s = s->map_next;
+    return s;
+}
+
+static Void cache_add (Font *font, GlyphSlot *slot) {
+    GlyphSlot **s = cache_get_slot(font, slot->id);
+    slot->map_next = *s;
+    *s = slot;
+}
+
+static Void cache_remove (Font *font, GlyphSlot *slot) {
+    GlyphSlot **s = cache_get_slot(font, slot->id);
+    while (*s != slot) s = &(*s)->map_next;
+    *s = slot->map_next;
+}
+
+GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
+    GlyphId id = info_to_id(info);
+    GlyphSlot *slot = cache_get(font, id);
+
+    Bool atlas_update_needed = true;
+
+    // Remove from lru chain.
+    if (slot) {
+        slot->lru_next->lru_prev = slot->lru_prev;
+        slot->lru_prev->lru_next = slot->lru_next;
+        atlas_update_needed = false;
+    }
+
+    // See if we have a free slot.
+    if (!slot && font->sentinel.map_next) {
+        slot = font->sentinel.map_next;
+        font->sentinel.map_next = slot->map_next;
+        slot->id = id;
+        slot->glyph_index = info->glyph_index;
+        cache_add(font, slot);
+    }
+
+    // Evict the lru slot.
+    if (! slot) {
+        if (font->cache->evict_fn) font->cache->evict_fn();
+        assert_dbg(font->sentinel.lru_prev != &font->sentinel);
+        slot = font->sentinel.lru_prev;
+        cache_remove(font, slot);
+        slot->id = id;
+        slot->glyph_index = info->glyph_index;
+        cache_add(font, slot);
+    }
+
+    // Mark as mru slot
+    slot->lru_next = font->sentinel.lru_next;
+    slot->lru_prev = &font->sentinel;
+    font->sentinel.lru_next->lru_prev = slot;
+    font->sentinel.lru_next = slot;
+
+    if (atlas_update_needed) {
+        tmem_new(tm);
+
+        if (FT_Load_Glyph(font->ft_face, slot->glyph_index, FT_LOAD_RENDER | (FT_HAS_COLOR(font->ft_face) ? FT_LOAD_COLOR : 0))) {
+            log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Couldn't load/render font glyph.");
+            goto done;
+        }
+
+        Auto ft_glyph = font->ft_face->glyph;
+        Auto ft_bitmap = ft_glyph->bitmap;
+        Auto w = ft_bitmap.width;
+        Auto h = ft_bitmap.rows;
+
+        slot->width = w;
+        slot->height = h;
+        slot->bearing_x = ft_glyph->bitmap_left;
+        slot->bearing_y = ft_glyph->bitmap_top;
+        slot->advance = (I32)(ft_glyph->advance.x >> 6);
+        slot->pixel_mode = ft_bitmap.pixel_mode;
+
+        if ((w > font->atlas_slot_size) || (h > font->atlas_slot_size)) {
+            log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Font glyph too big to fit into atlas slot.");
+            goto done;
+        }
+
+        if ((w == 0) || (h == 0)) {
+            goto done;
+        }
+
+        U8 *buf = mem_alloc(tm, U8, .zeroed=true, .size=(font->atlas_slot_size * font->atlas_slot_size * 4));
+
+        switch (ft_bitmap.pixel_mode) {
+        case FT_PIXEL_MODE_GRAY: {
+            for (U32 y = 0; y < h; ++y) {
+                U8 *src = ft_bitmap.buffer + y * abs(ft_bitmap.pitch);
+                for (U32 x = 0; x < w; ++x) {
+                    U8 value = src[x];
+                    U32 i = (y * font->atlas_slot_size + x) * 4;
+                    buf[i + 0] = 255;
+                    buf[i + 1] = 255;
+                    buf[i + 2] = 255;
+                    buf[i + 3] = value;
+                }
+            }
+        } break;
+
+        case FT_PIXEL_MODE_BGRA: {
+            for (U32 y = 0; y < h; ++y) {
+                U8 *src = ft_bitmap.buffer + y * abs(ft_bitmap.pitch);
+                for (U32 x = 0; x < w; ++x) {
+                    U32 i = (y * font->atlas_slot_size + x) * 4;
+                    buf[i + 0] = src[x * 4 + 2];
+                    buf[i + 1] = src[x * 4 + 1];
+                    buf[i + 2] = src[x * 4 + 0];
+                    buf[i + 3] = src[x * 4 + 3];
+                }
+            }
+        } break;
+
+        default: badpath;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, font->atlas_texture);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, slot->x, slot->y, font->atlas_slot_size, font->atlas_slot_size, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+
+        done:;
+    }
+
+    return slot;
+}
+
+static Font *font_new (FontCache *cache, String filepath, U32 size) {
+    Auto font = mem_new(cache->mem, Font);
+    font->cache = cache;
+    font->sentinel.lru_next = &font->sentinel;
+    font->sentinel.lru_prev = &font->sentinel;
+    font->atlas_slot_size = 2 * size;
+    font->slots = mem_alloc(cache->mem, GlyphSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(GlyphSlot)));
+    font->map = mem_alloc(cache->mem, GlyphSlot*, .zeroed=true, .size=(cache->atlas_size * sizeof(GlyphSlot*)));
+    array_push(&cache->fonts, font);
+
+    U32 x = 0;
+    U32 y = 0;
+    for (U32 i = 0; i < cast(U32, cache->atlas_size) * cache->atlas_size; ++i) {
+        GlyphSlot *slot = &font->slots[i];
+        slot->x = x * font->atlas_slot_size;
+        slot->y = y * font->atlas_slot_size;
+        slot->map_next = font->sentinel.map_next;
+        font->sentinel.map_next = slot;
+        x++;
+        if (x == cache->atlas_size) { x = 0; y++; }
+    }
+
+    String binary = fs_read_entire_file(cache->mem, filepath, 0);
+
+    // @todo Does freetype somehow own the binary data or should we free it.
+    FT_Open_Args args = { .flags=FT_OPEN_MEMORY, .memory_base=cast(U8*, binary.data), .memory_size=binary.count };
+    FT_Open_Face(cache->ft_lib, &args, 0, &font->ft_face);
+    FT_Set_Pixel_Sizes(font->ft_face, 0, size);
+
+    font->hb_face = hb_ft_face_create_referenced(font->ft_face);
+    font->hb_font = hb_font_create(font->hb_face);
+
+    I32 hb_font_size = size * 64;
+    hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
+
+    glGenTextures(1, &font->atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, font->atlas_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cache->atlas_size*font->atlas_slot_size, cache->atlas_size*font->atlas_slot_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    { // Get metrics:
+        U32 glyph_index = FT_Get_Char_Index(font->ft_face, 'M');
+        GlyphSlot *slot = font_get_glyph_slot(font, &(GlyphInfo){.glyph_index = glyph_index});
+        font->ascent  = font->ft_face->size->metrics.ascender >> 6;
+        font->descent = -(font->ft_face->size->metrics.descender >> 6);
+        font->height  = font->ft_face->size->metrics.height >> 6;
+        font->width   = slot->advance;
+    }
+
+    return font;
+}
+
+Font *font_get (FontCache *cache, String filepath, U32 size) {
+    Font *font = 0;
+
+    array_iter (it, &cache->fonts) {
+        if (str_match(it->filepath, filepath) && font->size == size) {
+            font = it;
+            break;
+        }
+    }
+
+    return font ? font : font_new(cache, filepath, size);
+}
+
+FontCache *font_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size) {
+    Auto cache = mem_new(mem, FontCache);
+    cache->mem = mem;
+    cache->evict_fn = evict_fn;
+    cache->atlas_size = atlas_size;
+    array_init(&cache->fonts, mem);
+
+    FT_Init_FreeType(&cache->ft_lib);
+
+    Auto hooks = plutosvg_ft_svg_hooks();
+    FT_Property_Set(cache->ft_lib, "ot-svg", "svg-hooks", hooks);
+
+    return cache;
+}
+
+Void font_cache_destroy (FontCache *cache) {
+    array_iter (font, &cache->fonts) {
+        FT_Done_Face(font->ft_face);
+        hb_font_destroy(font->hb_font);
+    }
+
+    FT_Done_FreeType(cache->ft_lib);
+}
+
+SliceGlyphInfo font_get_glyph_infos (Font *font, Mem *mem, String text) {
+    ArrayGlyphInfo infos;
+    array_init(&infos, mem);
+
+    I32 cursor_x = 0;
+    I32 cursor_y = 0;
+
+    Auto buffer = hb_buffer_create();
+
+    hb_buffer_add_utf8(buffer, text.data, text.count, 0, text.count);
+    hb_buffer_guess_segment_properties(buffer);
+
+    hb_shape(font->hb_font, buffer, 0, 0);
+
+    Slice(hb_glyph_info_t) hb_infos;
+    Slice(hb_glyph_position_t) hb_positions;
+
+    U32 info_count;
+    hb_infos.data = hb_buffer_get_glyph_infos(buffer, &info_count);
+    hb_infos.count = info_count;
+
+    U32 position_count;
+    hb_positions.data = hb_buffer_get_glyph_positions(buffer, &position_count);
+    hb_positions.count = position_count;
+
+    array_iter (info, &hb_infos) {
+        Auto pos = array_get(&hb_positions, ARRAY_IDX);
+        UtfDecode codepoint = str_utf8_decode(str_suffix_from(text, info.cluster));
+
+        array_push_lit(&infos,
+            .x = cursor_x + (pos.x_offset >> 6),
+            .y = cursor_y + (pos.y_offset >> 6),
+            .x_advance = pos.x_advance >> 6,
+            .y_advance = pos.y_advance >> 6,
+            .glyph_index = info.codepoint, // After shaping harfbuzz sets this field to the glyph index.
+            .codepoint = codepoint.codepoint,
+        );
+
+        cursor_x += pos.x_advance >> 6;
+        cursor_y += pos.y_advance >> 6;
+    }
+
+    hb_buffer_destroy(buffer);
+
+    return infos.as_slice;
+}
