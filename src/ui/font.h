@@ -24,11 +24,8 @@ istruct (GlyphSlot) {
     I32 advance;
     FT_Pixel_Mode pixel_mode;
     U32 glyph_index;
-
-    // Private:
     GlyphSlot *lru_next;
     GlyphSlot *lru_prev;
-    GlyphSlot *map_next;
 };
 
 istruct (FontCache);
