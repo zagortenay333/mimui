@@ -42,7 +42,8 @@ Void         buf_cursor_move_left_word  (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_right_word (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_up         (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_down       (Buf *, BufCursor *, Bool);
-Void         buf_cursor_select_all      (Buf *, BufCursor *);
+Void         buf_cursor_move_to_start   (Buf *, BufCursor *, Bool);
+Void         buf_cursor_move_to_end     (Buf *, BufCursor *, Bool);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
     for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

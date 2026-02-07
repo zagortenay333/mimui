@@ -273,10 +273,17 @@ Void buf_cursor_move_down (Buf *buf, BufCursor *cursor, Bool move_selection) {
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void buf_cursor_select_all (Buf *buf, BufCursor *cursor) {
+Void buf_cursor_move_to_start (Buf *buf, BufCursor *cursor, Bool move_selection) {
     cursor->byte_offset = 0;
     cursor->line = 0;
     cursor->column = 0;
     cursor->preferred_column = 0;
-    cursor->selection_offset = buf->data.count - 1;
+    if (move_selection) cursor->selection_offset = 0;
+}
+
+Void buf_cursor_move_to_end (Buf *buf, BufCursor *cursor, Bool move_selection) {
+    cursor->byte_offset = buf->data.count - 1;
+    buf_offset_to_line_col(buf, cursor);
+    cursor->preferred_column = cursor->column;
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
