@@ -2028,8 +2028,8 @@ static Void text_box_clear_selection (UiTextBox *info) {
 }
 
 static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord) {
-    U64 line = 0;
-    U64 column = 0;
+    U32 line = 0;
+    U32 column = 0;
 
     F32 cell_w = ui->glyph_cache->font_width;
     F32 cell_h = ui->glyph_cache->font_height;
@@ -2042,7 +2042,7 @@ static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coo
     tmem_new(tm);
     String line_text = buf_get_line(info->buf, tm, line);
 
-    U64 max_col = str_codepoint_count(line_text);
+    U32 max_col = str_codepoint_count(line_text);
     column = clamp(round(coord.x / cell_w), 0u, max_col);
 
     return buf_cursor_new(info->buf, line, column);
@@ -2059,7 +2059,7 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
     tmem_new(tm);
     String line_str = buf_get_line(info->buf, tm, pos->line);
 
-    U64 i = 0;
+    U32 i = 0;
     str_utf8_iter (it, line_str) {
         if (i >= pos->column) break;
         coord.x += char_width;
@@ -2137,7 +2137,6 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             switch (ui->event->key) {
             case SDLK_BACKSPACE:
                 buf_delete(info->buf, 1, &info->cursor);
-                text_box_clear_selection(info);
                 ui_eat_event();
                 break;
             case SDLK_LEFT:
@@ -2173,7 +2172,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.pressed) {
             grab_focus(text_box);
-            U64 soff = info->cursor.selection_offset;
+            U32 soff = info->cursor.selection_offset;
             info->cursor = text_box_coord_to_cursor(text_box, info, ui->mouse);
             info->cursor.selection_offset = soff;
 

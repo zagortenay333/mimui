@@ -6,7 +6,7 @@ istruct (Buf) {
     Mem *mem;
     ArrayChar data;
     ArrayString lines;
-    U64 widest_line;
+    U32 widest_line;
     Bool dirty;
 };
 
@@ -15,7 +15,7 @@ static Void compute_aux (Buf *buf) {
     buf->dirty = false;
 
     buf->lines.count = 0;
-    U64 prev_pos = 0;
+    U32 prev_pos = 0;
     array_iter (c, &buf->data) {
         if (c != '\n') continue;
         String s = str_slice(buf->data.as_slice, prev_pos, ARRAY_IDX - prev_pos);
@@ -50,7 +50,7 @@ Buf *buf_new_from_file (Mem *mem, String filepath) {
     return buf;
 }
 
-BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U64 from) {
+BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U32 from) {
     compute_aux(buf);
     Auto it = mem_new(mem, BufLineIter);
     it->buf = buf;
@@ -75,26 +75,26 @@ Bool buf_line_iter_next (BufLineIter *it) {
     return it->done;
 }
 
-String buf_get_line (Buf *buf, Mem *mem, U64 idx) {
+String buf_get_line (Buf *buf, Mem *mem, U32 idx) {
     compute_aux(buf);
     idx = clamp(idx, 0u, buf->lines.count - 1);
     return buf->lines.count ? array_get(&buf->lines, idx) : (String){};
 }
 
-U64 buf_get_widest_line (Buf *buf) {
+U32 buf_get_widest_line (Buf *buf) {
     compute_aux(buf);
     return buf->widest_line;
 }
 
-U64 buf_get_line_count (Buf *buf) {
+U32 buf_get_line_count (Buf *buf) {
     compute_aux(buf);
     return buf->lines.count;
 }
 
-U64 buf_line_col_to_offset (Buf *buf, U64 line, U64 column) {
+U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
     String line_text = buf_get_line(buf, 0, line);
-    U64 line_off = 0;
-    U64 idx = 0;
+    U32 line_off = 0;
+    U32 idx = 0;
     str_utf8_iter (c, line_text) {
         if (idx == column) break;
         line_off += c.decode.inc;
@@ -108,10 +108,10 @@ Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
     cursor->line = 0;
     cursor->column = 0;
     array_iter (line, &buf->lines) { // @todo Replace this with binary search.
-        U64 end_of_line = (line.data + line.count) - buf->data.data;
+        U32 end_of_line = (line.data + line.count) - buf->data.data;
         if (end_of_line >= cursor->byte_offset) {
             cursor->line = ARRAY_IDX;
-            U64 off = line.data - buf->data.data;
+            U32 off = line.data - buf->data.data;
             str_utf8_iter (c, line) {
                 if (off >= cursor->byte_offset) break;
                 off += c.decode.inc;
@@ -130,7 +130,7 @@ Void buf_insert (Buf *buf, String str, BufCursor *cursor) {
     buf_offset_to_line_col(buf, cursor);
 }
 
-Void buf_delete (Buf *buf, U64 count, BufCursor *cursor) {
+Void buf_delete (Buf *buf, U32 count, BufCursor *cursor) {
     count = clamp(count, 0u, buf->data.count - cursor->byte_offset);
     array_remove_many(&buf->data, cursor->byte_offset, count);
     buf->dirty = true;
@@ -138,7 +138,7 @@ Void buf_delete (Buf *buf, U64 count, BufCursor *cursor) {
     buf_offset_to_line_col(buf, cursor);
 }
 
-U64 buf_get_count (Buf *buf) {
+U32 buf_get_count (Buf *buf) {
     return buf->data.count;
 }
 
@@ -146,7 +146,7 @@ String buf_get_str (Buf *buf, Mem *) {
     return buf->data.as_slice;
 }
 
-BufCursor buf_cursor_new (Buf *buf, U64 line, U64 column) {
+BufCursor buf_cursor_new (Buf *buf, U32 line, U32 column) {
     BufCursor cursor = {};
     cursor.line = line;
     cursor.column = column;
@@ -171,7 +171,7 @@ Void buf_cursor_move_left (Buf *buf, BufCursor *cursor) {
 
 Void buf_cursor_move_right (Buf *buf, BufCursor *cursor) {
     String line = buf_get_line(buf, 0, cursor->line);
-    U64 count = str_codepoint_count(line);
+    U32 count = str_codepoint_count(line);
 
     if (cursor->preferred_column < count) {
         cursor->preferred_column++;
@@ -189,7 +189,7 @@ Void buf_cursor_move_up (Buf *buf, BufCursor *cursor) {
     if (cursor->line > 0) cursor->line--;
 
     String line = buf_get_line(buf, 0, cursor->line);
-    U64 count = str_codepoint_count(line);
+    U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
     } else {
@@ -203,7 +203,7 @@ Void buf_cursor_move_down (Buf *buf, BufCursor *cursor) {
     if (cursor->line < buf_get_line_count(buf)-1) cursor->line++;
 
     String line = buf_get_line(buf, 0, cursor->line);
-    U64 count = str_codepoint_count(line);
+    U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
     } else {
