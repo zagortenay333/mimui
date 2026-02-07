@@ -124,12 +124,12 @@ Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
 
 Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
     if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
-    cursor->byte_offset = clamp(cursor->byte_offset, 0u, buf->data.count);
     array_insert_many(&buf->data, &str, cursor->byte_offset);
     buf->dirty = true;
     cursor->byte_offset += str.count;
     cursor->selection_offset = cursor->byte_offset;
     buf_offset_to_line_col(buf, cursor);
+    cursor->preferred_column = cursor->column;
 }
 
 Void buf_delete (Buf *buf, BufCursor *cursor) {
@@ -137,6 +137,7 @@ Void buf_delete (Buf *buf, BufCursor *cursor) {
     array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
     buf->dirty = true;
     cursor->selection_offset = cursor->byte_offset;
+    cursor->preferred_column = cursor->column;
 }
 
 U32 buf_get_count (Buf *buf) {
@@ -205,6 +206,55 @@ Void buf_cursor_move_up (Buf *buf, BufCursor *cursor, Bool move_selection) {
     }
 
     cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
+}
+
+Void buf_cursor_move_left_word (Buf *buf, BufCursor *cursor, Bool move_selection) {
+    Char *start = buf->data.data;
+    Char *p = array_ref(&buf->data, cursor->byte_offset);
+
+    if (p > start) p--;
+
+    while (p > start) {
+        if (is_whitespace(*p)) p--;
+        else break;
+    }
+
+    if (is_word_char(*p)) {
+        while (p > start) {
+            if (is_word_char(*p)) p--;
+            else break;
+        }
+        p++;
+    }
+
+    cursor->byte_offset = p - start;
+    buf_offset_to_line_col(buf, cursor);
+    cursor->preferred_column = cursor->column;
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
+}
+
+Void buf_cursor_move_right_word (Buf *buf, BufCursor *cursor, Bool move_selection) {
+    Char *end = &buf->data.data[buf->data.count - 1];
+    Char *p = array_ref(&buf->data, cursor->byte_offset);
+
+    while (p < end) {
+        if (is_whitespace(*p)) p++;
+        else break;
+    }
+
+    if (is_word_char(*p)) {
+        while (p < end) {
+            if (is_word_char(*p)) p++;
+            else break;
+        }
+    } else if (p < end) {
+        p++;
+    }
+
+    cursor->byte_offset = p - buf->data.data;
+    buf_offset_to_line_col(buf, cursor);
+    cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 

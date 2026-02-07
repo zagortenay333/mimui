@@ -2135,6 +2135,23 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.focused && ui->event->tag == EVENT_KEY_PRESS) {
             switch (ui->event->key) {
+            case SDLK_DELETE:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    buf_cursor_move_right_word(info->buf, &info->cursor, false);
+                    buf_delete(info->buf, &info->cursor);
+                } else {
+                    buf_cursor_move_right(info->buf, &info->cursor, false);
+                    buf_delete(info->buf, &info->cursor);
+                }
+                ui_eat_event();
+                break;
+            case SDLK_W:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    buf_cursor_move_left_word(info->buf, &info->cursor, false);
+                    buf_delete(info->buf, &info->cursor);
+                    ui_eat_event();
+                }
+                break;
             case SDLK_A:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     buf_cursor_select_all(info->buf, &info->cursor);

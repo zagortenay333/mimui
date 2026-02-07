@@ -7,16 +7,18 @@
 // =============================================================================
 // String:
 // =============================================================================
-Bool    is_whitespace (Char c)               { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
-CString cstr          (Mem *mem, String s)   { return astr_fmt(mem, "%.*s%c", STR(s), 0).data; }
-String  str           (CString s)            { return (String){ .data=s, .count=cast(U64, strlen(s)) }; }
-U64     str_hash_seed (String str, U64 seed) { return XXH3_64bits_withSeed(str.data, str.count, seed); }
-U64     str_hash      (String str)           { return str_hash_seed(str, 5381); }
-Bool    str_match     (String s1, String s2) { return (s1.count == s2.count) && (! strncmp(s1.data, s2.data, s1.count)); }
-U64     istr_hash     (IString *i)           { return str_hash(*i); }
-U64     cstr_hash     (CString s)            { return str_hash(str(s)); }
-Bool    cstr_match    (CString a, CString b) { return str_match(str(a), str(b)); }
-Void    str_clear     (String s, U8 b)       { memset(s.data, b, s.count); }
+Bool    is_word_char    (Char c)               { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_') || (cast(U8, c) > 127); }
+Bool    is_whitespace   (Char c)               { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
+Bool    is_special_char (Char c)               { return !is_word_char(c) && !is_whitespace(c); }
+CString cstr            (Mem *mem, String s)   { return astr_fmt(mem, "%.*s%c", STR(s), 0).data; }
+String  str             (CString s)            { return (String){ .data=s, .count=cast(U64, strlen(s)) }; }
+U64     str_hash_seed   (String str, U64 seed) { return XXH3_64bits_withSeed(str.data, str.count, seed); }
+U64     str_hash        (String str)           { return str_hash_seed(str, 5381); }
+Bool    str_match       (String s1, String s2) { return (s1.count == s2.count) && (! strncmp(s1.data, s2.data, s1.count)); }
+U64     istr_hash       (IString *i)           { return str_hash(*i); }
+U64     cstr_hash       (CString s)            { return str_hash(str(s)); }
+Bool    cstr_match      (CString a, CString b) { return str_match(str(a), str(b)); }
+Void    str_clear       (String s, U8 b)       { memset(s.data, b, s.count); }
 
 Bool str_starts_with (String str, String prefix) {
     if (str.count < prefix.count) return false;

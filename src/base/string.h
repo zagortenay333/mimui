@@ -29,6 +29,8 @@ istruct (UtfIter) {
 #define STR(X) cast(Int, (X).count), (X).data
 
 Bool      is_whitespace         (Char);
+Bool      is_word_char          (Char);
+Bool      is_special_char       (Char);
 CString   cstr                  (Mem *, String);
 String    str                   (CString);
 U64       istr_hash             (IString *);
