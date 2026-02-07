@@ -20,7 +20,6 @@ istruct (UtfDecode) {
 istruct (UtfIter) {
     String str;
     UtfDecode decode;
-    U32 idx;
 };
 
 // Loop over codepoints in a UTF-8 encoded string.

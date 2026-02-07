@@ -327,7 +327,6 @@ Bool str_utf8_iter_next (UtfIter *it) {
     it->decode = d;
     it->str.data += d.inc;
     it->str.count -= d.inc;
-    it->idx++;
     return true;
 }
 

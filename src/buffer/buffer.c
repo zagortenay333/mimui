@@ -29,7 +29,7 @@ Buf *buf_new (Mem *mem, String text) {
     Auto buf   = mem_new(mem, Buf);
     buf->mem   = mem;
     buf->dirty = true;
-    buf_insert(buf, text, 0);
+    buf_insert(buf, text, &(BufCursor){});
     array_init(&buf->data, mem);
     array_init(&buf->lines, mem);
     return buf;
@@ -91,18 +91,51 @@ U64 buf_get_line_count (Buf *buf) {
     return buf->lines.count;
 }
 
-Void buf_insert (Buf *buf, String str, U64 idx) {
-    idx = clamp(idx, 0u, buf->data.count);
-    array_insert_many(&buf->data, &str, idx);
-    buf->dirty = true;
-    compute_aux(buf);
+U64 buf_line_col_to_offset (Buf *buf, U64 line, U64 column) {
+    String line_text = buf_get_line(buf, 0, line);
+    U64 line_off = 0;
+    U64 idx = 0;
+    str_utf8_iter (c, line_text) {
+        if (idx == column) break;
+        line_off += c.decode.inc;
+        idx++;
+    }
+    return (line_text.data - buf->data.data) + line_off;
 }
 
-Void buf_delete (Buf *buf, U64 count, U64 idx) {
-    idx = clamp(idx, 0u, buf->data.count - 1);
-    count = clamp(count, 0u, buf->data.count - idx);
-    array_remove_many(&buf->data, idx, count);
+Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
+    compute_aux(cursor->buf);
+    cursor->line = 0;
+    cursor->column = 0;
+    array_iter (line, &buf->lines) { // @todo Replace this with binary search.
+        U64 end_of_line = (line.data + line.count) - buf->data.data;
+        if (end_of_line >= cursor->byte_offset) {
+            cursor->line = ARRAY_IDX;
+            U64 off = line.data - buf->data.data;
+            str_utf8_iter (c, line) {
+                if (off >= cursor->byte_offset) break;
+                off += c.decode.inc;
+                cursor->column++;
+            }
+            break;
+        }
+    }
+}
+
+Void buf_insert (Buf *buf, String str, BufCursor *cursor) {
+    cursor->byte_offset = clamp(cursor->byte_offset, 0u, buf->data.count);
+    array_insert_many(&buf->data, &str, cursor->byte_offset);
     buf->dirty = true;
+    cursor->byte_offset += str.count;
+    buf_offset_to_line_col(buf, cursor);
+}
+
+Void buf_delete (Buf *buf, U64 count, BufCursor *cursor) {
+    count = clamp(count, 0u, buf->data.count - cursor->byte_offset);
+    array_remove_many(&buf->data, cursor->byte_offset, count);
+    buf->dirty = true;
+    cursor->byte_offset -= count;
+    buf_offset_to_line_col(buf, cursor);
 }
 
 U64 buf_get_count (Buf *buf) {
@@ -113,18 +146,9 @@ String buf_get_str (Buf *buf, Mem *) {
     return buf->data.as_slice;
 }
 
-U64 buf_line_col_to_offset (Buf *buf, U64 line, U64 column) {
-    String line_text = buf_get_line(buf, 0, line);
-    U64 line_off = 0;
-    str_utf8_iter (c, line_text) {
-        if (c.idx == column) break;
-        line_off += c.decode.inc;
-    }
-    return (line_text.data - buf->data.data) + line_off;
-}
-
 BufCursor buf_cursor_new (Buf *buf, U64 line, U64 column) {
     BufCursor cursor = {};
+    cursor.buf = buf;
     cursor.line = line;
     cursor.column = column;
     cursor.preferred_column = column;
