@@ -12,35 +12,8 @@
 
 #define LOG_HEADER "FontCache"
 
-static GlyphId info_to_id (GlyphInfo *info) {
-    return cast(GlyphId, info->glyph_index);
-}
-
-static GlyphSlot **cache_get_slot (Font *font, GlyphId id) {
-    return &font->map[hash_u64(id) % font->cache->atlas_size];
-}
-
-static GlyphSlot *cache_get (Font *font, GlyphId id) {
-    GlyphSlot *s = *cache_get_slot(font, id);
-    while (s && (s->id != id)) s = s->map_next;
-    return s;
-}
-
-static Void cache_add (Font *font, GlyphSlot *slot) {
-    GlyphSlot **s = cache_get_slot(font, slot->id);
-    slot->map_next = *s;
-    *s = slot;
-}
-
-static Void cache_remove (Font *font, GlyphSlot *slot) {
-    GlyphSlot **s = cache_get_slot(font, slot->id);
-    while (*s != slot) s = &(*s)->map_next;
-    *s = slot->map_next;
-}
-
 GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
-    GlyphId id = info_to_id(info);
-    GlyphSlot *slot = cache_get(font, id);
+    GlyphSlot *slot = map_get_ptr(&font->slot_map, info->glyph_index);
 
     Bool atlas_update_needed = true;
 
@@ -52,30 +25,27 @@ GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
     }
 
     // See if we have a free slot.
-    if (!slot && font->sentinel.map_next) {
-        slot = font->sentinel.map_next;
-        font->sentinel.map_next = slot->map_next;
-        slot->id = id;
+    if (!slot && font->free_slots.count) {
+        slot = array_pop(&font->free_slots);
         slot->glyph_index = info->glyph_index;
-        cache_add(font, slot);
+        map_add(&font->slot_map, info->glyph_index, slot);
     }
 
     // Evict the lru slot.
     if (! slot) {
-        if (font->cache->evict_fn) font->cache->evict_fn();
-        assert_dbg(font->sentinel.lru_prev != &font->sentinel);
-        slot = font->sentinel.lru_prev;
-        cache_remove(font, slot);
-        slot->id = id;
+        if (font->cache->vertex_flush_fn) font->cache->vertex_flush_fn();
+        assert_dbg(font->lru.lru_prev != &font->lru);
+        slot = font->lru.lru_prev;
+        map_remove(&font->slot_map, slot->glyph_index);
         slot->glyph_index = info->glyph_index;
-        cache_add(font, slot);
+        map_add(&font->slot_map, info->glyph_index, slot);
     }
 
     // Mark as mru slot
-    slot->lru_next = font->sentinel.lru_next;
-    slot->lru_prev = &font->sentinel;
-    font->sentinel.lru_next->lru_prev = slot;
-    font->sentinel.lru_next = slot;
+    slot->lru_next = font->lru.lru_next;
+    slot->lru_prev = &font->lru;
+    font->lru.lru_next->lru_prev = slot;
+    font->lru.lru_next = slot;
 
     if (atlas_update_needed) {
         tmem_new(tm);
@@ -150,22 +120,24 @@ GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
 
 static Font *font_new (FontCache *cache, String filepath, U32 size) {
     Auto font = mem_new(cache->mem, Font);
-    font->cache = cache;
-    font->sentinel.lru_next = &font->sentinel;
-    font->sentinel.lru_prev = &font->sentinel;
-    font->atlas_slot_size = 2 * size;
-    font->slots = mem_alloc(cache->mem, GlyphSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(GlyphSlot)));
-    font->map = mem_alloc(cache->mem, GlyphSlot*, .zeroed=true, .size=(cache->atlas_size * sizeof(GlyphSlot*)));
     array_push(&cache->fonts, font);
+
+    font->cache = cache;
+    font->lru.lru_next = &font->lru;
+    font->lru.lru_prev = &font->lru;
+    font->atlas_slot_size = 2 * size;
+
+    GlyphSlot *slots = mem_alloc(cache->mem, GlyphSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(GlyphSlot)));
+    array_init(&font->free_slots, cache->mem);
+    map_init(&font->slot_map, cache->mem);
 
     U32 x = 0;
     U32 y = 0;
     for (U32 i = 0; i < cast(U32, cache->atlas_size) * cache->atlas_size; ++i) {
-        GlyphSlot *slot = &font->slots[i];
+        GlyphSlot *slot = &slots[i];
         slot->x = x * font->atlas_slot_size;
         slot->y = y * font->atlas_slot_size;
-        slot->map_next = font->sentinel.map_next;
-        font->sentinel.map_next = slot;
+        array_push(&font->free_slots, slot);
         x++;
         if (x == cache->atlas_size) { x = 0; y++; }
     }
@@ -216,10 +188,10 @@ Font *font_get (FontCache *cache, String filepath, U32 size) {
     return font ? font : font_new(cache, filepath, size);
 }
 
-FontCache *font_cache_new (Mem *mem, GlyphEvictionFn evict_fn, U16 atlas_size) {
+FontCache *font_cache_new (Mem *mem, VertexFlushFn vertex_flush_fn, U16 atlas_size) {
     Auto cache = mem_new(mem, FontCache);
     cache->mem = mem;
-    cache->evict_fn = evict_fn;
+    cache->vertex_flush_fn = vertex_flush_fn;
     cache->atlas_size = atlas_size;
     array_init(&cache->fonts, mem);
 
