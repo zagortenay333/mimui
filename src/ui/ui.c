@@ -2144,11 +2144,13 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                     buf_delete(info->buf, &info->cursor);
                 }
                 ui_eat_event();
+                text_box_scroll_into_view(text_box, &info->cursor, 4);
                 break;
             case SDLK_W:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     buf_cursor_move_left_word(info->buf, &info->cursor, false);
                     buf_delete(info->buf, &info->cursor);
+                    text_box_scroll_into_view(text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
                 break;
@@ -2162,6 +2164,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 break;
             case SDLK_RETURN:
                 buf_insert(info->buf, &info->cursor, str("\n"));
+                text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_BACKSPACE:
@@ -2212,6 +2215,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
             buf_insert(info->buf, &info->cursor, ui->event->text);
+            text_box_scroll_into_view(text_box, &info->cursor, 4);
             ui_eat_event();
         }
 
