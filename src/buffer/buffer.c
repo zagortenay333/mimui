@@ -29,7 +29,7 @@ Buf *buf_new (Mem *mem, String text) {
     Auto buf   = mem_new(mem, Buf);
     buf->mem   = mem;
     buf->dirty = true;
-    buf_insert(buf, text, &(BufCursor){});
+    buf_insert(buf, &(BufCursor){}, text);
     array_init(&buf->data, mem);
     array_init(&buf->lines, mem);
     return buf;
@@ -122,20 +122,21 @@ Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
     }
 }
 
-Void buf_insert (Buf *buf, String str, BufCursor *cursor) {
+Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
+    if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
     cursor->byte_offset = clamp(cursor->byte_offset, 0u, buf->data.count);
     array_insert_many(&buf->data, &str, cursor->byte_offset);
     buf->dirty = true;
     cursor->byte_offset += str.count;
+    cursor->selection_offset = cursor->byte_offset;
     buf_offset_to_line_col(buf, cursor);
 }
 
-Void buf_delete (Buf *buf, U32 count, BufCursor *cursor) {
-    count = clamp(count, 0u, buf->data.count - cursor->byte_offset);
-    array_remove_many(&buf->data, cursor->byte_offset, count);
+Void buf_delete (Buf *buf, BufCursor *cursor) {
+    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(buf, cursor);
+    array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
     buf->dirty = true;
-    cursor->byte_offset -= count;
-    buf_offset_to_line_col(buf, cursor);
+    cursor->selection_offset = cursor->byte_offset;
 }
 
 U32 buf_get_count (Buf *buf) {
@@ -156,7 +157,12 @@ BufCursor buf_cursor_new (Buf *buf, U32 line, U32 column) {
     return cursor;
 }
 
-Void buf_cursor_move_left (Buf *buf, BufCursor *cursor) {
+Void buf_cursor_swap_offset (Buf *buf, BufCursor *cursor) {
+    swap(cursor->byte_offset, cursor->selection_offset);
+    buf_offset_to_line_col(buf, cursor);
+}
+
+Void buf_cursor_move_left (Buf *buf, BufCursor *cursor, Bool move_selection) {
     if (cursor->column > 0) {
         cursor->preferred_column--;
     } else if (cursor->line > 0) {
@@ -167,9 +173,10 @@ Void buf_cursor_move_left (Buf *buf, BufCursor *cursor) {
 
     cursor->column = cursor->preferred_column;
     cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void buf_cursor_move_right (Buf *buf, BufCursor *cursor) {
+Void buf_cursor_move_right (Buf *buf, BufCursor *cursor, Bool move_selection) {
     String line = buf_get_line(buf, 0, cursor->line);
     U32 count = str_codepoint_count(line);
 
@@ -183,9 +190,10 @@ Void buf_cursor_move_right (Buf *buf, BufCursor *cursor) {
     }
 
     cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void buf_cursor_move_up (Buf *buf, BufCursor *cursor) {
+Void buf_cursor_move_up (Buf *buf, BufCursor *cursor, Bool move_selection) {
     if (cursor->line > 0) cursor->line--;
 
     String line = buf_get_line(buf, 0, cursor->line);
@@ -197,9 +205,10 @@ Void buf_cursor_move_up (Buf *buf, BufCursor *cursor) {
     }
 
     cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void buf_cursor_move_down (Buf *buf, BufCursor *cursor) {
+Void buf_cursor_move_down (Buf *buf, BufCursor *cursor, Bool move_selection) {
     if (cursor->line < buf_get_line_count(buf)-1) cursor->line++;
 
     String line = buf_get_line(buf, 0, cursor->line);
@@ -211,4 +220,13 @@ Void buf_cursor_move_down (Buf *buf, BufCursor *cursor) {
     }
 
     cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
+    if (move_selection) cursor->selection_offset = cursor->byte_offset;
+}
+
+Void buf_cursor_select_all (Buf *buf, BufCursor *cursor) {
+    cursor->byte_offset = 0;
+    cursor->line = 0;
+    cursor->column = 0;
+    cursor->preferred_column = 0;
+    cursor->selection_offset = buf->data.count - 1;
 }

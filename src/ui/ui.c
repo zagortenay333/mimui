@@ -2135,31 +2135,38 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (text_box->signal.focused && ui->event->tag == EVENT_KEY_PRESS) {
             switch (ui->event->key) {
+            case SDLK_A:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    buf_cursor_select_all(info->buf, &info->cursor);
+                    ui_eat_event();
+                }
+                break;
+            case SDLK_RETURN:
+                buf_insert(info->buf, &info->cursor, str("\n"));
+                ui_eat_event();
+                break;
             case SDLK_BACKSPACE:
-                buf_delete(info->buf, 1, &info->cursor);
+                if (info->cursor.byte_offset == info->cursor.selection_offset) buf_cursor_move_left(info->buf, &info->cursor, false);
+                buf_delete(info->buf, &info->cursor);
                 ui_eat_event();
                 break;
             case SDLK_LEFT:
-                buf_cursor_move_left(info->buf, &info->cursor);
-                text_box_clear_selection(info);
+                buf_cursor_move_left(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_RIGHT:
-                buf_cursor_move_right(info->buf, &info->cursor);
-                text_box_clear_selection(info);
+                buf_cursor_move_right(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_UP:
-                buf_cursor_move_up(info->buf, &info->cursor);
-                text_box_clear_selection(info);
+                buf_cursor_move_up(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_DOWN:
-                buf_cursor_move_down(info->buf, &info->cursor);
-                text_box_clear_selection(info);
+                buf_cursor_move_down(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
@@ -2185,8 +2192,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         }
 
         if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
-            buf_insert(info->buf, ui->event->text, &info->cursor);
-            text_box_clear_selection(info);
+            buf_insert(info->buf, &info->cursor, ui->event->text);
             ui_eat_event();
         }
 
@@ -2426,8 +2432,8 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
 
         if (ui->depth_first.count) {
             if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == SDLK_TAB)) {
-                if (event->mods == SDL_KMOD_SHIFT) find_prev_focus();
-                else                               find_next_focus();
+                if (event->mods & SDL_KMOD_SHIFT) find_prev_focus();
+                else                              find_next_focus();
             }
         }
 
