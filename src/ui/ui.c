@@ -1546,6 +1546,9 @@ static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_r
 }
 
 static Void draw_box (UiBox *box) {
+    // @todo We could check whether the box is clipped 
+    // out and not run this function at all in that case.
+
     if (box->style.blur_radius) {
         flush_vertices();
 
