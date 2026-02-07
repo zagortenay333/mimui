@@ -383,9 +383,9 @@ Void ui_test () {
     framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
     blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
     blur_buffer2  = framebuffer_new(&blur_tex2, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    rect_shader   = shader_new("src/ui/rect_vs.glsl", "src/ui/rect_fs.glsl");
-    screen_shader = shader_new("src/ui/screen_vs.glsl", "src/ui/screen_fs.glsl");
-    blur_shader   = shader_new("src/ui/blur_vs.glsl", "src/ui/blur_fs.glsl");
+    rect_shader   = shader_new("src/ui/shaders/rect_vs.glsl", "src/ui/shaders/rect_fs.glsl");
+    screen_shader = shader_new("src/ui/shaders/screen_vs.glsl", "src/ui/shaders/screen_fs.glsl");
+    blur_shader   = shader_new("src/ui/shaders/blur_vs.glsl", "src/ui/shaders/blur_fs.glsl");
 
     { // Screen quad init:
         array_init(&screen_vertices, parena);
