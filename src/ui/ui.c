@@ -734,8 +734,12 @@ istruct (UiTextPos) {
 istruct (UiTextBox) {
     Buf *buf;
     BufCursor *cursor;
+
     UiTextPos pos;
     U32 preferred_column;
+    UiTextPos selection_start;
+    UiTextPos selection_end;
+
     Vec2 cursor_pos;
     Vec2 scroll_pos;
     Vec2 scroll_pos_n;
@@ -744,8 +748,6 @@ istruct (UiTextBox) {
     U32 scrollbar_width;
     U32 line_spacing;
     F32 scroll_animation_time;
-    UiTextPos selection_start;
-    UiTextPos selection_end;
     Vec4 selection_bg_color;
     Vec4 selection_fg_color;
     Vec4 cursor_color;
@@ -1915,13 +1917,6 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             UiTextPos current = {line_idx, col_idx};
             Bool selected = text_pos_cmp(current, start) >= 0 && text_pos_cmp(current, end) < 0;
 
-            // if (selected) draw_rounded_rect_with_corners(
-                    // (Rect){250,250,400,400},
-                    // vec4(1,0,0,1),
-                    // CORNER_OUT,CORNER_OUT,CORNER_OUT,CORNER_OUT,
-                    // 8, 1.0
-            // );
-
             if (selected) draw_rect(
                 .color        = info->selection_bg_color,
                 .color2       = info->selection_bg_color,
@@ -1932,7 +1927,6 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             GlyphSlot *slot = glyph_cache_get(ui->glyph_cache, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-
             Vec4 final_text_color = selected ? info->selection_fg_color : color;
 
             draw_rect(
