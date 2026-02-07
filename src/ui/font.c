@@ -122,6 +122,8 @@ static Font *font_new (FontCache *cache, String filepath, U32 size) {
     Auto font = mem_new(cache->mem, Font);
     array_push(&cache->fonts, font);
 
+    font->size = size;
+    font->filepath = filepath;
     font->cache = cache;
     font->lru.lru_next = &font->lru;
     font->lru.lru_prev = &font->lru;
@@ -179,7 +181,7 @@ Font *font_get (FontCache *cache, String filepath, U32 size) {
     Font *font = 0;
 
     array_iter (it, &cache->fonts) {
-        if (str_match(it->filepath, filepath) && font->size == size) {
+        if (str_match(it->filepath, filepath) && it->size == size) {
             font = it;
             break;
         }

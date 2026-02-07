@@ -595,6 +595,8 @@ ienum (UiStyleAttribute, U32) {
     UI_OUTSET_SHADOW_WIDTH,
     UI_SHADOW_OFFSETS,
     UI_BLUR_RADIUS,
+    UI_FONT,
+    UI_FONT_SIZE,
     UI_ANIMATION,
     UI_ANIMATION_TIME,
     UI_ATTRIBUTE_COUNT,
@@ -625,6 +627,8 @@ fenum (UiStyleMask, U32) {
     UI_MASK_OUTSET_SHADOW_WIDTH = 1 << UI_OUTSET_SHADOW_WIDTH,
     UI_MASK_SHADOW_OFFSETS      = 1 << UI_SHADOW_OFFSETS,
     UI_MASK_BLUR_RADIUS         = 1 << UI_BLUR_RADIUS,
+    UI_MASK_FONT                = 1 << UI_FONT,
+    UI_MASK_FONT_SIZE           = 1 << UI_FONT_SIZE,
     UI_MASK_ANIMATION           = 1 << UI_ANIMATION,
     UI_MASK_ANIMATION_TIME      = 1 << UI_ANIMATION_TIME,
 };
@@ -650,6 +654,8 @@ istruct (UiStyle) {
     F32  outset_shadow_width;
     Vec2 shadow_offsets;
     F32  blur_radius; // 0 means no background blur.
+    Font *font;
+    U32 font_size;
     UiStyleMask animation_mask;
     F32 animation_time;
 };
@@ -749,7 +755,7 @@ istruct (UiBox) {
     U8 gc_flag;
     U64 scratch;
     UiRect rect;
-    UiRect text_rect;
+    UiRect label_rect;
     UiBoxDrawFn draw_fn;
 
     // The x/y components of this field are set independently
@@ -887,7 +893,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->style_rules.count = 0;
         box->style = default_box_style;
         box->rect = (UiRect){};
-        box->text_rect = (UiRect){};
+        box->label_rect = (UiRect){};
         box->content = (UiRect){};
         box->scratch = 0;
         box->draw_fn = 0;
@@ -1018,6 +1024,8 @@ static Void animate_style (UiBox *box) {
     a->floating[1] = b->floating[1];
     a->overflow[0] = b->overflow[0];
     a->overflow[1] = b->overflow[1];
+    a->font = b->font;
+    a->font_size = b->font_size;
 }
 
 // =============================================================================
@@ -1144,6 +1152,15 @@ static Void ui_style_box_u32 (UiBox *box, UiStyleAttribute attr, U32 val) {
     if (ui->current_style_rule) ui->current_style_rule->mask |= style_attr_to_mask(attr);
 }
 
+static Void ui_style_box_font (UiBox *box, UiStyleAttribute attr, Font *val) {
+    Auto s = ui->current_style_rule ? ui->current_style_rule->style : &box->next_style;
+    switch (attr) {
+    case UI_FONT: s->font = val; break;
+    default:      error_fmt("Given attribute is not of type Font*.");
+    }
+    if (ui->current_style_rule) ui->current_style_rule->mask |= style_attr_to_mask(attr);
+}
+
 static Void ui_style_box_f32 (UiBox *box, UiStyleAttribute attr, F32 val) {
     Auto s = ui->current_style_rule ? ui->current_style_rule->style : &box->next_style;
     switch (attr) {
@@ -1155,6 +1172,7 @@ static Void ui_style_box_f32 (UiBox *box, UiStyleAttribute attr, F32 val) {
     case UI_EDGE_SOFTNESS:       s->edge_softness = val; break;
     case UI_INSET_SHADOW_WIDTH:  s->inset_shadow_width = val; break;
     case UI_OUTSET_SHADOW_WIDTH: s->outset_shadow_width = val; break;
+    case UI_FONT_SIZE:           s->font_size = val; break;
     default:                     error_fmt("Given attribute is not of type F32.");
     }
     if (ui->current_style_rule) ui->current_style_rule->mask |= style_attr_to_mask(attr);
@@ -1201,6 +1219,7 @@ static Void ui_style_f32  (UiStyleAttribute attr, F32 val)    { ui_style_box_f32
 static Void ui_style_vec2 (UiStyleAttribute attr, Vec2 val)   { ui_style_box_vec2(array_get_last(&ui->box_stack), attr, val); }
 static Void ui_style_vec4 (UiStyleAttribute attr, Vec4 val)   { ui_style_box_vec4(array_get_last(&ui->box_stack), attr, val); }
 static Void ui_style_size (UiStyleAttribute attr, UiSize val) { ui_style_box_size(array_get_last(&ui->box_stack), attr, val); }
+static Void ui_style_font (UiStyleAttribute attr, Font *val)  { ui_style_box_font(array_get_last(&ui->box_stack), attr, val); }
 
 static Void ui_style_rule_push (UiBox *box, String pattern) {
     if (ui->current_style_rule) error_fmt("Style rule declarations cannot be nested.");
@@ -1255,6 +1274,8 @@ static Void apply_style_rule (UiBox *box, UiStyleRule *rule, UiSpecificity *spec
     if (rule_applies(rule, s, specs, UI_OUTSET_SHADOW_WIDTH)) { box->next_style.outset_shadow_width = rule->style->outset_shadow_width; specs[UI_OUTSET_SHADOW_WIDTH] = s; }
     if (rule_applies(rule, s, specs, UI_SHADOW_OFFSETS))      { box->next_style.shadow_offsets = rule->style->shadow_offsets; specs[UI_SHADOW_OFFSETS] = s; }
     if (rule_applies(rule, s, specs, UI_BLUR_RADIUS))         { box->next_style.blur_radius = rule->style->blur_radius; specs[UI_BLUR_RADIUS] = s; }
+    if (rule_applies(rule, s, specs, UI_FONT))                { box->next_style.font = rule->style->font; specs[UI_FONT] = s; }
+    if (rule_applies(rule, s, specs, UI_FONT_SIZE))           { box->next_style.font_size = rule->style->font_size; specs[UI_FONT_SIZE] = s; }
     if (rule_applies(rule, s, specs, UI_ANIMATION))           { box->next_style.animation_mask = rule->style->animation_mask; specs[UI_ANIMATION] = s; }
     if (rule_applies(rule, s, specs, UI_ANIMATION_TIME))      { box->next_style.animation_time = rule->style->animation_time; specs[UI_ANIMATION_TIME] = s; }
 }
@@ -1335,6 +1356,17 @@ static Void ui_tag_str     (String tag)              { return ui_tag_box_str(arr
 static Void ui_tag_box     (UiBox *box, CString tag) { return ui_tag_box_str(box, str(tag)); }
 static Void ui_tag         (CString tag)             { return ui_tag_box_str(array_get_last(&ui->box_stack), str(tag)); }
 
+Bool set_font (UiBox *box) {
+    Font *font = box->next_style.font;
+    U32 size = box->next_style.font_size;
+    if (!font || !size) return false;
+    if (ui->font != font || size != ui->font->size) {
+        flush_vertices();
+        ui->font = font_get(ui->font_cache, font->filepath, size);
+    }
+    return true;
+}
+
 // =============================================================================
 // Layout:
 // =============================================================================
@@ -1345,7 +1377,7 @@ static Void compute_standalone_sizes (U64 axis) {
         if (size->tag == UI_SIZE_PIXELS) {
             box->rect.size[axis] = size->value;
         } else if (size->tag == UI_SIZE_TEXT) {
-            box->rect.size[axis] = box->text_rect.size[axis] + 2*box->style.padding.v[axis];
+            box->rect.size[axis] = box->label_rect.size[axis] + 2*box->style.padding.v[axis];
         }
     }
 }
@@ -1512,18 +1544,18 @@ static Void find_topmost_hovered_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) ui_pop_clip();
 }
 
-static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
+static Void draw_label (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
     tmem_new(tm);
 
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
     U32 line_width = 0;
+    F32 descent = cast(F32, ui->font->descent);
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     array_iter (info, &infos, *) {
         GlyphSlot *slot = font_get_glyph_slot(ui->font, info);
-
-        Vec2 top_left = {x + info->x + slot->bearing_x, y + info->y - slot->bearing_y};
+        Vec2 top_left = {x + info->x + slot->bearing_x, y + info->y - descent - slot->bearing_y};
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
         draw_rect(
@@ -1537,16 +1569,14 @@ static Void draw_text_line (String text, Vec4 color, F32 x, F32 y, UiRect *out_r
         if (ARRAY_ITER_DONE) line_width = info->x + slot->bearing_x + info->x_advance;
     }
 
-    if (out_rect) {
-        out_rect->x = x;
-        out_rect->y = y;
-        out_rect->w = line_width;
-        out_rect->h = ui->font->height;
-    }
+    out_rect->x = x;
+    out_rect->y = y;
+    out_rect->w = line_width;
+    out_rect->h = ui->font->height;
 }
 
 static Void draw_box (UiBox *box) {
-    // @todo We could check whether the box is clipped 
+    // @todo We could check whether the box is clipped
     // out and not run this function at all in that case.
 
     if (box->style.blur_radius) {
@@ -1641,10 +1671,10 @@ static Void draw_box (UiBox *box) {
 
     array_iter (c, &box->children) draw_box(c);
 
-    if (box->flags & UI_DRAW_LABEL) {
-        F32 x = floor(box->rect.x + box->rect.w/2 - box->text_rect.w/2);
-        F32 y = floor(box->rect.y + box->rect.h/2 + box->text_rect.h/2);
-        draw_text_line(box->label, box->style.text_color, x, y, &box->text_rect);
+    if ((box->flags & UI_DRAW_LABEL) && set_font(box)) {
+        F32 x = round(box->rect.x + box->rect.w/2 - box->label_rect.w/2);
+        F32 y = round(box->rect.y + box->rect.h/2 + box->label_rect.h/2);
+        draw_label(box->label, box->style.text_color, x, y, &box->label_rect);
     }
 
     if (box->flags & UI_BOX_CLIPPING) {
@@ -1933,6 +1963,8 @@ static Void text_box_draw (UiBox *box) {
 
     UiBox *container = box->parent;
     Auto info = cast(UiTextBox*, container->scratch);
+
+    if (! set_font(container)) return;
 
     U32 cell_h = ui->font->height;
     U32 cell_w = ui->font->width;
@@ -2512,19 +2544,25 @@ istruct (App) {
     UiTextBox *text_box;
     UiBox *text_box_widget;
 
-    Bool modal_shown;
     Vec2 modal_pos;
+    Bool modal_shown;
 
     U32 view;
+
+    Font *normal_font;
+    Font *bold_font;
+    Font *mono_font;
 };
 
 App *app;
 
 static Void build_text_view () {
-    app->text_box_widget = ui_text_box(str("asdf"), app->text_box);
+    app->text_box_widget = ui_text_box(str("text_box"), app->text_box);
     ui_style_box_size(app->text_box_widget, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(app->text_box_widget, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(app->text_box_widget, UI_PADDING, (Vec2){8, 8});
+    ui_style_box_font(app->text_box_widget, UI_FONT, app->mono_font);
+    ui_style_box_f32(app->text_box_widget, UI_FONT_SIZE, 12.0);
 }
 
 static Void build_misc_view () {
@@ -2677,6 +2715,8 @@ static Void app_build () {
         ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 120, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 1});
+        ui_style_font(UI_FONT, app->bold_font);
+        ui_style_f32(UI_FONT_SIZE, 12.0);
     }
 
     ui_style_rule(".button.hover") {
@@ -2791,6 +2831,10 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->farena = farena;
 
     app->view = 2;
+
+    app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12);
+    app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12);
+    app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12);
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
