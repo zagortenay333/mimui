@@ -8,7 +8,6 @@ istruct (Buf) {
     ArrayString lines;
     U64 widest_line;
     Bool dirty;
-    BufCursor *cursor;
 };
 
 static Void compute_aux (Buf *buf) {
@@ -78,8 +77,8 @@ Bool buf_line_iter_next (BufLineIter *it) {
 
 String buf_get_line (Buf *buf, Mem *mem, U64 idx) {
     compute_aux(buf);
-    idx = clamp(idx, 0u, buf->lines.count-1);
-    return array_get(&buf->lines, idx);
+    idx = clamp(idx, 0u, buf->lines.count - 1);
+    return buf->lines.count ? array_get(&buf->lines, idx) : (String){};
 }
 
 U64 buf_get_widest_line (Buf *buf) {
@@ -114,20 +113,23 @@ String buf_get_str (Buf *buf, Mem *) {
     return buf->data.as_slice;
 }
 
-U64 buf_line_to_offset (Buf *buf, U64 line_idx) {
-    compute_aux(buf);
-    line_idx = clamp(line_idx, 0u, buf->lines.count-1);
-    String line = array_get(&buf->lines, line_idx);
-    return line.data - buf->data.data;
+U64 buf_line_col_to_offset (Buf *buf, U64 line, U64 column) {
+    String line_text = buf_get_line(buf, 0, line);
+    U64 line_off = 0;
+    str_utf8_iter (c, line_text) {
+        if (c.idx == column) break;
+        line_off += c.decode.inc;
+    }
+    return (line_text.data - buf->data.data) + line_off;
 }
 
-static Void update_cursor_byte_offset (BufCursor *cursor) {
-}
-
-BufCursor *buf_cursor_new (Buf *buf) {
-    assert_dbg(! buf->cursor);
-    Auto cursor = mem_new(buf->mem, BufCursor);
-    buf->cursor = cursor;
+BufCursor buf_cursor_new (Buf *buf, U64 line, U64 column) {
+    BufCursor cursor = {};
+    cursor.line = line;
+    cursor.column = column;
+    cursor.preferred_column = column;
+    cursor.byte_offset = buf_line_col_to_offset(buf, line, column);
+    cursor.selection_offset = cursor.byte_offset;
     return cursor;
 }
 
@@ -141,7 +143,7 @@ Void buf_cursor_move_left (BufCursor *cursor) {
     }
 
     cursor->column = cursor->preferred_column;
-    update_cursor_byte_offset(cursor);
+    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
 }
 
 Void buf_cursor_move_right (BufCursor *cursor) {
@@ -157,7 +159,7 @@ Void buf_cursor_move_right (BufCursor *cursor) {
         cursor->preferred_column = 0;
     }
 
-    update_cursor_byte_offset(cursor);
+    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
 }
 
 Void buf_cursor_move_up (BufCursor *cursor) {
@@ -171,7 +173,7 @@ Void buf_cursor_move_up (BufCursor *cursor) {
         cursor->column = cursor->preferred_column;
     }
 
-    update_cursor_byte_offset(cursor);
+    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
 }
 
 Void buf_cursor_move_down (BufCursor *cursor) {
@@ -185,5 +187,5 @@ Void buf_cursor_move_down (BufCursor *cursor) {
         cursor->column = cursor->preferred_column;
     }
 
-    update_cursor_byte_offset(cursor);
+    cursor->byte_offset = buf_line_col_to_offset(cursor->buf, cursor->line, cursor->column);
 }

@@ -733,7 +733,7 @@ istruct (UiTextPos) {
 
 istruct (UiTextBox) {
     Buf *buf;
-    BufCursor *cursor;
+    BufCursor cursor;
 
     UiTextPos pos;
     U32 preferred_column;
@@ -2827,7 +2827,7 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    app->text_box->cursor = buf_cursor_new(app->text_box->buf);
+    app->text_box->cursor = buf_cursor_new(app->text_box->buf, 0, 0);
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;

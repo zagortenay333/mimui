@@ -20,6 +20,7 @@ istruct (UtfDecode) {
 istruct (UtfIter) {
     String str;
     UtfDecode decode;
+    U32 idx;
 };
 
 // Loop over codepoints in a UTF-8 encoded string.
@@ -91,41 +92,3 @@ Void    astr_push_cstr_nul   (AString *, CString);
 Void    astr_push_str_quoted (AString *, String);
 Void    astr_push_fmt_va     Fmt(2, 0) (AString *, CString fmt, VaList);
 Void    astr_push_fmt        Fmt(2, 3) (AString *, CString fmt, ...);
-
-// =============================================================================
-// Gap Buffer:
-// -----------
-//
-// The is a data structure for representing strings that allows for
-// efficient insert/delete operations at arbitrary locations.
-//
-// This is a flat buffer with gap region within into which insertion
-// is possible. This gap moves around (via memmove), so the best case
-// scenario is that multiple edits are nerby so that we don't have to
-// memmove a lot.
-//
-// Usage example:
-// --------------
-//
-//     tmem_new(tm);
-//     GapBuf *gb = gb_new(tm, 0);
-//
-//     gb_insert(gb, str("Fire... walk with me."), 0);
-//     gb_insert(gb, str("One chants out between two worlds... "), 0);
-//     gb_insert(gb, str("The magician longs to see. "), 0);
-//     gb_insert(gb, str("Through the darkness of future's past, "), 0);
-//
-//     String str = gb_str(gb);
-//     printf("%.*s\n", STR(str));
-//
-// =============================================================================
-istruct (GapBuf);
-
-GapBuf *gb_new            (Mem *, U64 gap_size);
-GapBuf *gb_new_from_file  (Mem *, String filepath, U64 gap_size);
-Void    gb_insert         (GapBuf *, String str, U64 idx);
-Void    gb_delete         (GapBuf *, U64 count, U64 idx);
-U64     gb_count          (GapBuf *);
-String  gb_str            (GapBuf *);
-U64     gb_line_to_offset (GapBuf *, U64 line);
-Void    gb_set_gap_size   (GapBuf *, U64 cap);
