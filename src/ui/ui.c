@@ -2716,7 +2716,7 @@ static Void app_build () {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 120, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 1});
         ui_style_font(UI_FONT, app->bold_font);
-        ui_style_f32(UI_FONT_SIZE, 12.0);
+        ui_style_f32(UI_FONT_SIZE, 22.0);
     }
 
     ui_style_rule(".button.hover") {
