@@ -129,6 +129,7 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
     font->lru.lru_next = &font->lru;
     font->lru.lru_prev = &font->lru;
     font->atlas_slot_size = 2 * size;
+    font->binary = fs_read_entire_file(cache->mem, filepath, 0);
 
     GlyphSlot *slots = mem_alloc(cache->mem, GlyphSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(GlyphSlot)));
     array_init(&font->free_slots, cache->mem);
@@ -145,10 +146,7 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
         if (x == cache->atlas_size) { x = 0; y++; }
     }
 
-    String binary = fs_read_entire_file(cache->mem, filepath, 0);
-
-    // @todo Does freetype somehow own the binary data or should we free it.
-    FT_Open_Args args = { .flags=FT_OPEN_MEMORY, .memory_base=cast(U8*, binary.data), .memory_size=binary.count };
+    FT_Open_Args args = { .flags=FT_OPEN_MEMORY, .memory_base=cast(U8*, font->binary.data), .memory_size=font->binary.count };
     FT_Open_Face(cache->ft_lib, &args, 0, &font->ft_face);
     FT_Set_Pixel_Sizes(font->ft_face, 0, size);
 
@@ -204,15 +202,6 @@ FontCache *font_cache_new (Mem *mem, VertexFlushFn vertex_flush_fn, U16 atlas_si
     FT_Property_Set(cache->ft_lib, "ot-svg", "svg-hooks", hooks);
 
     return cache;
-}
-
-Void font_cache_destroy (FontCache *cache) {
-    array_iter (font, &cache->fonts) {
-        FT_Done_Face(font->ft_face);
-        hb_font_destroy(font->hb_font);
-    }
-
-    FT_Done_FreeType(cache->ft_lib);
 }
 
 SliceGlyphInfo font_get_glyph_infos (Font *font, Mem *mem, String text) {

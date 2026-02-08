@@ -32,6 +32,7 @@ istruct (Font) {
     FontCache *cache;
 
     String filepath;
+    String binary;
     FT_Face ft_face;
     hb_face_t *hb_face;
     hb_font_t *hb_font;
@@ -64,7 +65,6 @@ istruct (FontCache) {
 array_typedef(GlyphInfo, GlyphInfo);
 
 FontCache     *font_cache_new       (Mem *, VertexFlushFn, U16 atlas_size);
-Void           font_cache_destroy   (FontCache *);
 Font          *font_get             (FontCache *, String filepath, U32 size, Bool is_mono);
 GlyphSlot     *font_get_glyph_slot  (Font *, GlyphInfo *);
 SliceGlyphInfo font_get_glyph_infos (Font *, Mem *, String);
