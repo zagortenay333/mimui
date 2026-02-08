@@ -67,14 +67,8 @@ GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
         slot->advance = (I32)(ft_glyph->advance.x >> 6);
         slot->pixel_mode = ft_bitmap.pixel_mode;
 
-        if ((w > font->atlas_slot_size) || (h > font->atlas_slot_size)) {
-            log_msg_fmt(LOG_ERROR, LOG_HEADER, 0, "Font glyph too big to fit into atlas slot.");
-            goto done;
-        }
-
-        if ((w == 0) || (h == 0)) {
-            goto done;
-        }
+        if ((w > font->atlas_slot_size) || (h > font->atlas_slot_size)) goto done;
+        if ((w == 0) || (h == 0)) goto done;
 
         U8 *buf = mem_alloc(tm, U8, .zeroed=true, .size=(font->atlas_slot_size * font->atlas_slot_size * 4));
 
@@ -152,7 +146,6 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
 
     font->hb_face = hb_ft_face_create_referenced(font->ft_face);
     font->hb_font = hb_font_create(font->hb_face);
-
     I32 hb_font_size = size * 64;
     hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
 
