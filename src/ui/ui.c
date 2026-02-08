@@ -1375,22 +1375,17 @@ Bool set_font (UiBox *box) {
 static Void compute_standalone_sizes (U64 axis) {
     array_iter (box, &ui->depth_first) {
         Auto size = &box->style.size.v[axis];
-
-        if (size->tag == UI_SIZE_PIXELS) {
-            box->rect.size[axis] = size->value;
-        } else if (size->tag == UI_SIZE_CUSTOM) {
-            box->size_fn(box, axis);
-        }
+        if (size->tag == UI_SIZE_PIXELS) box->rect.size[axis] = size->value;
     }
 }
 
 static Void compute_downward_dependent_sizes (U64 axis) {
     array_iter_back (box, &ui->depth_first) {
         Auto size = &box->style.size.v[axis];
-        if (size->tag != UI_SIZE_CHILDREN_SUM) continue;
+        if (size->tag != UI_SIZE_CHILDREN_SUM && size->tag != UI_SIZE_CUSTOM) continue;
 
         array_iter (child, &box->children) {
-            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) {
+            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT && size->tag == UI_SIZE_CHILDREN_SUM) {
                 // Cycle: parent defined by child and child defined by parent.
                 size->tag = UI_SIZE_PCT_PARENT;
                 size->value = 1;
@@ -1398,23 +1393,27 @@ static Void compute_downward_dependent_sizes (U64 axis) {
             }
         }
 
-        if (size->tag == UI_SIZE_PCT_PARENT) continue;
-
-        F32 final_size = 2*box->style.padding.v[axis];
-        if (box->style.axis == axis) {
-            array_iter (child, &box->children) {
-                if (! isnan(child->style.floating[axis])) continue;
-                final_size += child->rect.size[axis];
-                if (! ARRAY_ITER_DONE) final_size += box->style.spacing;
-            }
+        if (size->tag == UI_SIZE_PCT_PARENT) {
+            continue;
+        } else if (size->tag == UI_SIZE_CUSTOM) {
+            box->size_fn(box, axis);
         } else {
-            array_iter (child, &box->children) {
-                if (! isnan(child->style.floating[axis])) continue;
-                final_size = max(final_size, child->rect.size[axis] + 2*box->style.padding.v[axis]);
+            F32 final_size = 2*box->style.padding.v[axis];
+            if (box->style.axis == axis) {
+                array_iter (child, &box->children) {
+                    if (! isnan(child->style.floating[axis])) continue;
+                    final_size += child->rect.size[axis];
+                    if (! ARRAY_ITER_DONE) final_size += box->style.spacing;
+                }
+            } else {
+                array_iter (child, &box->children) {
+                    if (! isnan(child->style.floating[axis])) continue;
+                    final_size = max(final_size, child->rect.size[axis] + 2*box->style.padding.v[axis]);
+                }
             }
-        }
 
-        box->rect.size[axis] = final_size;
+            box->rect.size[axis] = final_size;
+        }
     }
 }
 
@@ -1739,7 +1738,7 @@ static UiBox *ui_toggle (CString id, Bool *val) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
         ui_style_vec4(UI_RADIUS, vec4(s/2, s/2, s/2, s/2));
-        ui_style_vec4(UI_BG_COLOR, vec4(1,1,1,1));
+        ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .7));
         ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .05));
         ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
         ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
@@ -2372,7 +2371,7 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_f32(UI_FLOAT_X, 0);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 4, 0});
-            ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8));
+            ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, 1));
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
             ui_box(UI_BOX_CLICK_THROUGH, "slider_track_fill") {
@@ -2395,6 +2394,7 @@ static UiBox *ui_slider_str (String label, F32 *val) {
         }
 
         ui_box(UI_BOX_CLICK_THROUGH, "slider_knob") {
+            ui_style_f32(UI_EDGE_SOFTNESS, 1.3);
             ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, 1));
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
@@ -2703,10 +2703,9 @@ static Void build_text_view () {
 }
 
 static Void build_clock_view () {
-    ui_box(0, "clock_box") {
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_box(UI_BOX_CLICK_THROUGH, "clock_box") {
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 0});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 0});
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
 
@@ -2834,6 +2833,22 @@ static Void build_grid_view () {
     }
 }
 
+static Void size_modal (UiBox *modal, U64 axis) {
+    F32 size = 0;
+    Bool cycle = false;
+
+    array_iter(child, &modal->children) {
+        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+        size += child->rect.size[axis];
+    }
+
+    if (cycle) {
+        modal->rect.size[axis] = ui->root->rect.size[axis] - 20.0;
+    } else {
+        modal->rect.size[axis] = min(size + 2 * modal->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
+    }
+}
+
 static Bool show_modal () {
     ui_parent(ui->root) {
         UiBox *overlay = ui_box(UI_BOX_REACTIVE, "modal_bg") {
@@ -2846,16 +2861,13 @@ static Bool show_modal () {
             if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) return false;
             if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) return false;
 
-            UiBox *modal = ui_box(UI_BOX_REACTIVE, "modal") {
-                if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
-                    app->modal_pos.x += ui->mouse_dt.x;
-                    app->modal_pos.y += ui->mouse_dt.y;
-                }
+            UiBox *modal = ui_scroll_box("modal") {
+                modal->size_fn = size_modal;
 
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM});
                 ui_style_f32(UI_FLOAT_X, app->modal_pos.x);
                 ui_style_f32(UI_FLOAT_Y, app->modal_pos.y);
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 400, 1});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .6));
                 ui_style_vec4(UI_RADIUS, vec4(8, 8, 8, 8));
                 ui_style_vec2(UI_PADDING, vec2(8, 8));
@@ -2866,12 +2878,17 @@ static Bool show_modal () {
                 ui_style_f32(UI_BLUR_RADIUS, 3);
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
 
+                if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
+                    app->modal_pos.x += ui->mouse_dt.x;
+                    app->modal_pos.y += ui->mouse_dt.y;
+                }
+
                 ui_style_rule(".button") {
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 0});
                     ui_style_vec2(UI_PADDING, vec2(4, 4));
                 }
 
-                ui_button("modal_button");
+                build_clock_view();
             }
         }
     }
@@ -2941,7 +2958,7 @@ static Void app_build () {
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .3));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
 
@@ -2978,18 +2995,15 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
-            UiBox *foo5 = ui_button("Foo5");
 
             if (foo2->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
             if (foo3->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
             if (foo4->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
-            if (foo5->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
-            case 3: ui_tag_box(foo5, "press"); break;
             }
 
             ui_vspacer();
@@ -3007,7 +3021,6 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
-        case 3: build_clock_view(); break;
         }
     }
 }
