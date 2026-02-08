@@ -502,7 +502,7 @@ Void ui_test () {
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+        glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (events.count == 0) array_push_lit(&events, .tag=EVENT_DUMMY);
@@ -539,7 +539,6 @@ Void ui_test () {
 typedef U64 UiKey;
 
 ienum (UiSizeTag, U8) {
-    UI_SIZE_TEXT,
     UI_SIZE_CUSTOM,
     UI_SIZE_PIXELS,
     UI_SIZE_PCT_PARENT,
@@ -715,7 +714,6 @@ fenum (UiBoxFlags, U8) {
     UI_BOX_INVISIBLE     = flag(2),
     UI_BOX_CLIPPING      = flag(3),
     UI_BOX_CLICK_THROUGH = flag(4),
-    UI_DRAW_LABEL        = flag(5),
 };
 
 typedef Void (*UiBoxDrawFn)(UiBox*);
@@ -756,7 +754,7 @@ istruct (UiBox) {
     UiBoxFlags flags;
     U8 gc_flag;
     U64 scratch;
-    UiRect label_rect;
+    UiRect scratch_rect;
     UiRect rect;
     UiBoxDrawFn draw_fn;
     UiBoxSizeFn size_fn;
@@ -875,8 +873,6 @@ static Void ui_pop_parent_ (Void *)     { array_pop(&ui->box_stack); }
     ui_push_parent(__VA_ARGS__);\
     if (cleanup(ui_pop_parent_) U8 _; 1)
 
-// The label is copied into per-frame memory, so
-// no need to worry about lifetime issues.
 static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
     UiKey key  = ui_build_key(label);
     UiBox *box = map_get_ptr(&ui->box_cache, key);
@@ -897,7 +893,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->style_rules.count = 0;
         box->style = default_box_style;
         box->rect = (UiRect){};
-        box->label_rect = (UiRect){};
+        box->scratch_rect = (UiRect){};
         box->content = (UiRect){};
         box->scratch = 0;
         box->draw_fn = 0;
@@ -1381,8 +1377,6 @@ static Void compute_standalone_sizes (U64 axis) {
 
         if (size->tag == UI_SIZE_PIXELS) {
             box->rect.size[axis] = size->value;
-        } else if (size->tag == UI_SIZE_TEXT) {
-            box->rect.size[axis] = box->label_rect.size[axis] + 2*box->style.padding.v[axis];
         } else if (size->tag == UI_SIZE_CUSTOM) {
             box->size_fn(box, axis);
         }
@@ -1553,40 +1547,6 @@ static Void find_topmost_hovered_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) ui_pop_clip();
 }
 
-static Void draw_label (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect) {
-    tmem_new(tm);
-
-    glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
-
-    U32 line_width = 0;
-    F32 descent = cast(F32, ui->font->descent);
-    F32 width = cast(F32, ui->font->width);
-    SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
-
-    F32 x_pos = x;
-    array_iter (info, &infos, *) {
-        GlyphSlot *slot   = font_get_glyph_slot(ui->font, info);
-        Vec2 top_left     = {x_pos + slot->bearing_x, y + info->y - descent - slot->bearing_y};
-        Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-
-        draw_rect(
-            .top_left     = top_left,
-            .bottom_right = bottom_right,
-            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-            .text_color   = color,
-            .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
-        );
-
-        x_pos += ui->font->is_mono ? width : (slot->bearing_x + info->x_advance);
-        if (ARRAY_ITER_DONE) line_width = x_pos - x;
-    }
-
-    out_rect->x = x;
-    out_rect->y = y;
-    out_rect->w = line_width;
-    out_rect->h = ui->font->height;
-}
-
 static Void draw_box (UiBox *box) {
     // @todo We could check whether the box is clipped
     // out and not run this function at all in that case.
@@ -1683,12 +1643,6 @@ static Void draw_box (UiBox *box) {
 
     array_iter (c, &box->children) draw_box(c);
 
-    if ((box->flags & UI_DRAW_LABEL) && set_font(box)) {
-        F32 x = round(box->rect.x + box->rect.w/2 - box->label_rect.w/2);
-        F32 y = round(box->rect.y + box->rect.h/2 + box->label_rect.h/2);
-        draw_label(box->label, box->style.text_color, x, y, &box->label_rect);
-    }
-
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
         UiRect r = ui_pop_clip();
@@ -1709,29 +1663,51 @@ static UiBox *ui_vspacer () {
     return box;
 }
 
-istruct (UiLabelData) {
-    String text;
-    UiRect text_rect;
-};
-
 static Void size_label (UiBox *box, U64 axis) {
-    Auto data = cast(UiLabelData*, box->scratch);
-
     if (axis == UI_AXIS_HORIZONTAL) {
-        box->rect.w = box->label_rect.w + 2*box->style.padding.x;
+        box->rect.w = box->scratch_rect.w + 2*box->style.padding.x;
     } else {
-        box->rect.h = box->label_rect.h + 2*box->style.padding.y;
+        box->rect.h = box->scratch_rect.h + 2*box->style.padding.y;
     }
 }
 
-static Void draw_label2 (UiBox *box) {
-    Auto data = cast(UiLabelData*, box->scratch);
+static Void draw_label (UiBox *box) {
+    if (! set_font(box)) return;
 
-    if (set_font(box)) {
-        F32 x = round(box->rect.x + box->rect.w/2 - box->label_rect.w/2);
-        F32 y = round(box->rect.y + box->rect.h - box->style.padding.y);
-        draw_label(data->text, box->style.text_color, x, y, &box->label_rect);
+    tmem_new(tm);
+
+    glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
+
+    Auto text      = *cast(String*, box->scratch);
+    F32 x          = round(box->rect.x + box->rect.w/2 - box->scratch_rect.w/2);
+    F32 y          = round(box->rect.y + box->rect.h - box->style.padding.y);
+    U32 line_width = 0;
+    F32 descent    = cast(F32, ui->font->descent);
+    F32 width      = cast(F32, ui->font->width);
+    F32 x_pos      = x;
+    SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
+
+    array_iter (info, &infos, *) {
+        GlyphSlot *slot   = font_get_glyph_slot(ui->font, info);
+        Vec2 top_left     = {x_pos + slot->bearing_x, y + info->y - descent - slot->bearing_y};
+        Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+
+        draw_rect(
+            .top_left     = top_left,
+            .bottom_right = bottom_right,
+            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
+            .text_color   = box->style.text_color,
+            .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+        );
+
+        x_pos += ui->font->is_mono ? width : (slot->bearing_x + info->x_advance);
+        if (ARRAY_ITER_DONE) line_width = x_pos - x;
     }
+
+    box->scratch_rect.x = x;
+    box->scratch_rect.y = y;
+    box->scratch_rect.w = line_width;
+    box->scratch_rect.h = ui->font->height;
 }
 
 static UiBox *ui_label (CString id, String label) {
@@ -1739,18 +1715,20 @@ static UiBox *ui_label (CString id, String label) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 1});
         box->size_fn = size_label;
-        box->draw_fn = draw_label2;
-        Auto data = mem_new(ui->frame_mem, UiLabelData);
-        data->text = label;
+        box->draw_fn = draw_label;
+        Auto data = mem_new(ui->frame_mem, String);
+        *data = label;
         box->scratch = cast(U64, data);
     }
 
     return box;
 }
 
-static UiBox *ui_button_str (String label) {
-    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS|UI_DRAW_LABEL, label) {
+static UiBox *ui_button_str (String id, String label) {
+    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, label) {
         ui_tag("button");
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
 
         if (button->signal.hovered) {
             ui_push_clip_box(button);
@@ -1766,20 +1744,15 @@ static UiBox *ui_button_str (String label) {
             }
             ui_pop_clip();
         }
+
+        ui_label("button_label", label);
     }
 
     return button;
 }
 
-static UiBox *ui_button_fmt (CString label, ...) {
-    tmem_new(tm);
-    AString a = astr_new(tm);
-    astr_push_fmt_vam(&a, label);
-    return ui_button_str(astr_to_str(&a));
-}
-
-static UiBox *ui_button (CString label) {
-    return ui_button_str(str(label));
+static UiBox *ui_button (CString id) {
+    return ui_button_str(str(id), str(id));
 }
 
 static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
@@ -2602,6 +2575,8 @@ istruct (App) {
     Font *normal_font;
     Font *bold_font;
     Font *mono_font;
+
+    F32 slider;
 };
 
 App *app;
@@ -2676,19 +2651,20 @@ static Void build_misc_view () {
             ui_button("Foo11");
         }
 
-        static F32 n = .5;
-
         ui_scroll_box("box2_4") {
             ui_tag("hbox");
             ui_tag("item");
-            for (U64 i = 0; i < cast(U64, 10*n); ++i) ui_button_fmt("Foo_%i", i);
+            for (U64 i = 0; i < cast(U64, 10*app->slider); ++i) {
+                String str = astr_fmt(ui->frame_mem, "Foo_%lu", i);
+                ui_button_str(str, str);
+            }
         }
 
         for (U64 i = 0; i < 20; ++i) {
             ui_box_fmt(0, "box2__%i", i) {
                 ui_tag("hbox");
                 ui_tag("item");
-                ui_slider("Slider", &n);
+                ui_slider("Slider", &app->slider);
             }
         }
     }
@@ -2760,7 +2736,7 @@ static Bool show_modal () {
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
 
                 ui_style_rule(".button") {
-                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_TEXT, 0, 0});
+                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 0});
                     ui_style_vec2(UI_PADDING, vec2(4, 4));
                 }
 
@@ -2775,6 +2751,8 @@ static Bool show_modal () {
 static Void app_build () {
     app->text_box_widget = 0;
 
+    ui_style_vec4(UI_BG_COLOR, vec4(0.2, 0.2, 0.2, 1));
+
     ui_style_rule(".button") {
         ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
         ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, .6, .8f)));
@@ -2784,6 +2762,9 @@ static Void app_build () {
         ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 120, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 1});
+    }
+
+    ui_style_rule(".button #button_label") {
         ui_style_font(UI_FONT, app->bold_font);
         ui_style_f32(UI_FONT_SIZE, 12.0);
     }
@@ -2819,8 +2800,8 @@ static Void app_build () {
         ui_style_vec2(UI_PADDING, vec2(8, 8));
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .08));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .5));
+        ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .1));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
 
@@ -2829,7 +2810,7 @@ static Void app_build () {
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .3));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
 
@@ -2906,6 +2887,8 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->farena = farena;
 
     app->view = 2;
+
+    app->slider = .5;
 
     app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
     app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
