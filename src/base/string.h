@@ -59,6 +59,7 @@ Bool      str_to_f64            (CString, F64 *out);
 Void      str_split             (String, String seps, Bool keep_seps, Bool keep_empties, ArrayString *);
 I64       str_fuzzy_search      (String needle, String haystack, ArrayString *);
 String    str_copy              (Mem *, String);
+String    str_utf32_to_utf8     (Mem *, U32);
 UtfDecode str_utf8_decode       (String str);
 UtfIter   str_utf8_iter_new     (String str);
 Bool      str_utf8_iter_next    (UtfIter *it);

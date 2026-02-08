@@ -332,6 +332,41 @@ Bool str_utf8_iter_next (UtfIter *it) {
     return true;
 }
 
+String str_utf32_to_utf8 (Mem *mem, U32 codepoint) {
+    String d = { .count=5, .data=mem_alloc(mem, Char, .size=5) };
+
+    U32 mask2  = 0x00000003;
+    U32 mask3  = 0x00000007;
+    U32 mask4  = 0x0000000f;
+    U32 mask5  = 0x0000001f;
+    U32 mask6  = 0x0000003f;
+
+    if (codepoint <= 0x7F) {
+        d.data[0] = cast(U8, codepoint);
+        d.count = 1;
+    } else if (codepoint <= 0x7FF) {
+        d.data[0] = (mask2 << 6) | ((codepoint >> 6) & mask5);
+        d.data[1] = (1<<7) | (codepoint & mask6);
+        d.count = 2;
+    } else if (codepoint <= 0xFFFF) {
+        d.data[0] = (mask3 << 5) | ((codepoint >> 12) & mask4);
+        d.data[1] = (1<<7) | ((codepoint >> 6) & mask6);
+        d.data[2] = (1<<7) | ( codepoint       & mask6);
+        d.count = 3;
+    } else if (codepoint <= 0x10FFFF) {
+        d.data[0] = (mask4 << 4) | ((codepoint >> 18) & mask3);
+        d.data[1] = (1<<7) | ((codepoint >> 12) & mask6);
+        d.data[2] = (1<<7) | ((codepoint >>  6) & mask6);
+        d.data[3] = (1<<7) | ( codepoint        & mask6);
+        d.count = 4;
+    } else {
+        d.data[0] = '?';
+        d.count = 1;
+    }
+
+    return d;
+}
+
 // =============================================================================
 // AString:
 // =============================================================================

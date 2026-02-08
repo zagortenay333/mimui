@@ -966,6 +966,7 @@ static UiRect ui_pop_clip () {
 }
 
 static Void animate_f32 (F32 *current, F32 final, F32 duration) {
+    if (isnan(*current)) *current = 0;
     const F32 epsilon = 0.001f;
     if (duration <= 0.0f) { *current = final; return; }
     if (fabsf(*current - final) <= epsilon) { *current = final; return; }
@@ -1014,6 +1015,8 @@ static Void animate_style (UiBox *box) {
     X(f32, UI_MASK_OUTSET_SHADOW_WIDTH, outset_shadow_width);
     X(vec2, UI_MASK_SHADOW_OFFSETS, shadow_offsets);
     X(f32, UI_MASK_BLUR_RADIUS, blur_radius);
+    X(f32, UI_MASK_FLOAT_X, floating[0]);
+    X(f32, UI_MASK_FLOAT_Y, floating[1]);
 
     #undef X
 
@@ -1021,8 +1024,6 @@ static Void animate_style (UiBox *box) {
     a->align[0] = b->align[0];
     a->align[1] = b->align[1];
     a->edge_softness = b->edge_softness;
-    a->floating[0] = b->floating[0];
-    a->floating[1] = b->floating[1];
     a->overflow[0] = b->overflow[0];
     a->overflow[1] = b->overflow[1];
     a->font = b->font;
@@ -1724,8 +1725,64 @@ static UiBox *ui_label (CString id, String label) {
     return box;
 }
 
+static UiBox *ui_icon (CString id, Font *font, U32 size, U32 icon) {
+    UiBox *label = ui_label(id, str_utf32_to_utf8(ui->frame_mem, icon));
+    ui_style_box_font(label, UI_FONT, font);
+    ui_style_box_f32(label, UI_FONT_SIZE, size);
+    return label;
+}
+
+static UiBox *ui_toggle (CString id, Bool *val) {
+    UiBox *bg = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        F32 s = 24.0;
+
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
+        ui_style_vec4(UI_RADIUS, vec4(s/2, s/2, s/2, s/2));
+        ui_style_vec4(UI_BG_COLOR, vec4(1,1,1,1));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .05));
+        ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+        ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
+        ui_style_vec4(UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
+        ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
+        ui_style_f32(UI_EDGE_SOFTNESS, 1);
+
+        ui_style_rule(".focus") {
+            ui_style_vec4(UI_BORDER_WIDTHS, vec4(2, 2, 2, 2));
+            ui_style_vec4(UI_BORDER_COLOR, vec4(1, 1, 1, .8));
+        }
+
+        if (*val) {
+            ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
+        } else {
+            ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
+        }
+
+        if (bg->signal.clicked) {
+            *val = !*val;
+        }
+
+        ui_box(UI_BOX_CLICK_THROUGH, "toggle_knob") {
+            F32 ks = 16.0;
+            ui_style_f32(UI_EDGE_SOFTNESS, 1.3);
+            ui_style_f32(UI_FLOAT_X, *val ? (2*s - ks - 4) : 4);
+            ui_style_f32(UI_FLOAT_Y, 4);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, ks, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, ks, 1});
+            ui_style_vec4(UI_RADIUS, vec4(ks/2, ks/2, ks/2, ks/2));
+            ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .8));
+            ui_style_vec4(UI_BG_COLOR2, vec4(1, 1, 1, .5));
+            ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
+            ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, .5));
+            ui_style_u32(UI_ANIMATION, UI_MASK_FLOAT_X);
+        }
+    }
+
+    return bg;
+}
+
 static UiBox *ui_button_str (String id, String label) {
-    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, label) {
+    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
         ui_tag("button");
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
@@ -2575,8 +2632,63 @@ istruct (App) {
     Font *normal_font;
     Font *bold_font;
     Font *mono_font;
+    Font *icon_font;
 
     F32 slider;
+    Bool toggle;
+};
+
+ienum (Icon, U32) {
+    MY_ICON_WRENCH = 0xe900,
+    MY_ICON_UNDERSCORE,
+    MY_ICON_TRASH,
+    MY_ICON_TRANSLATE,
+    MY_ICON_TODO,
+    MY_ICON_TODO_LOADING,
+    MY_ICON_TIME_TRACKER,
+    MY_ICON_TIMER,
+    MY_ICON_STRIKETHROUGH,
+    MY_ICON_STOPWATCH,
+    MY_ICON_START,
+    MY_ICON_SORT_DESC,
+    MY_ICON_SORT_ASC,
+    MY_ICON_SEARCH,
+    MY_ICON_QUESTION,
+    MY_ICON_POMODORO,
+    MY_ICON_PLUS,
+    MY_ICON_PIN,
+    MY_ICON_PAUSE,
+    MY_ICON_PAN_UP,
+    MY_ICON_PAN_RIGHT,
+    MY_ICON_PAND_DOWN,
+    MY_ICON_MINUS,
+    MY_ICON_MARK,
+    MY_ICON_LINK,
+    MY_ICON_KANBAN,
+    MY_ICON_ITALIC,
+    MY_ICON_ISSUE,
+    MY_ICON_IMPORT_EXPORT,
+    MY_ICON_HOME,
+    MY_ICON_HIDDEN,
+    MY_ICON_HEATMAP,
+    MY_ICON_HEADER,
+    MY_ICON_HAMBURGER,
+    MY_ICON_GRAPH,
+    MY_ICON_GRAPH_INTERVAL,
+    MY_ICON_FULLSCREEN,
+    MY_ICON_FOLDER,
+    MY_ICON_FLASH,
+    MY_ICON_FIRE,
+    MY_ICON_FILTER,
+    MY_ICON_FILE,
+    MY_ICON_EYE,
+    MY_ICON_EYE_CLOSED,
+    MY_ICON_EXAM,
+    MY_ICON_EDIT,
+    MY_ICON_CODE,
+    MY_ICON_CLOSE,
+    MY_ICON_BOLD,
+    MY_ICON_ALARM,
 };
 
 App *app;
@@ -2660,12 +2772,31 @@ static Void build_misc_view () {
             }
         }
 
-        for (U64 i = 0; i < 20; ++i) {
-            ui_box_fmt(0, "box2__%i", i) {
-                ui_tag("hbox");
-                ui_tag("item");
-                ui_slider("Slider", &app->slider);
-            }
+        ui_box_fmt(0, "slider") {
+            ui_tag("hbox");
+            ui_tag("item");
+            ui_slider("Slider", &app->slider);
+        }
+
+        ui_box(0, "box2_5") {
+            ui_tag("hbox");
+            ui_tag("item");
+            ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
+
+            ui_icon("icon1", app->icon_font, 16, MY_ICON_FIRE);
+            ui_icon("icon2", app->icon_font, 16, MY_ICON_SEARCH);
+            ui_icon("icon3", app->icon_font, 16, MY_ICON_QUESTION);
+            ui_icon("icon4", app->icon_font, 16, MY_ICON_POMODORO);
+            ui_icon("icon5", app->icon_font, 16, MY_ICON_PLUS);
+            ui_icon("icon6", app->icon_font, 16, MY_ICON_PIN);
+            ui_icon("icon7", app->icon_font, 16, MY_ICON_PAUSE);
+        }
+
+        ui_box(0, "box2_6") {
+            ui_tag("hbox");
+            ui_tag("item");
+
+            ui_toggle("toggle", &app->toggle);
         }
     }
 }
@@ -2728,7 +2859,7 @@ static Bool show_modal () {
                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .6));
                 ui_style_vec4(UI_RADIUS, vec4(8, 8, 8, 8));
                 ui_style_vec2(UI_PADDING, vec2(8, 8));
-                ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .6));
+                ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .8));
                 ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
@@ -2889,10 +3020,13 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->view = 2;
 
     app->slider = .5;
+    app->modal_pos.x = 200;
+    app->modal_pos.y = 200;
 
     app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
     app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
     app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true);
+    app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, false);
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
