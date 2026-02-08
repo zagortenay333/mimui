@@ -1392,9 +1392,11 @@ static Void compute_downward_dependent_sizes (U64 axis) {
                 // Cycle: parent defined by child and child defined by parent.
                 size->tag = UI_SIZE_PCT_PARENT;
                 size->value = 1;
-                continue;
+                break;
             }
         }
+
+        if (size->tag == UI_SIZE_PCT_PARENT) continue;
 
         F32 final_size = 2*box->style.padding.v[axis];
         if (box->style.axis == axis) {
@@ -2565,6 +2567,21 @@ static Void build_text_view () {
     ui_style_box_f32(app->text_box_widget, UI_FONT_SIZE, 12.0);
 }
 
+static Void build_clock_view () {
+    UiBox *clock_container = ui_box(0, "clock") {
+        ui_style_box_size(clock_container, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
+        ui_style_box_size(clock_container, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+        Time time = os_get_wall_time();
+        UiBox *clock = ui_box_fmt(UI_DRAW_LABEL, "%02u:%02u:%02u", time.hours, time.minutes, time.seconds) {
+            ui_style_box_size(clock, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_box_size(clock, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_font(UI_FONT, app->mono_font);
+            ui_style_f32(UI_FONT_SIZE, 100.0);
+        }
+    }
+}
+
 static Void build_misc_view () {
     ui_scroll_box("misc_view") {
         ui_tag("vbox");
@@ -2716,7 +2733,7 @@ static Void app_build () {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 120, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 1});
         ui_style_font(UI_FONT, app->bold_font);
-        ui_style_f32(UI_FONT_SIZE, 22.0);
+        ui_style_f32(UI_FONT_SIZE, 12.0);
     }
 
     ui_style_rule(".button.hover") {
@@ -2795,15 +2812,18 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
+            UiBox *foo5 = ui_button("Foo5");
 
             if (foo2->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
             if (foo3->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
             if (foo4->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
+            if (foo5->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
+            case 3: ui_tag_box(foo5, "press"); break;
             }
 
             ui_vspacer();
@@ -2821,6 +2841,7 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
+        case 3: build_clock_view(); break;
         }
     }
 }

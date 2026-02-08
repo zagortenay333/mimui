@@ -47,7 +47,7 @@ U64 xorshift64 () {
 	return xorshift64_state = x;
 }
 
-Void random_setup () { xorshift64_state = os_time_ms() ?: 1; }
+Void random_setup () { xorshift64_state = os_get_time_ms() ?: 1; }
 U64  random_u64   () { return xorshift64(); }
 
 // This uses the non-deterministic openBSD algo.
