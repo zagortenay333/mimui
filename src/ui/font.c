@@ -118,10 +118,11 @@ GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
     return slot;
 }
 
-static Font *font_new (FontCache *cache, String filepath, U32 size) {
+static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono) {
     Auto font = mem_new(cache->mem, Font);
     array_push(&cache->fonts, font);
 
+    font->is_mono = is_mono;
     font->size = size;
     font->filepath = filepath;
     font->cache = cache;
@@ -177,7 +178,7 @@ static Font *font_new (FontCache *cache, String filepath, U32 size) {
     return font;
 }
 
-Font *font_get (FontCache *cache, String filepath, U32 size) {
+Font *font_get (FontCache *cache, String filepath, U32 size, Bool is_mono) {
     Font *font = 0;
 
     array_iter (it, &cache->fonts) {
@@ -187,7 +188,7 @@ Font *font_get (FontCache *cache, String filepath, U32 size) {
         }
     }
 
-    return font ? font : font_new(cache, filepath, size);
+    return font ? font : font_new(cache, filepath, size, is_mono);
 }
 
 FontCache *font_cache_new (Mem *mem, VertexFlushFn vertex_flush_fn, U16 atlas_size) {

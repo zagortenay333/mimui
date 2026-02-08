@@ -540,6 +540,7 @@ typedef U64 UiKey;
 
 ienum (UiSizeTag, U8) {
     UI_SIZE_TEXT,
+    UI_SIZE_CUSTOM,
     UI_SIZE_PIXELS,
     UI_SIZE_PCT_PARENT,
     UI_SIZE_CHILDREN_SUM,
@@ -718,6 +719,7 @@ fenum (UiBoxFlags, U8) {
 };
 
 typedef Void (*UiBoxDrawFn)(UiBox*);
+typedef Void (*UiBoxSizeFn)(UiBox*, U64 axis);
 
 istruct (UiTextPos) {
     U32 line;
@@ -754,9 +756,10 @@ istruct (UiBox) {
     UiBoxFlags flags;
     U8 gc_flag;
     U64 scratch;
-    UiRect rect;
     UiRect label_rect;
+    UiRect rect;
     UiBoxDrawFn draw_fn;
+    UiBoxSizeFn size_fn;
 
     // The x/y components of this field are set independently
     // by the user build code for the purpose of scrolling the
@@ -882,6 +885,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         if (box->gc_flag == ui->gc_flag) error_fmt("UiBox label hash collision: [%.*s] vs [%.*s].", STR(box->label), STR(label));
         box->parent = 0;
         box->draw_fn = 0;
+        box->size_fn = 0;
         box->tags.count = 0;
         box->children.count = 0;
         box->style_rules.count = 0;
@@ -897,6 +901,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->content = (UiRect){};
         box->scratch = 0;
         box->draw_fn = 0;
+        box->size_fn = 0;
         map_add(&ui->box_cache, key, box);
     } else {
         box = mem_new(ui->mem, UiBox);
@@ -1362,7 +1367,7 @@ Bool set_font (UiBox *box) {
     if (!font || !size) return false;
     if (ui->font != font || size != ui->font->size) {
         flush_vertices();
-        ui->font = font_get(ui->font_cache, font->filepath, size);
+        ui->font = font_get(ui->font_cache, font->filepath, size, font->is_mono);
     }
     return true;
 }
@@ -1378,6 +1383,8 @@ static Void compute_standalone_sizes (U64 axis) {
             box->rect.size[axis] = size->value;
         } else if (size->tag == UI_SIZE_TEXT) {
             box->rect.size[axis] = box->label_rect.size[axis] + 2*box->style.padding.v[axis];
+        } else if (size->tag == UI_SIZE_CUSTOM) {
+            box->size_fn(box, axis);
         }
     }
 }
@@ -1553,11 +1560,13 @@ static Void draw_label (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect)
 
     U32 line_width = 0;
     F32 descent = cast(F32, ui->font->descent);
+    F32 width = cast(F32, ui->font->width);
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
+    F32 x_pos = x;
     array_iter (info, &infos, *) {
-        GlyphSlot *slot = font_get_glyph_slot(ui->font, info);
-        Vec2 top_left = {x + info->x + slot->bearing_x, y + info->y - descent - slot->bearing_y};
+        GlyphSlot *slot   = font_get_glyph_slot(ui->font, info);
+        Vec2 top_left     = {x_pos + slot->bearing_x, y + info->y - descent - slot->bearing_y};
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
         draw_rect(
@@ -1568,7 +1577,8 @@ static Void draw_label (String text, Vec4 color, F32 x, F32 y, UiRect *out_rect)
             .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
         );
 
-        if (ARRAY_ITER_DONE) line_width = info->x + slot->bearing_x + info->x_advance;
+        x_pos += ui->font->is_mono ? width : (slot->bearing_x + info->x_advance);
+        if (ARRAY_ITER_DONE) line_width = x_pos - x;
     }
 
     out_rect->x = x;
@@ -1696,6 +1706,45 @@ static UiBox *ui_hspacer () {
 
 static UiBox *ui_vspacer () {
     UiBox *box = ui_box(UI_BOX_INVISIBLE, "vspacer") { ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0}); }
+    return box;
+}
+
+istruct (UiLabelData) {
+    String text;
+    UiRect text_rect;
+};
+
+static Void size_label (UiBox *box, U64 axis) {
+    Auto data = cast(UiLabelData*, box->scratch);
+
+    if (axis == UI_AXIS_HORIZONTAL) {
+        box->rect.w = box->label_rect.w + 2*box->style.padding.x;
+    } else {
+        box->rect.h = box->label_rect.h + 2*box->style.padding.y;
+    }
+}
+
+static Void draw_label2 (UiBox *box) {
+    Auto data = cast(UiLabelData*, box->scratch);
+
+    if (set_font(box)) {
+        F32 x = round(box->rect.x + box->rect.w/2 - box->label_rect.w/2);
+        F32 y = round(box->rect.y + box->rect.h - box->style.padding.y);
+        draw_label(data->text, box->style.text_color, x, y, &box->label_rect);
+    }
+}
+
+static UiBox *ui_label (CString id, String label) {
+    UiBox *box = ui_box_str(UI_BOX_CLICK_THROUGH, str(id)) {
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 1});
+        box->size_fn = size_label;
+        box->draw_fn = draw_label2;
+        Auto data = mem_new(ui->frame_mem, UiLabelData);
+        data->text = label;
+        box->scratch = cast(U64, data);
+    }
+
     return box;
 }
 
@@ -2102,9 +2151,6 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
-        U32 cell_w = ui->font->width;
-        U32 cell_h = ui->font->height;
-
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
 
@@ -2114,6 +2160,9 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? info->scrollbar_width : 0), 1});
 
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
+                U32 cell_w = ui->font->width;
+                U32 cell_h = ui->font->height;
+
                 if (scroll_y && !is_key_pressed(SDLK_LSHIFT)) {
                     info->scroll_coord_n.y -= (cell_h + info->line_spacing) * ui->event->y;
                     info->scroll_coord_n.y  = clamp(info->scroll_coord_n.y, 0, info->total_height - visible_h);
@@ -2245,7 +2294,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         }
 
         animate_vec2(&info->scroll_coord, info->scroll_coord_n, info->scroll_animation_time);
-        info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
+        if (ui->font) info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
         container->scratch = cast(U64, info);
     }
 
@@ -2533,7 +2582,6 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
     ui->font_cache = font_cache_new(mem, glyph_eviction_fn, 64);
-    ui->font = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12);
 }
 
 // =============================================================================
@@ -2568,17 +2616,19 @@ static Void build_text_view () {
 }
 
 static Void build_clock_view () {
-    UiBox *clock_container = ui_box(0, "clock") {
-        ui_style_box_size(clock_container, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
-        ui_style_box_size(clock_container, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_box(0, "clock_box") {
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
 
         Time time = os_get_wall_time();
-        UiBox *clock = ui_box_fmt(UI_DRAW_LABEL, "%02u:%02u:%02u", time.hours, time.minutes, time.seconds) {
-            ui_style_box_size(clock, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_box_size(clock, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_font(UI_FONT, app->mono_font);
-            ui_style_f32(UI_FONT_SIZE, 100.0);
-        }
+        String time_str = astr_fmt(ui->frame_mem, "%02u:%02u:%02u", time.hours, time.minutes, time.seconds);
+        UiBox *clock = ui_label("clock", time_str);
+        ui_style_box_vec2(clock, UI_PADDING, vec2(40, 40));
+        ui_style_box_font(clock, UI_FONT, app->mono_font);
+        ui_style_box_f32(clock, UI_FONT_SIZE, 100.0);
     }
 }
 
@@ -2723,6 +2773,8 @@ static Bool show_modal () {
 }
 
 static Void app_build () {
+    app->text_box_widget = 0;
+
     ui_style_rule(".button") {
         ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
         ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, .6, .8f)));
@@ -2747,6 +2799,8 @@ static Void app_build () {
     }
 
     ui_style_rule(".button.press") {
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0,0,0,.05));
+        ui_style_vec4(UI_BORDER_WIDTHS, vec4(1,1,1,1));
         ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, .6, .8f)));
         ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, 1, .8f)));
         ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
@@ -2766,7 +2820,7 @@ static Void app_build () {
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
         ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .08));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .9));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .5));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
 
@@ -2775,7 +2829,7 @@ static Void app_build () {
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .9));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
 
@@ -2832,7 +2886,7 @@ static Void app_build () {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
 
                 if (ui_button("bar")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
-                    if (app->text_box) text_box_vscroll(app->text_box_widget, 0, UI_ALIGN_START);
+                    if (app->text_box_widget) text_box_vscroll(app->text_box_widget, 0, UI_ALIGN_START);
                 }
             }
         }
@@ -2853,9 +2907,9 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->view = 2;
 
-    app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12);
-    app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12);
-    app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12);
+    app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
+    app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
+    app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true);
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));

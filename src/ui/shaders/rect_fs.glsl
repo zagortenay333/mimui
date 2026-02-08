@@ -98,14 +98,17 @@ void main () {
     if (inset_shadow_width > 0.001) {
         vec4 ic = inset_shadow_color;
         ic.a *= 1 - box_shadow(half_size, fpc, inset_shadow_width, r);
-        for (int i = 0; i < 4; ++i) frag_color = mix(frag_color, vec4(ic.rgb, 1.0), ic.a) * dist_outer_smooth;
+        float shadow_alpha = 1.0 - pow(1.0 - ic.a, 8.0);
+        frag_color = mix(frag_color, vec4(ic.rgb, 1.0), shadow_alpha);
+        frag_color.a *= dist_outer_smooth;
     }
 
     if (border_widths.x > 0.001 || border_widths.y > 0.001 || border_widths.z > 0.001 || border_widths.w > 0.001) {
         float b = select_border_width(fpc, half_size - r, border_widths);
         float dist_inner = rect_sdf(frag_pos, center, half_size - b, max(r - b, 0));
         float dist_inner_smooth = smoothstep(0.0, edge_softness, dist_inner);
-        frag_color = mix(frag_color, vec4(border_color.rgb, 1.0), border_color.a*dist_inner_smooth);
+        //frag_color = mix(frag_color, vec4(border_color.rgb, 1.0), border_color.a*dist_inner_smooth);
+        frag_color = mix(frag_color, border_color, dist_inner_smooth);
         frag_color.a *= dist_outer_smooth;
     }
 
