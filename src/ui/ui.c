@@ -1689,6 +1689,7 @@ static Void draw_label (UiBox *box) {
 
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
+    Bool first_frame = box->rect.w == 0 || box->rect.h == 0;
     Auto text      = *cast(String*, box->scratch);
     F32 x          = round(box->rect.x + box->rect.w/2 - box->scratch_rect.w/2);
     F32 y          = round(box->rect.y + box->rect.h - box->style.padding.y);
@@ -1707,7 +1708,7 @@ static Void draw_label (UiBox *box) {
             .top_left     = top_left,
             .bottom_right = bottom_right,
             .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-            .text_color   = box->style.text_color,
+            .text_color   = first_frame ? vec4(0,0,0,0) : box->style.text_color,
             .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
         );
 
@@ -1742,6 +1743,43 @@ static UiBox *ui_icon (CString id, Font *font, U32 size, U32 icon) {
     return label;
 }
 
+static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon, Bool *val) {
+    UiBox *bg = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        F32 s = icon_size + 4;
+
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, s, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
+        ui_style_vec4(UI_RADIUS, vec4(4, 4, 4, 4));
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+        ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .7));
+        ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .05));
+        ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+        ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
+        ui_style_vec4(UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
+        ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
+        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+
+        ui_style_rule(".focus") {
+            ui_style_vec4(UI_BORDER_WIDTHS, vec4(2, 2, 2, 2));
+            ui_style_vec4(UI_BORDER_COLOR, vec4(1, 1, 1, .8));
+        }
+
+        if (*val) {
+            ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
+            ui_icon("mark", icon_font, icon_size, icon);
+        } else {
+            ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
+        }
+
+        if (bg->signal.clicked) {
+            *val = !*val;
+        }
+    }
+
+    return bg;
+}
+
 static UiBox *ui_toggle (CString id, Bool *val) {
     UiBox *bg = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
         F32 s = 24.0;
@@ -1755,7 +1793,6 @@ static UiBox *ui_toggle (CString id, Bool *val) {
         ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
         ui_style_vec4(UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
         ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
-        ui_style_f32(UI_EDGE_SOFTNESS, 1);
 
         ui_style_rule(".focus") {
             ui_style_vec4(UI_BORDER_WIDTHS, vec4(2, 2, 2, 2));
@@ -2794,7 +2831,8 @@ istruct (App) {
 };
 
 ienum (Icon, U32) {
-    MY_ICON_WRENCH = 0xe900,
+    MY_ICON_CHECK = 0xe900,
+    MY_ICON_WRENCH,
     MY_ICON_UNDERSCORE,
     MY_ICON_TRASH,
     MY_ICON_TRANSLATE,
@@ -2844,7 +2882,6 @@ ienum (Icon, U32) {
     MY_ICON_CLOSE,
     MY_ICON_BOLD,
     MY_ICON_ALARM,
-    MY_ICON_CHECK,
 };
 
 App *app;
@@ -2952,22 +2989,24 @@ static Void build_misc_view () {
             ui_tag("item");
 
             ui_toggle("toggle", &app->toggle);
+            ui_checkbox("checkbox", app->icon_font, 16, MY_ICON_CHECK, &app->toggle);
 
             UiBox *popup_button = ui_button("popup_button");
             app->popup.anchor = popup_button;
             if (app->popup.shown || popup_button->signal.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup) {
-                    ui_box(0, "buttons") {
-                        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-                        ui_style_f32(UI_SPACING, 8);
-                        ui_button("btn1");
-                        ui_button("btn2");
-                        ui_button("btn3");
-                        ui_button("btn4");
-                        ui_button("btn5");
-                        ui_button("btn6");
-                    }
+                    build_clock_view();
+                    // ui_box(0, "buttons") {
+                        // ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                        // ui_style_f32(UI_SPACING, 8);
+                        // ui_button("btn1");
+                        // ui_button("btn2");
+                        // ui_button("btn3");
+                        // ui_button("btn4");
+                        // ui_button("btn5");
+                        // ui_button("btn6");
+                    // }
                 }
             }
         }
@@ -3199,7 +3238,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->parena = parena;
     app->farena = farena;
 
-    app->view = 2;
+    app->view = 0;
 
     app->slider = .5;
     app->modal_pos.x = 200;
@@ -3208,7 +3247,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
     app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
     app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true);
-    app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, false);
+    app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true);
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
