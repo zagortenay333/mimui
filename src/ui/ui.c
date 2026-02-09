@@ -539,10 +539,10 @@ Void ui_test () {
 typedef U64 UiKey;
 
 ienum (UiSizeTag, U8) {
-    UI_SIZE_CUSTOM,
     UI_SIZE_PIXELS,
     UI_SIZE_PCT_PARENT,
     UI_SIZE_CHILDREN_SUM,
+    UI_SIZE_CUSTOM,
 };
 
 istruct (UiSize) {
@@ -861,9 +861,9 @@ static UiKey ui_build_key (String string) {
     return str_hash_seed(string, seed);
 }
 
-static Void ui_push_parent (UiBox *box) { array_push(&ui->box_stack, box); }
-static Void ui_pop_parent  ()           { array_pop(&ui->box_stack); }
-static Void ui_pop_parent_ (Void *)     { array_pop(&ui->box_stack); }
+static Void ui_push_parent  (UiBox *box) { array_push(&ui->box_stack, box); }
+static UiBox *ui_pop_parent ()           { return array_pop(&ui->box_stack); }
+static Void ui_pop_parent_  (Void *)     { array_pop(&ui->box_stack); }
 
 #define ui_parent(...)\
     ui_push_parent(__VA_ARGS__);\
@@ -942,18 +942,16 @@ static UiRect ui_push_clip_rect (UiRect rect) {
     return intersection;
 }
 
-static UiRect ui_push_clip_box (UiBox *box) {
+static UiRect ui_push_clip (UiBox *box, Bool is_sub_clip) {
     box->flags |= UI_BOX_CLIPPING;
     UiRect rect = box->rect;
     rect.x += box->style.border_widths.z;
     rect.y += box->style.border_widths.y;
     rect.w -= box->style.border_widths.x + box->style.border_widths.z;
     rect.h -= box->style.border_widths.w + box->style.border_widths.y;
-    return ui_push_clip_rect(rect);
-}
-
-static UiRect ui_push_clip () {
-    return ui_push_clip_box(array_get_last(&ui->box_stack));
+    if (is_sub_clip) return ui_push_clip_rect(rect); 
+    array_push(&ui->clip_stack, rect);
+    return rect;
 }
 
 static UiRect ui_pop_clip () {
@@ -1538,7 +1536,7 @@ static Void find_topmost_hovered_box (UiBox *box) {
         if (within_box(r, ui->mouse)) ui->hovered = box;
     }
 
-    if (box->flags & UI_BOX_CLIPPING) ui_push_clip_box(box);
+    if (box->flags & UI_BOX_CLIPPING) ui_push_clip(box, true);
     array_iter (child, &box->children) find_topmost_hovered_box(child);
     if (box->flags & UI_BOX_CLIPPING) ui_pop_clip();
 }
@@ -1631,7 +1629,7 @@ static Void draw_box (UiBox *box) {
 
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
-        UiRect r = ui_push_clip_box(box);
+        UiRect r = ui_push_clip(box, true);
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 
@@ -1776,68 +1774,6 @@ static UiBox *ui_toggle (CString id, Bool *val) {
     return bg;
 }
 
-static Void size_popup (UiBox *popup, U64 axis) {
-    F32 size = 0;
-    Bool cycle = false;
-
-    array_iter(child, &popup->children) {
-        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
-        size += child->rect.size[axis];
-    }
-
-    if (cycle) {
-        popup->rect.size[axis] = ui->root->rect.size[axis] - 20.0;
-    } else {
-        popup->rect.size[axis] = min(size + 2 * popup->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
-    }
-}
-
-static UiBox *ui_popup_push (String id, UiBox *anchor) {
-    ui_push_parent(ui->root);
-
-    UiBox *overlay = ui_box_push(UI_BOX_REACTIVE, "popup_modal_bg");
-    ui_style_box_f32(overlay, UI_FLOAT_X, 0);
-    ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
-    ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-    ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-
-    // if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) return false;
-    // if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) return false;
-
-    UiBox *popup = ui_box_push_str(0, id);
-    popup->size_fn = size_popup;
-    popup->scratch = cast(U64, anchor);
-    ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM});
-    ui_style_box_size(popup, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM});
-    ui_style_box_f32(popup, UI_FLOAT_X, 0);
-    ui_style_box_f32(popup, UI_FLOAT_Y, 0);
-    ui_style_box_vec4(popup, UI_BG_COLOR, vec4(0, 0, 0, .6));
-    ui_style_box_vec4(popup, UI_RADIUS, vec4(8, 8, 8, 8));
-    ui_style_box_vec2(popup, UI_PADDING, vec2(8, 8));
-    ui_style_box_vec4(popup, UI_BORDER_COLOR, vec4(0, 0, 0, .8));
-    ui_style_box_vec4(popup, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
-    ui_style_box_f32(popup, UI_OUTSET_SHADOW_WIDTH, 1);
-    ui_style_box_vec4(popup, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
-    ui_style_box_f32(popup, UI_BLUR_RADIUS, 3);
-    ui_style_box_u32(popup, UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
-
-    return popup;
-}
-
-static Void ui_popup_pop () {
-    ui_pop_parent();
-    ui_pop_parent();
-    ui_pop_parent();
-}
-
-static Void ui_popup_pop_ (Void *) {
-    ui_popup_pop();
-}
-
-#define ui_popup(LABEL)\
-    ui_popup_push(str(LABEL));\
-    if (cleanup(ui_popup_pop_) U8 _; 1)
-
 static UiBox *ui_button_str (String id, String label) {
     UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
         ui_tag("button");
@@ -1845,7 +1781,7 @@ static UiBox *ui_button_str (String id, String label) {
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
 
         if (button->signal.hovered) {
-            ui_push_clip_box(button);
+            ui_push_clip(button, true);
             ui_box(UI_BOX_CLICK_THROUGH, "button_highlight") {
                 F32 s = button->rect.h/8;
                 ui_style_f32(UI_EDGE_SOFTNESS, 60);
@@ -1970,7 +1906,7 @@ static UiBox *ui_scroll_box_push (String label) {
     ui_style_box_u32(container, UI_OVERFLOW_X, true);
     ui_style_box_u32(container, UI_OVERFLOW_Y, true);
     container->scratch = ui->depth_first.count-1;
-    ui_push_clip_box(container);
+    ui_push_clip(container, true);
     return container;
 }
 
@@ -2042,6 +1978,130 @@ static Void ui_scroll_box_pop_ (Void *) {
 #define ui_scroll_box(LABEL)\
     ui_scroll_box_push(str(LABEL));\
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
+
+istruct (UiPopup) {
+    Bool shown;
+    UiBox *anchor;
+};
+
+static Void size_popup (UiBox *popup, U64 axis) {
+    F32 size = 0;
+    Bool cycle = false;
+
+    array_iter(child, &popup->children) {
+        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+        size += child->rect.size[axis];
+    }
+
+    if (cycle) {
+        popup->rect.size[axis] = round(ui->root->rect.size[axis] / 2);
+    } else {
+        popup->rect.size[axis] = min(size + 2 * popup->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
+    }
+}
+
+static UiBox *ui_popup_push (String id, UiPopup *info) {
+    ui_push_parent(ui->root);
+    ui_push_clip(ui->root, false);
+
+    UiBox *overlay = ui_box_push(UI_BOX_REACTIVE, "popup_modal_bg");
+    ui_style_box_f32(overlay, UI_FLOAT_X, 0);
+    ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
+    ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+    info->shown = true;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) info->shown = false;
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) info->shown = false;
+
+    UiBox *popup = ui_scroll_box_push(id);
+    popup->size_fn = size_popup;
+    popup->scratch = cast(U64, info);
+    ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
+    ui_style_box_size(popup, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
+    ui_style_box_vec4(popup, UI_BG_COLOR, vec4(0, 0, 0, .6));
+    ui_style_box_vec4(popup, UI_RADIUS, vec4(8, 8, 8, 8));
+    ui_style_box_vec2(popup, UI_PADDING, vec2(8, 8));
+    ui_style_box_vec4(popup, UI_BORDER_COLOR, vec4(0, 0, 0, .8));
+    ui_style_box_vec4(popup, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+    ui_style_box_f32(popup, UI_OUTSET_SHADOW_WIDTH, 1);
+    ui_style_box_vec4(popup, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
+    ui_style_f32(UI_BLUR_RADIUS, 3);
+
+    {
+        UiPopup *pinfo = cast(UiPopup*, popup->scratch);
+        UiBox   *a     = pinfo->anchor;
+
+        UiRect anchor   = a->rect;
+        UiRect viewport = ui->root->rect;
+
+        F32 popup_w = popup->rect.w;
+        F32 popup_h = popup->rect.h;
+
+        F32 margin = 6.0f;
+
+        F32 space_left   = anchor.x - viewport.x;
+        F32 space_right  = (viewport.x + viewport.w) - (anchor.x + anchor.w);
+        F32 space_top    = anchor.y - viewport.y;
+        F32 space_bottom = (viewport.y + viewport.h) - (anchor.y + anchor.h);
+
+        enum { POPUP_RIGHT, POPUP_LEFT, POPUP_BOTTOM, POPUP_TOP } side;
+
+        if (space_right >= popup_w || space_left >= popup_w) {
+            side = (space_right >= space_left) ? POPUP_RIGHT : POPUP_LEFT;
+        } else {
+            side = (space_bottom >= space_top) ? POPUP_BOTTOM : POPUP_TOP;
+        }
+
+        F32 x = 0;
+        F32 y = 0;
+
+        switch (side) {
+        case POPUP_RIGHT:
+            x = anchor.x + anchor.w + margin;
+            y = anchor.y + (anchor.h - popup_h) * 0.5f;
+            break;
+
+        case POPUP_LEFT:
+            x = anchor.x - popup_w - margin;
+            y = anchor.y + (anchor.h - popup_h) * 0.5f;
+            break;
+
+        case POPUP_BOTTOM:
+            x = anchor.x + (anchor.w - popup_w) * 0.5f;
+            y = anchor.y + anchor.h + margin;
+            break;
+
+        case POPUP_TOP:
+            x = anchor.x + (anchor.w - popup_w) * 0.5f;
+            y = anchor.y - popup_h - margin;
+            break;
+        }
+
+        x = clamp(x, viewport.x, viewport.x + viewport.w - popup_w);
+        y = clamp(y, viewport.y, viewport.y + viewport.h - popup_h);
+
+        ui_style_box_f32(popup, UI_FLOAT_X, x);
+        ui_style_box_f32(popup, UI_FLOAT_Y, y);  
+    }
+
+    return popup;
+}
+
+static Void ui_popup_pop () {
+    ui_scroll_box_pop();
+    ui_pop_parent();
+    ui_pop_clip();
+    ui_pop_parent();
+}
+
+static Void ui_popup_pop_ (Void *) {
+    ui_popup_pop();
+}
+
+#define ui_popup(LABEL, ANCHOR)\
+    ui_popup_push(str(LABEL), ANCHOR);\
+    if (cleanup(ui_popup_pop_) U8 _; 1)
 
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
@@ -2685,6 +2745,8 @@ istruct (App) {
     Vec2 modal_pos;
     Bool modal_shown;
 
+    UiPopup popup;
+
     U32 view;
 
     Font *normal_font;
@@ -2855,8 +2917,12 @@ static Void build_misc_view () {
 
             ui_toggle("toggle", &app->toggle);
             UiBox *popup_button = ui_button("popup_button");
-            if (popup_button->signal.clicked) {
-                printf("-----------\n");
+            app->popup.anchor = popup_button;
+            if (app->popup.shown || popup_button->signal.clicked) {
+                ui_tag_box(popup_button, "press");
+                ui_popup("popup", &app->popup) {
+                    build_clock_view();
+                }
             }
         }
     }
@@ -2926,8 +2992,8 @@ static Bool show_modal () {
             UiBox *modal = ui_scroll_box("modal") {
                 modal->size_fn = size_modal;
 
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM});
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
                 ui_style_f32(UI_FLOAT_X, app->modal_pos.x);
                 ui_style_f32(UI_FLOAT_Y, app->modal_pos.y);
                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .6));
@@ -2938,19 +3004,13 @@ static Bool show_modal () {
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
                 ui_style_f32(UI_BLUR_RADIUS, 3);
-                ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
 
                 if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
                     app->modal_pos.x += ui->mouse_dt.x;
                     app->modal_pos.y += ui->mouse_dt.y;
                 }
 
-                ui_style_rule(".button") {
-                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 0});
-                    ui_style_vec2(UI_PADDING, vec2(4, 4));
-                }
-
-                build_clock_view();
+                build_text_view();
             }
         }
     }
@@ -3019,6 +3079,7 @@ static Void app_build () {
         ui_style_vec2(UI_PADDING, vec2(8, 8));
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_HORIZONTAL);
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
         ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
@@ -3092,7 +3153,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->parena = parena;
     app->farena = farena;
 
-    app->view = 2;
+    app->view = 0;
 
     app->slider = .5;
     app->modal_pos.x = 200;
