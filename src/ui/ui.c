@@ -765,6 +765,11 @@ istruct (UiBox) {
     UiRect content;
 };
 
+istruct (UiBoxCallback) {
+    Void (*fn)(UiBox*);
+    UiBox *box;
+};
+
 istruct (Ui) {
     Mem *mem;
     Mem *frame_mem;
@@ -783,6 +788,7 @@ istruct (Ui) {
     ArrayUiBox box_stack;
     Map(UiKey, UiBox*) box_cache;
     Array(UiRect) clip_stack;
+    Array(UiBoxCallback) deferred_layout_fns;
     UiStyleRule *current_style_rule;
     FontCache *font_cache;
     Font *font;
@@ -949,7 +955,7 @@ static UiRect ui_push_clip (UiBox *box, Bool is_sub_clip) {
     rect.y += box->style.border_widths.y;
     rect.w -= box->style.border_widths.x + box->style.border_widths.z;
     rect.h -= box->style.border_widths.w + box->style.border_widths.y;
-    if (is_sub_clip) return ui_push_clip_rect(rect); 
+    if (is_sub_clip) return ui_push_clip_rect(rect);
     array_push(&ui->clip_stack, rect);
     return rect;
 }
@@ -1340,11 +1346,11 @@ static Void apply_style_rules_box (UiBox *box, ArrayUiStyleRule *active_rules, M
     animate_style(box);
 }
 
-static Void apply_style_rules () {
+static Void apply_style_rules (UiBox *box) {
     tmem_new(tm);
     ArrayUiStyleRule active_rules;
     array_init(&active_rules, tm);
-    apply_style_rules_box(ui->root, &active_rules, tm);
+    apply_style_rules_box(box, &active_rules, tm);
 }
 
 static Void ui_tag_box_str (UiBox *box, String tag)  { array_push(&box->tags, tag); }
@@ -1366,15 +1372,15 @@ Bool set_font (UiBox *box) {
 // =============================================================================
 // Layout:
 // =============================================================================
-static Void compute_standalone_sizes (U64 axis) {
-    array_iter (box, &ui->depth_first) {
+static Void compute_standalone_sizes (ArrayUiBox *boxes, U64 axis) {
+    array_iter (box, boxes) {
         Auto size = &box->style.size.v[axis];
         if (size->tag == UI_SIZE_PIXELS) box->rect.size[axis] = size->value;
     }
 }
 
-static Void compute_downward_dependent_sizes (U64 axis) {
-    array_iter_back (box, &ui->depth_first) {
+static Void compute_downward_dependent_sizes (ArrayUiBox *boxes, U64 axis) {
+    array_iter_back (box, boxes) {
         Auto size = &box->style.size.v[axis];
         if (size->tag != UI_SIZE_CHILDREN_SUM && size->tag != UI_SIZE_CUSTOM) continue;
 
@@ -1411,15 +1417,15 @@ static Void compute_downward_dependent_sizes (U64 axis) {
     }
 }
 
-static Void compute_upward_dependent_sizes (U64 axis) {
-    array_iter (box, &ui->depth_first) {
+static Void compute_upward_dependent_sizes (ArrayUiBox *boxes, U64 axis) {
+    array_iter (box, boxes) {
         Auto size = &box->style.size.v[axis];
         if (size->tag == UI_SIZE_PCT_PARENT) box->rect.size[axis] = size->value * (box->parent->rect.size[axis] - 2*box->parent->style.padding.v[axis]);
     }
 }
 
-static Void fix_overflow (U64 axis) {
-    array_iter (box, &ui->depth_first) {
+static Void fix_overflow (ArrayUiBox *boxes, U64 axis) {
+    array_iter (box, boxes) {
         F32 box_size = box->rect.size[axis] - 2*box->style.padding.v[axis];
 
         if (box->style.axis == axis) {
@@ -1460,8 +1466,8 @@ static Void fix_overflow (U64 axis) {
     }
 }
 
-static Void compute_positions (U64 axis) {
-    array_iter (box, &ui->depth_first) {
+static Void compute_positions (ArrayUiBox *boxes, U64 axis) {
+    array_iter (box, boxes) {
         if (box->style.axis == axis) {
             F32 content_size = 2*box->style.padding.v[axis];
             array_iter (child, &box->children) {
@@ -1520,13 +1526,27 @@ static Void compute_positions (U64 axis) {
     }
 }
 
-static Void compute_layout () {
+static Void collect_nodes_dfs (UiBox *box, ArrayUiBox *out) {
+    array_push(out, box);
+    array_iter (child, &box->children) collect_nodes_dfs(child, out);
+}
+
+static Void compute_layout (UiBox *box) {
+    ArrayUiBox nodes;
+
+    if (box == ui->root) {
+        nodes = ui->depth_first;
+    } else {
+        array_init(&nodes, ui->frame_mem);
+        collect_nodes_dfs(box, &nodes);
+    }
+
     for (U64 axis = 0; axis < 2; ++axis) {
-        compute_standalone_sizes(axis);
-        compute_downward_dependent_sizes(axis);
-        compute_upward_dependent_sizes(axis);
-        fix_overflow(axis);
-        compute_positions(axis);
+        compute_standalone_sizes(&nodes, axis);
+        compute_downward_dependent_sizes(&nodes, axis);
+        compute_upward_dependent_sizes(&nodes, axis);
+        fix_overflow(&nodes, axis);
+        compute_positions(&nodes, axis);
     }
 }
 
@@ -1542,6 +1562,8 @@ static Void find_topmost_hovered_box (UiBox *box) {
 }
 
 static Void draw_box (UiBox *box) {
+    if (box->flags & UI_BOX_INVISIBLE) return;
+
     // @todo We could check whether the box is clipped
     // out and not run this function at all in that case.
 
@@ -1611,7 +1633,7 @@ static Void draw_box (UiBox *box) {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    if (! (box->flags & UI_BOX_INVISIBLE)) draw_rect(
+    draw_rect(
         .top_left            = box->rect.top_left,
         .bottom_right        = vec2(box->rect.x + box->rect.w, box->rect.y + box->rect.h),
         .color               = box->style.bg_color,
@@ -1634,7 +1656,6 @@ static Void draw_box (UiBox *box) {
     }
 
     if (box->draw_fn) box->draw_fn(box);
-
     array_iter (c, &box->children) draw_box(c);
 
     if (box->flags & UI_BOX_CLIPPING) {
@@ -1658,11 +1679,7 @@ static UiBox *ui_vspacer () {
 }
 
 static Void size_label (UiBox *box, U64 axis) {
-    if (axis == UI_AXIS_HORIZONTAL) {
-        box->rect.w = box->scratch_rect.w + 2*box->style.padding.x;
-    } else {
-        box->rect.h = box->scratch_rect.h + 2*box->style.padding.y;
-    }
+    box->rect.size[axis] = box->scratch_rect.size[axis] + 2*box->style.padding.v[axis];
 }
 
 static Void draw_label (UiBox *box) {
@@ -1981,6 +1998,7 @@ static Void ui_scroll_box_pop_ (Void *) {
 
 istruct (UiPopup) {
     Bool shown;
+    Bool sideways;
     UiBox *anchor;
 };
 
@@ -2000,6 +2018,68 @@ static Void size_popup (UiBox *popup, U64 axis) {
     }
 }
 
+static Void layout_popup (UiBox *popup) {
+    UiPopup *info = cast(UiPopup*, popup->scratch);
+    UiRect anchor = info->anchor->rect;
+    UiRect viewport = ui->root->rect;
+    F32 popup_w = popup->rect.w;
+    F32 popup_h = popup->rect.h;
+    F32 margin = 6.0f;
+
+    F32 space_left   = anchor.x - viewport.x;
+    F32 space_right  = (viewport.x + viewport.w) - (anchor.x + anchor.w);
+    F32 space_top    = anchor.y - viewport.y;
+    F32 space_bottom = (viewport.y + viewport.h) - (anchor.y + anchor.h);
+
+    enum { POPUP_LEFT, POPUP_RIGHT, POPUP_TOP, POPUP_BOTTOM } side;
+
+    if (info->sideways) {
+        if (space_right >= popup_w) {
+            side = POPUP_RIGHT;
+        } else if (space_left >= popup_w) {
+            side = POPUP_LEFT;
+        } else {
+            side = POPUP_RIGHT;
+        }
+    } else {
+        if (space_top >= popup_h) {
+            side = POPUP_TOP;
+        } else if (space_bottom >= popup_h) {
+            side = POPUP_BOTTOM;
+        } else {
+            side = POPUP_TOP;
+        }
+    }
+
+    F32 x = 0;
+    F32 y = 0;
+
+    switch (side) {
+    case POPUP_RIGHT:
+        x = anchor.x + anchor.w + margin;
+        y = anchor.y + (anchor.h - popup_h) * 0.5f;
+        break;
+    case POPUP_LEFT:
+        x = anchor.x - popup_w - margin;
+        y = anchor.y + (anchor.h - popup_h) * 0.5f;
+        break;
+    case POPUP_BOTTOM:
+        x = anchor.x + (anchor.w - popup_w) * 0.5f;
+        y = anchor.y + anchor.h + margin;
+        break;
+    case POPUP_TOP:
+        x = anchor.x + (anchor.w - popup_w) * 0.5f;
+        y = anchor.y - popup_h - margin;
+        break;
+    }
+
+    x = clamp(x, 0, viewport.w - popup_w);
+    y = clamp(y, 0, viewport.h - popup_h);
+
+    ui_style_box_f32(popup, UI_FLOAT_X, x);
+    ui_style_box_f32(popup, UI_FLOAT_Y, y);
+}
+
 static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_push_parent(ui->root);
     ui_push_clip(ui->root, false);
@@ -2017,6 +2097,7 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     UiBox *popup = ui_scroll_box_push(id);
     popup->size_fn = size_popup;
     popup->scratch = cast(U64, info);
+    array_push_lit(&ui->deferred_layout_fns, layout_popup, popup);
     ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
     ui_style_box_size(popup, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
     ui_style_box_vec4(popup, UI_BG_COLOR, vec4(0, 0, 0, .6));
@@ -2026,64 +2107,9 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_vec4(popup, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
     ui_style_box_f32(popup, UI_OUTSET_SHADOW_WIDTH, 1);
     ui_style_box_vec4(popup, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
+    ui_style_box_f32(popup, UI_ANIMATION_TIME, 3);
+    ui_style_box_u32(popup, UI_ANIMATION, UI_MASK_BG_COLOR);
     ui_style_f32(UI_BLUR_RADIUS, 3);
-
-    {
-        UiPopup *pinfo = cast(UiPopup*, popup->scratch);
-        UiBox   *a     = pinfo->anchor;
-
-        UiRect anchor   = a->rect;
-        UiRect viewport = ui->root->rect;
-
-        F32 popup_w = popup->rect.w;
-        F32 popup_h = popup->rect.h;
-
-        F32 margin = 6.0f;
-
-        F32 space_left   = anchor.x - viewport.x;
-        F32 space_right  = (viewport.x + viewport.w) - (anchor.x + anchor.w);
-        F32 space_top    = anchor.y - viewport.y;
-        F32 space_bottom = (viewport.y + viewport.h) - (anchor.y + anchor.h);
-
-        enum { POPUP_RIGHT, POPUP_LEFT, POPUP_BOTTOM, POPUP_TOP } side;
-
-        if (space_right >= popup_w || space_left >= popup_w) {
-            side = (space_right >= space_left) ? POPUP_RIGHT : POPUP_LEFT;
-        } else {
-            side = (space_bottom >= space_top) ? POPUP_BOTTOM : POPUP_TOP;
-        }
-
-        F32 x = 0;
-        F32 y = 0;
-
-        switch (side) {
-        case POPUP_RIGHT:
-            x = anchor.x + anchor.w + margin;
-            y = anchor.y + (anchor.h - popup_h) * 0.5f;
-            break;
-
-        case POPUP_LEFT:
-            x = anchor.x - popup_w - margin;
-            y = anchor.y + (anchor.h - popup_h) * 0.5f;
-            break;
-
-        case POPUP_BOTTOM:
-            x = anchor.x + (anchor.w - popup_w) * 0.5f;
-            y = anchor.y + anchor.h + margin;
-            break;
-
-        case POPUP_TOP:
-            x = anchor.x + (anchor.w - popup_w) * 0.5f;
-            y = anchor.y - popup_h - margin;
-            break;
-        }
-
-        x = clamp(x, viewport.x, viewport.x + viewport.w - popup_w);
-        y = clamp(y, viewport.y, viewport.y + viewport.h - popup_h);
-
-        ui_style_box_f32(popup, UI_FLOAT_X, x);
-        ui_style_box_f32(popup, UI_FLOAT_Y, y);  
-    }
 
     return popup;
 }
@@ -2682,6 +2708,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             }
         }
 
+        ui->deferred_layout_fns.count = 0;
         ui->depth_first.count = 0;
 
         ui->root = ui_box(0, "root") {
@@ -2712,8 +2739,15 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
         ui->gc_flag = !ui->gc_flag;
     }
 
-    apply_style_rules();
-    compute_layout();
+    apply_style_rules(ui->root);
+    compute_layout(ui->root);
+
+    array_iter (it, &ui->deferred_layout_fns) {
+        it.fn(it.box);
+        apply_style_rules(it.box);
+        compute_layout(it.box->parent);
+    }
+
     find_topmost_hovered_box(ui->root);
     draw_box(ui->root);
 }
@@ -2726,6 +2760,7 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     array_init(&ui->box_stack, ui->mem);
     array_init(&ui->clip_stack, ui->mem);
     array_init(&ui->depth_first, ui->mem);
+    array_init(&ui->deferred_layout_fns, ui->mem);
     map_init(&ui->box_cache, mem);
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
@@ -2916,12 +2951,22 @@ static Void build_misc_view () {
             ui_tag("item");
 
             ui_toggle("toggle", &app->toggle);
+
             UiBox *popup_button = ui_button("popup_button");
             app->popup.anchor = popup_button;
             if (app->popup.shown || popup_button->signal.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup) {
-                    build_clock_view();
+                    ui_box(0, "buttons") {
+                        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                        ui_style_f32(UI_SPACING, 8);
+                        ui_button("btn1");
+                        ui_button("btn2");
+                        ui_button("btn3");
+                        ui_button("btn4");
+                        ui_button("btn5");
+                        ui_button("btn6");
+                    }
                 }
             }
         }
@@ -3153,7 +3198,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->parena = parena;
     app->farena = farena;
 
-    app->view = 0;
+    app->view = 2;
 
     app->slider = .5;
     app->modal_pos.x = 200;

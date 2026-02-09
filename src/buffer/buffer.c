@@ -15,6 +15,7 @@ static Void compute_aux (Buf *buf) {
     buf->dirty = false;
 
     buf->lines.count = 0;
+    buf->widest_line = 0;
     U32 prev_pos = 0;
     array_iter (c, &buf->data) {
         if (c != '\n') continue;
@@ -225,7 +226,7 @@ Void buf_cursor_move_left_word (Buf *buf, BufCursor *cursor, Bool move_selection
             if (is_word_char(*p)) p--;
             else break;
         }
-        p++;
+        if (! is_word_char(*p)) p++;
     }
 
     cursor->byte_offset = p - start;

@@ -50,6 +50,7 @@ array_typedef(U8, U8);
 array_typedef(U32, U32);
 array_typedef(I32, I32);
 array_typedef(U64, U64);
+array_typedef(Void*, Void);
 array_typedef(Char, Char);
 array_typedef(CString, CString);
 array_typedef(RangeU64, RangeU64);
