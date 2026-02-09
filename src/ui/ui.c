@@ -855,10 +855,6 @@ static Void compute_signals (UiBox *box) {
     }
 }
 
-static Void glyph_eviction_fn () {
-    flush_vertices();
-}
-
 static UiKey ui_build_key (String string) {
     UiBox *parent = array_try_get_last(&ui->box_stack);
     U64 seed = parent ? parent->key : 0;
@@ -1780,6 +1776,68 @@ static UiBox *ui_toggle (CString id, Bool *val) {
     return bg;
 }
 
+static Void size_popup (UiBox *popup, U64 axis) {
+    F32 size = 0;
+    Bool cycle = false;
+
+    array_iter(child, &popup->children) {
+        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+        size += child->rect.size[axis];
+    }
+
+    if (cycle) {
+        popup->rect.size[axis] = ui->root->rect.size[axis] - 20.0;
+    } else {
+        popup->rect.size[axis] = min(size + 2 * popup->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
+    }
+}
+
+static UiBox *ui_popup_push (String id, UiBox *anchor) {
+    ui_push_parent(ui->root);
+
+    UiBox *overlay = ui_box_push(UI_BOX_REACTIVE, "popup_modal_bg");
+    ui_style_box_f32(overlay, UI_FLOAT_X, 0);
+    ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
+    ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+    // if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) return false;
+    // if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) return false;
+
+    UiBox *popup = ui_box_push_str(0, id);
+    popup->size_fn = size_popup;
+    popup->scratch = cast(U64, anchor);
+    ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM});
+    ui_style_box_size(popup, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM});
+    ui_style_box_f32(popup, UI_FLOAT_X, 0);
+    ui_style_box_f32(popup, UI_FLOAT_Y, 0);
+    ui_style_box_vec4(popup, UI_BG_COLOR, vec4(0, 0, 0, .6));
+    ui_style_box_vec4(popup, UI_RADIUS, vec4(8, 8, 8, 8));
+    ui_style_box_vec2(popup, UI_PADDING, vec2(8, 8));
+    ui_style_box_vec4(popup, UI_BORDER_COLOR, vec4(0, 0, 0, .8));
+    ui_style_box_vec4(popup, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+    ui_style_box_f32(popup, UI_OUTSET_SHADOW_WIDTH, 1);
+    ui_style_box_vec4(popup, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
+    ui_style_box_f32(popup, UI_BLUR_RADIUS, 3);
+    ui_style_box_u32(popup, UI_ANIMATION, UI_MASK_BG_COLOR|UI_MASK_HEIGHT|UI_MASK_WIDTH);
+
+    return popup;
+}
+
+static Void ui_popup_pop () {
+    ui_pop_parent();
+    ui_pop_parent();
+    ui_pop_parent();
+}
+
+static Void ui_popup_pop_ (Void *) {
+    ui_popup_pop();
+}
+
+#define ui_popup(LABEL)\
+    ui_popup_push(str(LABEL));\
+    if (cleanup(ui_popup_pop_) U8 _; 1)
+
 static UiBox *ui_button_str (String id, String label) {
     UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
         ui_tag("button");
@@ -2611,7 +2669,7 @@ static Void ui_init (Mem *mem, Mem *frame_mem) {
     map_init(&ui->box_cache, mem);
     map_init(&ui->pressed_keys, mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->font_cache = font_cache_new(mem, glyph_eviction_fn, 64);
+    ui->font_cache = font_cache_new(mem, flush_vertices, 64);
 }
 
 // =============================================================================
@@ -2796,6 +2854,10 @@ static Void build_misc_view () {
             ui_tag("item");
 
             ui_toggle("toggle", &app->toggle);
+            UiBox *popup_button = ui_button("popup_button");
+            if (popup_button->signal.clicked) {
+                printf("-----------\n");
+            }
         }
     }
 }
