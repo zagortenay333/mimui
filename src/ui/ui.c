@@ -2844,6 +2844,7 @@ ienum (Icon, U32) {
     MY_ICON_CLOSE,
     MY_ICON_BOLD,
     MY_ICON_ALARM,
+    MY_ICON_CHECK,
 };
 
 App *app;
@@ -2943,7 +2944,7 @@ static Void build_misc_view () {
             ui_icon("icon4", app->icon_font, 16, MY_ICON_POMODORO);
             ui_icon("icon5", app->icon_font, 16, MY_ICON_PLUS);
             ui_icon("icon6", app->icon_font, 16, MY_ICON_PIN);
-            ui_icon("icon7", app->icon_font, 16, MY_ICON_PAUSE);
+            ui_icon("icon7", app->icon_font, 16, MY_ICON_CHECK);
         }
 
         ui_box(0, "box2_6") {
