@@ -148,18 +148,23 @@ static Void update_projection () {
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
 }
 
-U32 load_texture (CString filepath) {
+istruct (Image) {
+    U32 texture;
+    F32 width;
+    F32 height;
+};
+
+Image load_image (CString filepath, Bool flip) {
     U32 id; glGenTextures(1, &id);
 
     glBindTexture(GL_TEXTURE_2D, id);
 
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(flip);
 
     Int w, h, n; U8 *data = stbi_load(filepath, &w, &h, &n, 0);
     if (! data) error_fmt("Couldn't load image from file: %s\n", filepath);
@@ -169,7 +174,12 @@ U32 load_texture (CString filepath) {
     glGenerateMipmap(GL_TEXTURE_2D);
 
     stbi_image_free(data);
-    return id;
+
+    return (Image){
+        .texture = id,
+        .width   = w,
+        .height  = h,
+    };
 }
 
 static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h) {
@@ -1563,6 +1573,7 @@ static Void find_topmost_hovered_box (UiBox *box) {
 static Void draw_box (UiBox *box) {
     if (!(box->flags & UI_BOX_INVISIBLE) && box->style.blur_radius) {
         flush_vertices();
+        glScissor(0, 0, win_width, win_height);
 
         F32 blur_radius = max(1, cast(Int, box->style.blur_radius));
 
@@ -1625,6 +1636,9 @@ static Void draw_box (UiBox *box) {
         glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        r = array_get_last(&ui->clip_stack);
+        glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 
     if (! (box->flags & UI_BOX_INVISIBLE)) draw_rect(
@@ -1770,6 +1784,48 @@ static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon,
     }
 
     return bg;
+}
+
+istruct (UiImage) {
+    Image image;
+    Bool blur;
+    Vec4 tint;
+    F32 pref_width;
+};
+
+static Void draw_image (UiBox *box) {
+    Auto info = cast(UiImage *, box->scratch);
+    flush_vertices();
+    glBindTexture(GL_TEXTURE_2D, info->image.texture);
+    draw_rect(
+        .top_left          = box->rect.top_left,
+        .bottom_right      = {box->rect.x + box->rect.w, box->rect.y + box->rect.h},
+        .radius            = box->style.radius,
+        .texture_rect      = {0, 0, info->image.width, info->image.height},
+        .text_color        = (info->tint.w > 0) ? info->tint : vec4(1, 1, 1, 1),
+        .text_is_grayscale = (info->tint.w > 0) ? 1 : 0,
+    );
+}
+
+static UiBox *ui_image (CString id, UiImage *info) {
+    UiBox *img = ui_box(UI_BOX_INVISIBLE, id) {
+        img->draw_fn = draw_image;
+        img->scratch = cast(U64, info);
+        ui_style_size(UI_WIDTH, (UiSize){ UI_SIZE_PIXELS, info->pref_width, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PIXELS, round(info->image.height * (info->pref_width / info->image.width)), 1});
+        ui_style_vec4(UI_RADIUS, vec4(8, 8, 8, 8));
+
+        if (info->blur) {
+            ui_box(0, "blur") {
+                ui_style_size(UI_WIDTH, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
+                ui_style_vec4(UI_RADIUS, img->style.radius);
+                ui_style_f32(UI_BLUR_RADIUS, 3);
+            }
+        }
+    }
+
+    return img;
 }
 
 static UiBox *ui_toggle (CString id, Bool *val) {
@@ -2819,6 +2875,8 @@ istruct (App) {
 
     F32 slider;
     Bool toggle;
+
+    UiImage image;
 };
 
 ienum (Icon, U32) {
@@ -3000,6 +3058,14 @@ static Void build_misc_view () {
                 }
             }
         }
+
+        ui_box(0, "box2_7") {
+            ui_tag("hbox");
+            ui_tag("item");
+
+            ui_image("image", &app->image);
+
+        }
     }
 }
 
@@ -3113,7 +3179,7 @@ static Void app_build () {
     ui_style_rule(".button #button_label") {
         ui_style_font(UI_FONT, app->bold_font);
         ui_style_f32(UI_FONT_SIZE, 12.0);
-    }
+   }
 
     ui_style_rule(".button.hover") {
         ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, 1.f)));
@@ -3230,6 +3296,8 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->farena = farena;
 
     app->view = 0;
+    app->image.image = load_image("data/images/screenshot.png", false);
+    app->image.pref_width = 300;
 
     app->slider = .5;
     app->modal_pos.x = 200;
@@ -3258,7 +3326,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - date picker
 // - shortcut picker
 // - color picker
-// - ui_image
 // - dropdown
 // - single line text box
 // - tile widgets with tabs

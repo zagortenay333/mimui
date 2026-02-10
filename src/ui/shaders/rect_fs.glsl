@@ -107,7 +107,6 @@ void main () {
         float b = select_border_width(fpc, half_size - r, border_widths);
         float dist_inner = rect_sdf(frag_pos, center, half_size - b, max(r - b, 0));
         float dist_inner_smooth = smoothstep(0.0, edge_softness, dist_inner);
-        //frag_color = mix(frag_color, vec4(border_color.rgb, 1.0), border_color.a*dist_inner_smooth);
         frag_color = mix(frag_color, border_color, dist_inner_smooth);
         frag_color.a *= dist_outer_smooth;
     }
