@@ -3262,3 +3262,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - dropdown
 // - single line text box
 // - tile widgets with tabs
+// - centered modals
+// - expanding/contracting scrollbars
+// - scroll list for large lists
