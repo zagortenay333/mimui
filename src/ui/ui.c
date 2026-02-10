@@ -1907,7 +1907,7 @@ static UiBox *ui_button (CString id) {
 
 static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
-        ui_style_f32(UI_FLOAT_X, rect.x - 2*container->style.padding.x);
+        ui_style_f32(UI_FLOAT_X, rect.x);
         ui_style_f32(UI_FLOAT_Y, rect.y);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, rect.h, 0});
@@ -1956,7 +1956,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
         ui_style_f32(UI_FLOAT_X, rect.x);
-        ui_style_f32(UI_FLOAT_Y, rect.y - 2*container->style.padding.y);
+        ui_style_f32(UI_FLOAT_Y, rect.y);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, rect.w, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
@@ -3022,13 +3022,11 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
 
-            ui_icon("icon1", app->icon_font, 16, MY_ICON_FIRE);
-            ui_icon("icon2", app->icon_font, 16, MY_ICON_SEARCH);
-            ui_icon("icon3", app->icon_font, 16, MY_ICON_QUESTION);
-            ui_icon("icon4", app->icon_font, 16, MY_ICON_POMODORO);
-            ui_icon("icon5", app->icon_font, 16, MY_ICON_PLUS);
-            ui_icon("icon6", app->icon_font, 16, MY_ICON_PIN);
-            ui_icon("icon7", app->icon_font, 16, MY_ICON_CHECK);
+            for (U64 i = MY_ICON_CHECK; i < MY_ICON_CHECK + 18; ++i) {
+                tmem_new(tm);
+                String id = astr_fmt(tm, "icon%lu%c", i, 0);
+                ui_icon(id.data, app->icon_font, 16, i);
+            }
         }
 
         ui_box(0, "box2_6") {
@@ -3330,5 +3328,5 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - single line text box
 // - tile widgets with tabs
 // - centered modals
-// - expanding/contracting scrollbars
-// - scroll list for large lists
+// - scrollbox for large homogenous lists
+// - refactor ui.c into multiple modules
