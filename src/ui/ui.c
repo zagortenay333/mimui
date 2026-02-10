@@ -1815,13 +1815,11 @@ static UiBox *ui_image (CString id, UiImage *info) {
         ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PIXELS, round(info->image.height * (info->pref_width / info->image.width)), 1});
         ui_style_vec4(UI_RADIUS, vec4(8, 8, 8, 8));
 
-        if (info->blur) {
-            ui_box(0, "blur") {
-                ui_style_size(UI_WIDTH, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
-                ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
-                ui_style_vec4(UI_RADIUS, img->style.radius);
-                ui_style_f32(UI_BLUR_RADIUS, 3);
-            }
+        ui_box(0, "overlay") {
+            ui_style_size(UI_WIDTH, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PCT_PARENT, 1, 1});
+            ui_style_vec4(UI_RADIUS, img->style.radius);
+            if (info->blur) ui_style_f32(UI_BLUR_RADIUS, 3);
         }
     }
 
@@ -3063,8 +3061,10 @@ static Void build_misc_view () {
             ui_tag("hbox");
             ui_tag("item");
 
-            ui_image("image", &app->image);
-
+            UiBox *img = ui_image("image", &app->image);
+            UiBox *img_overlay = array_get(&img->children, 0);
+            ui_style_box_f32(img_overlay, UI_OUTSET_SHADOW_WIDTH, 2);
+            ui_style_box_vec4(img_overlay, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
         }
     }
 }
