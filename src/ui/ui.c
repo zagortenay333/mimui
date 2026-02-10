@@ -754,7 +754,6 @@ istruct (UiBox) {
     UiBoxFlags flags;
     U8 gc_flag;
     U64 scratch;
-    UiRect scratch_rect;
     UiRect rect;
     UiBoxDrawFn draw_fn;
     UiBoxSizeFn size_fn;
@@ -778,6 +777,7 @@ istruct (Ui) {
     Vec2 mouse_dt;
     Vec2 mouse;
     Map(U32, U8) pressed_keys;
+    U64 frame;
     F64 dt;
     UiBox *root;
     UiBox *hovered;
@@ -804,7 +804,7 @@ UiStyle default_box_style = {
     .edge_softness  = .75,
     .floating[0]    = NAN,
     .floating[1]    = NAN,
-    .animation_time = .2,
+    .animation_time = .3,
 };
 
 static Void ui_eat_event ();
@@ -895,7 +895,6 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->style_rules.count = 0;
         box->style = default_box_style;
         box->rect = (UiRect){};
-        box->scratch_rect = (UiRect){};
         box->content = (UiRect){};
         box->scratch = 0;
         box->draw_fn = 0;
@@ -1326,15 +1325,15 @@ static Void apply_style_rules_box (UiBox *box, ArrayUiStyleRule *active_rules, M
     UiSpecificity specs[UI_ATTRIBUTE_COUNT] = {};
 
     Auto stop_at = active_rules->count - 1; // Don't loop over newly added derived rules.
-    array_iter (rule, active_rules, *) {
-        UiPattern *head_of_rule = array_get(&rule->pattern->patterns, 0);
+    array_iter (rule, active_rules) {
+        UiPattern *head_of_rule = array_get(&rule.pattern->patterns, 0);
         Bool match = match_pattern(box, head_of_rule);
 
         if (match) {
-            if (rule->pattern->patterns.count == 1) {
-                apply_style_rule(box, rule, specs);
+            if (rule.pattern->patterns.count == 1) {
+                apply_style_rule(box, &rule, specs);
             } else {
-                array_push(active_rules, derive_new_rule(rule, mem));
+                array_push(active_rules, derive_new_rule(&rule, mem));
             }
         }
 
@@ -1562,12 +1561,7 @@ static Void find_topmost_hovered_box (UiBox *box) {
 }
 
 static Void draw_box (UiBox *box) {
-    if (box->flags & UI_BOX_INVISIBLE) return;
-
-    // @todo We could check whether the box is clipped
-    // out and not run this function at all in that case.
-
-    if (box->style.blur_radius) {
+    if (!(box->flags & UI_BOX_INVISIBLE) && box->style.blur_radius) {
         flush_vertices();
 
         F32 blur_radius = max(1, cast(Int, box->style.blur_radius));
@@ -1633,7 +1627,7 @@ static Void draw_box (UiBox *box) {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    draw_rect(
+    if (! (box->flags & UI_BOX_INVISIBLE)) draw_rect(
         .top_left            = box->rect.top_left,
         .bottom_right        = vec2(box->rect.x + box->rect.w, box->rect.y + box->rect.h),
         .color               = box->style.bg_color,
@@ -1679,7 +1673,7 @@ static UiBox *ui_vspacer () {
 }
 
 static Void size_label (UiBox *box, U64 axis) {
-    box->rect.size[axis] = box->scratch_rect.size[axis] + 2*box->style.padding.v[axis];
+    // Sizing done in the draw_label function.
 }
 
 static Void draw_label (UiBox *box) {
@@ -1689,14 +1683,14 @@ static Void draw_label (UiBox *box) {
 
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
-    Bool first_frame = box->rect.w == 0 || box->rect.h == 0;
-    Auto text      = *cast(String*, box->scratch);
-    F32 x          = round(box->rect.x + box->rect.w/2 - box->scratch_rect.w/2);
-    F32 y          = round(box->rect.y + box->rect.h - box->style.padding.y);
-    U32 line_width = 0;
-    F32 descent    = cast(F32, ui->font->descent);
-    F32 width      = cast(F32, ui->font->width);
-    F32 x_pos      = x;
+    Bool first_frame     = box->rect.w == 0 || box->rect.h == 0;
+    Auto text            = *cast(String*, box->scratch);
+    F32 x                = round(box->rect.x + box->style.padding.x);
+    F32 y                = round(box->rect.y + box->rect.h - box->style.padding.y);
+    U32 line_width       = 0;
+    F32 descent          = cast(F32, ui->font->descent);
+    F32 width            = cast(F32, ui->font->width);
+    F32 x_pos            = x;
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     array_iter (info, &infos, *) {
@@ -1705,10 +1699,10 @@ static Void draw_label (UiBox *box) {
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
         draw_rect(
-            .top_left     = top_left,
-            .bottom_right = bottom_right,
-            .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-            .text_color   = first_frame ? vec4(0,0,0,0) : box->style.text_color,
+            .top_left          = top_left,
+            .bottom_right      = bottom_right,
+            .texture_rect      = {slot->x, slot->y, slot->width, slot->height},
+            .text_color        = first_frame ? vec4(0,0,0,0) : box->style.text_color,
             .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
         );
 
@@ -1716,10 +1710,8 @@ static Void draw_label (UiBox *box) {
         if (ARRAY_ITER_DONE) line_width = x_pos - x;
     }
 
-    box->scratch_rect.x = x;
-    box->scratch_rect.y = y;
-    box->scratch_rect.w = line_width;
-    box->scratch_rect.h = ui->font->height;
+    box->rect.w = line_width + 2*box->style.padding.x;
+    box->rect.h = ui->font->height + 2*box->style.padding.y;
 }
 
 static UiBox *ui_label (CString id, String label) {
@@ -2036,6 +2028,7 @@ static Void ui_scroll_box_pop_ (Void *) {
 istruct (UiPopup) {
     Bool shown;
     Bool sideways;
+    U8 first_frame;
     UiBox *anchor;
 };
 
@@ -2068,24 +2061,21 @@ static Void layout_popup (UiBox *popup) {
     F32 space_top    = anchor.y - viewport.y;
     F32 space_bottom = (viewport.y + viewport.h) - (anchor.y + anchor.h);
 
+    // @todo Due to the complex layout logic of the popup which relies
+    // on the size information from previous frames, we have to delay
+    // drawing the popup for the first two frames in order to prevent
+    // nasty flickering... We have to do this on top of also having to
+    // use the deferred_layout_fns feature for popups...
+    popup->flags &= ~UI_BOX_INVISIBLE;
+    if (info->first_frame < 2) popup->flags |= UI_BOX_INVISIBLE;
+    if (info->first_frame < 10) info->first_frame++;
+
     enum { POPUP_LEFT, POPUP_RIGHT, POPUP_TOP, POPUP_BOTTOM } side;
 
     if (info->sideways) {
-        if (space_right >= popup_w) {
-            side = POPUP_RIGHT;
-        } else if (space_left >= popup_w) {
-            side = POPUP_LEFT;
-        } else {
-            side = POPUP_RIGHT;
-        }
+        side = space_left > space_right ? POPUP_LEFT : POPUP_RIGHT;
     } else {
-        if (space_top >= popup_h) {
-            side = POPUP_TOP;
-        } else if (space_bottom >= popup_h) {
-            side = POPUP_BOTTOM;
-        } else {
-            side = POPUP_TOP;
-        }
+        side = space_top > space_bottom ? POPUP_TOP : POPUP_BOTTOM;
     }
 
     F32 x = 0;
@@ -2121,17 +2111,17 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_push_parent(ui->root);
     ui_push_clip(ui->root, false);
 
-    UiBox *overlay = ui_box_push(UI_BOX_REACTIVE, "popup_modal_bg");
+    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE, id);
     ui_style_box_f32(overlay, UI_FLOAT_X, 0);
     ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
     ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
     info->shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) info->shown = false;
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) info->shown = false;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) { info->first_frame = 0; info->shown = false; }
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) { info->first_frame = 0; info->shown = false; }
 
-    UiBox *popup = ui_scroll_box_push(id);
+    UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
     popup->scratch = cast(U64, info);
     array_push_lit(&ui->deferred_layout_fns, layout_popup, popup);
@@ -2787,6 +2777,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
 
     find_topmost_hovered_box(ui->root);
     draw_box(ui->root);
+    ui->frame++;
 }
 
 static Void ui_init (Mem *mem, Mem *frame_mem) {
@@ -2996,17 +2987,16 @@ static Void build_misc_view () {
             if (app->popup.shown || popup_button->signal.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup) {
-                    build_clock_view();
-                    // ui_box(0, "buttons") {
-                        // ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-                        // ui_style_f32(UI_SPACING, 8);
-                        // ui_button("btn1");
-                        // ui_button("btn2");
-                        // ui_button("btn3");
-                        // ui_button("btn4");
-                        // ui_button("btn5");
-                        // ui_button("btn6");
-                    // }
+                    ui_box(0, "buttons") {
+                        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                        ui_style_f32(UI_SPACING, 8);
+                        ui_style_rule(".button") ui_style_u32(UI_ANIMATION, UI_MASK_HEIGHT|UI_MASK_WIDTH);
+
+                        for (U64 i = 0; i < 5; ++i) {
+                            String s = astr_fmt(ui->frame_mem, "btn%lu", i);
+                            ui_button_str(s, s);
+                        }
+                    }
                 }
             }
         }
@@ -3088,6 +3078,7 @@ static Bool show_modal () {
                 ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
                 ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
+                ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
                 ui_style_f32(UI_BLUR_RADIUS, 3);
 
                 if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
@@ -3095,7 +3086,7 @@ static Bool show_modal () {
                     app->modal_pos.y += ui->mouse_dt.y;
                 }
 
-                build_text_view();
+                build_clock_view();
             }
         }
     }
