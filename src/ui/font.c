@@ -12,8 +12,8 @@
 
 #define LOG_HEADER "FontCache"
 
-GlyphSlot *font_get_glyph_slot (Font *font, GlyphInfo *info) {
-    GlyphSlot *slot = map_get_ptr(&font->slot_map, info->glyph_index);
+AtlasSlot *font_get_atlas_slot (Font *font, GlyphInfo *info) {
+    AtlasSlot *slot = map_get_ptr(&font->slot_map, info->glyph_index);
 
     Bool atlas_update_needed = true;
 
@@ -131,14 +131,14 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
     font->atlas_slot_size = 2 * size;
     font->binary = fs_read_entire_file(cache->mem, filepath, 0);
 
-    GlyphSlot *slots = mem_alloc(cache->mem, GlyphSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(GlyphSlot)));
+    AtlasSlot *slots = mem_alloc(cache->mem, AtlasSlot, .size=(cache->atlas_size * cache->atlas_size * sizeof(AtlasSlot)));
     array_init(&font->free_slots, cache->mem);
     map_init(&font->slot_map, cache->mem);
 
     U32 x = 0;
     U32 y = 0;
     for (U32 i = 0; i < cast(U32, cache->atlas_size) * cache->atlas_size; ++i) {
-        GlyphSlot *slot = &slots[i];
+        AtlasSlot *slot = &slots[i];
         slot->x = x * font->atlas_slot_size;
         slot->y = y * font->atlas_slot_size;
         array_push(&font->free_slots, slot);
@@ -165,11 +165,11 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
 
     { // Get metrics:
         U32 glyph_index = FT_Get_Char_Index(font->ft_face, 'M');
-        GlyphSlot *slot = font_get_glyph_slot(font, &(GlyphInfo){.glyph_index = glyph_index});
-        font->ascent  = font->ft_face->size->metrics.ascender >> 6;
-        font->descent = -(font->ft_face->size->metrics.descender >> 6);
-        font->height  = font->ft_face->size->metrics.height >> 6;
-        font->width   = slot->advance;
+        AtlasSlot *slot = font_get_atlas_slot(font, &(GlyphInfo){.glyph_index = glyph_index});
+        font->ascent    = font->ft_face->size->metrics.ascender >> 6;
+        font->descent   = -(font->ft_face->size->metrics.descender >> 6);
+        font->height    = font->ft_face->size->metrics.height >> 6;
+        font->width     = slot->advance;
     }
 
     return font;

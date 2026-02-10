@@ -1708,7 +1708,7 @@ static Void draw_label (UiBox *box) {
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     array_iter (info, &infos, *) {
-        GlyphSlot *slot   = font_get_glyph_slot(ui->font, info);
+        AtlasSlot *slot   = font_get_atlas_slot(ui->font, info);
         Vec2 top_left     = {x_pos + slot->bearing_x, y + info->y - descent - slot->bearing_y};
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
@@ -2244,7 +2244,7 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
                 .bottom_right = {x + cell_w, y},
             );
 
-            GlyphSlot *slot = font_get_glyph_slot(ui->font, glyph_info);
+            AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
             Vec4 final_text_color = selected ? info->selection_fg_color : color;
@@ -2349,10 +2349,6 @@ static Void text_box_scroll_into_view (UiBox *box, BufCursor *pos, U32 padding) 
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
         text_box_vscroll(box->parent, clamp(sat_add32(pos->line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
     }
-}
-
-static Void text_box_clear_selection (UiTextBox *info) {
-    info->cursor.selection_offset = info->cursor.byte_offset;
 }
 
 static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord) {
@@ -2537,7 +2533,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 text_box_scroll_into_view(text_box, &info->cursor, 0);
             } else {
                 info->dragging = true;
-                text_box_clear_selection(info);
+                info->cursor.selection_offset = info->cursor.byte_offset;
             }
         }
 

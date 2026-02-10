@@ -12,7 +12,7 @@ istruct (GlyphInfo) {
     U32 glyph_index;
 };
 
-istruct (GlyphSlot) {
+istruct (AtlasSlot) {
     U16 x;
     U16 y;
     U32 width;
@@ -22,8 +22,8 @@ istruct (GlyphSlot) {
     I32 advance;
     FT_Pixel_Mode pixel_mode;
     U32 glyph_index;
-    GlyphSlot *lru_next;
-    GlyphSlot *lru_prev;
+    AtlasSlot *lru_next;
+    AtlasSlot *lru_prev;
 };
 
 istruct (FontCache);
@@ -44,9 +44,9 @@ istruct (Font) {
     U32 ascent;
     U32 descent;
 
-    GlyphSlot lru;
-    Array(GlyphSlot*) free_slots;
-    Map(U32, GlyphSlot*) slot_map;
+    AtlasSlot lru;
+    Array(AtlasSlot*) free_slots;
+    Map(U32, AtlasSlot*) slot_map;
 
     U32 atlas_texture;
     U16 atlas_slot_size;
@@ -66,5 +66,5 @@ array_typedef(GlyphInfo, GlyphInfo);
 
 FontCache     *font_cache_new       (Mem *, VertexFlushFn, U16 atlas_size);
 Font          *font_get             (FontCache *, String filepath, U32 size, Bool is_mono);
-GlyphSlot     *font_get_glyph_slot  (Font *, GlyphInfo *);
+AtlasSlot     *font_get_atlas_slot  (Font *, GlyphInfo *);
 SliceGlyphInfo font_get_glyph_infos (Font *, Mem *, String);
