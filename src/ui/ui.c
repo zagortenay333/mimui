@@ -729,28 +729,6 @@ fenum (UiBoxFlags, U8) {
 typedef Void (*UiBoxDrawFn)(UiBox*);
 typedef Void (*UiBoxSizeFn)(UiBox*, U64 axis);
 
-istruct (UiTextPos) {
-    U32 line;
-    U32 column;
-};
-
-istruct (UiTextBox) {
-    Buf *buf;
-    BufCursor cursor;
-    Vec2 cursor_coord;
-    Vec2 scroll_coord;
-    Vec2 scroll_coord_n;
-    F32 total_width;
-    F32 total_height;
-    U32 scrollbar_width;
-    U32 line_spacing;
-    F32 scroll_animation_time;
-    Vec4 selection_bg_color;
-    Vec4 selection_fg_color;
-    Vec4 cursor_color;
-    Bool dragging;
-};
-
 istruct (UiBox) {
     UiBox *parent;
     ArrayUiBox children;
@@ -817,10 +795,10 @@ UiStyle default_box_style = {
     .animation_time = .3,
 };
 
+istruct (UiTextBox);
 static Void ui_eat_event ();
 static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
-static Int text_pos_cmp (UiTextPos a, UiTextPos b);
 static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *);
 static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord);
 
@@ -1758,7 +1736,6 @@ static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon,
         ui_style_vec4(UI_RADIUS, vec4(4, 4, 4, 4));
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-        ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .7));
         ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .05));
         ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
         ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
@@ -1833,7 +1810,6 @@ static UiBox *ui_toggle (CString id, Bool *val) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
         ui_style_vec4(UI_RADIUS, vec4(s/2, s/2, s/2, s/2));
-        ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, .7));
         ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .05));
         ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
         ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
@@ -2210,6 +2186,95 @@ static Void ui_popup_pop_ (Void *) {
     ui_popup_push(str(LABEL), ANCHOR);\
     if (cleanup(ui_popup_pop_) U8 _; 1)
 
+static Void size_modal (UiBox *modal, U64 axis) {
+    F32 size = 0;
+    Bool cycle = false;
+
+    array_iter(child, &modal->children) {
+        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+        size += child->rect.size[axis];
+    }
+
+    if (cycle) {
+        modal->rect.size[axis] = ui->root->rect.size[axis] - 20.0;
+    } else {
+        modal->rect.size[axis] = min(size + 2 * modal->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
+    }
+}
+
+static Void layout_modal (UiBox *modal) {
+    ui_style_box_f32(modal, UI_FLOAT_X, ui->root->rect.w/2 - modal->rect.w/2);
+    ui_style_box_f32(modal, UI_FLOAT_Y, ui->root->rect.h/2 - modal->rect.h/2);
+}
+
+static UiBox *ui_modal_push (String id, Bool *shown) {
+    ui_push_parent(ui->root);
+    ui_push_clip(ui->root, false);
+
+    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE, id);
+    ui_style_box_f32(overlay, UI_FLOAT_X, 0);
+    ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
+    ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_vec4(overlay, UI_BG_COLOR, vec4(0, 0, 0, .2));
+
+    *shown = true;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
+
+    UiBox *modal = ui_scroll_box_push(str("modal"));
+    modal->size_fn = size_modal;
+    array_push_lit(&ui->deferred_layout_fns, layout_modal, modal);
+    ui_style_box_size(modal, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
+    ui_style_box_size(modal, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
+    ui_style_box_vec4(modal, UI_BG_COLOR, vec4(0, 0, 0, .6));
+    ui_style_box_vec4(modal, UI_RADIUS, vec4(8, 8, 8, 8));
+    ui_style_box_vec2(modal, UI_PADDING, vec2(8, 8));
+    ui_style_box_vec4(modal, UI_BORDER_COLOR, vec4(0, 0, 0, .8));
+    ui_style_box_vec4(modal, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+    ui_style_box_f32(modal, UI_OUTSET_SHADOW_WIDTH, 1);
+    ui_style_box_vec4(modal, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
+    ui_style_box_u32(modal, UI_ALIGN_X, UI_ALIGN_END);
+    ui_style_box_f32(modal, UI_BLUR_RADIUS, 3);
+
+    return overlay;
+}
+
+static Void ui_modal_pop () {
+    ui_scroll_box_pop();
+    ui_pop_parent();
+    ui_pop_clip();
+    ui_pop_parent();
+}
+
+static Void ui_modal_pop_ (Void *) {
+    ui_modal_pop();
+}
+
+#define ui_modal(LABEL, SHOWN)\
+    ui_modal_push(str(LABEL), SHOWN);\
+    if (cleanup(ui_modal_pop_) U8 _; 1)
+
+istruct (UiTextBox) {
+    Buf *buf;
+    BufCursor cursor;
+    Vec2 cursor_coord;
+    Vec2 scroll_coord;
+    Vec2 scroll_coord_n;
+    F32 total_width;
+    F32 total_height;
+    U32 scrollbar_width;
+    U32 line_spacing;
+    F32 scroll_animation_time;
+    Vec4 selection_bg_color;
+    Vec4 selection_fg_color;
+    Vec4 cursor_color;
+    Bool dragging;
+    Bool single_line;
+    Font *font;
+    F32 font_height;
+};
+
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
@@ -2398,6 +2463,9 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
+        ui_style_font(UI_FONT, info->font);
+        ui_style_f32(UI_FONT_SIZE, info->font_height);
+
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
@@ -2549,6 +2617,20 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
     }
 
     return container;
+}
+
+static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
+    info->single_line = true;
+    UiBox *box = ui_text_box(id, info);
+    ui_style_box_vec4(box, UI_RADIUS, vec4(4, 4, 4, 4));
+    ui_style_box_vec4(box, UI_BG_COLOR, vec4(0, 0, 0, .4));
+    ui_style_box_vec4(box, UI_BORDER_COLOR, vec4(0, 0, 0, .05));
+    ui_style_box_vec4(box, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
+    ui_style_box_f32(box, UI_INSET_SHADOW_WIDTH, 2);
+    ui_style_box_vec4(box, UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
+    ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
+    ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, info->font_height + 8, 0});
+    return box;
 }
 
 static UiBox *ui_slider_str (String label, F32 *val) {
@@ -2852,10 +2934,9 @@ istruct (App) {
     Mem *parena;
     Mem *farena;
 
+    UiTextBox *entry;
     UiTextBox *text_box;
-    UiBox *text_box_widget;
 
-    Vec2 modal_pos;
     Bool modal_shown;
 
     UiPopup popup;
@@ -2930,12 +3011,10 @@ ienum (Icon, U32) {
 App *app;
 
 static Void build_text_view () {
-    app->text_box_widget = ui_text_box(str("text_box"), app->text_box);
-    ui_style_box_size(app->text_box_widget, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
-    ui_style_box_size(app->text_box_widget, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-    ui_style_box_vec2(app->text_box_widget, UI_PADDING, (Vec2){8, 8});
-    ui_style_box_font(app->text_box_widget, UI_FONT, app->mono_font);
-    ui_style_box_f32(app->text_box_widget, UI_FONT_SIZE, 12.0);
+    UiBox *box = ui_text_box(str("text_box"), app->text_box);
+    ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
+    ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+    ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
 }
 
 static Void build_clock_view () {
@@ -3049,6 +3128,10 @@ static Void build_misc_view () {
                     }
                 }
             }
+
+            UiBox *entry = ui_entry(str("entry"), app->entry, 200);
+            ui_style_box_font(entry, UI_FONT, app->mono_font);
+            ui_style_box_f32(entry, UI_FONT_SIZE, 12.0);
         }
 
         ui_box(0, "box2_7") {
@@ -3096,67 +3179,13 @@ static Void build_grid_view () {
     }
 }
 
-static Void size_modal (UiBox *modal, U64 axis) {
-    F32 size = 0;
-    Bool cycle = false;
-
-    array_iter(child, &modal->children) {
-        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
-        size += child->rect.size[axis];
+static Void show_modal () {
+    ui_modal("modal", &app->modal_shown) {
+        build_clock_view();
     }
-
-    if (cycle) {
-        modal->rect.size[axis] = ui->root->rect.size[axis] - 20.0;
-    } else {
-        modal->rect.size[axis] = min(size + 2 * modal->style.padding.v[axis], ui->root->rect.size[axis] - 20.0);
-    }
-}
-
-static Bool show_modal () {
-    ui_parent(ui->root) {
-        UiBox *overlay = ui_box(UI_BOX_REACTIVE, "modal_bg") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, 0);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .2));
-
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) return false;
-            if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) return false;
-
-            UiBox *modal = ui_scroll_box("modal") {
-                modal->size_fn = size_modal;
-
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
-                ui_style_f32(UI_FLOAT_X, app->modal_pos.x);
-                ui_style_f32(UI_FLOAT_Y, app->modal_pos.y);
-                ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .6));
-                ui_style_vec4(UI_RADIUS, vec4(8, 8, 8, 8));
-                ui_style_vec2(UI_PADDING, vec2(8, 8));
-                ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .8));
-                ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
-                ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 1);
-                ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
-                ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
-                ui_style_f32(UI_BLUR_RADIUS, 3);
-
-                if (modal->signal.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
-                    app->modal_pos.x += ui->mouse_dt.x;
-                    app->modal_pos.y += ui->mouse_dt.y;
-                }
-
-                build_clock_view();
-            }
-        }
-    }
-
-    return true;
 }
 
 static Void app_build () {
-    app->text_box_widget = 0;
-
     ui_style_vec4(UI_BG_COLOR, vec4(0.2, 0.2, 0.2, 1));
 
     ui_style_rule(".button") {
@@ -3244,7 +3273,7 @@ static Void app_build () {
             }
 
             if (app->modal_shown) {
-                app->modal_shown = show_modal();
+                show_modal();
             }
 
             ui_style_rule("#Foo2") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0}); }
@@ -3269,10 +3298,6 @@ static Void app_build () {
 
             ui_box(UI_BOX_INVISIBLE, "bottom_sidebar_button") {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
-
-                if (ui_button("bar")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
-                    if (app->text_box_widget) text_box_vscroll(app->text_box_widget, 0, UI_ALIGN_START);
-                }
             }
         }
 
@@ -3294,8 +3319,6 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->image.pref_width = 300;
 
     app->slider = .5;
-    app->modal_pos.x = 200;
-    app->modal_pos.y = 200;
 
     app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
     app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
@@ -3303,14 +3326,23 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true);
 
     app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    app->text_box->cursor = buf_cursor_new(app->text_box->buf, 0, 0);
+    app->text_box->buf = buf_new(parena, str("/home/zagor/Documents/test.txt"));
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
     app->text_box->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
     app->text_box->selection_fg_color = vec4(0, 0, 0, 1);
     app->text_box->cursor_color = vec4(1, 0, 0, 1);
+    app->text_box->font = app->mono_font;
+    app->text_box->font_height = 12;
+
+    app->entry = mem_new(parena, UiTextBox);
+    app->entry->buf = buf_new(parena, str("asdf"));
+    app->entry->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
+    app->entry->selection_fg_color = vec4(0, 0, 0, 1);
+    app->entry->cursor_color = vec4(1, 0, 0, 1);
+    app->entry->font = app->mono_font;
+    app->entry->font_height = 12;
 }
 
 // @todo
@@ -3323,6 +3355,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - dropdown
 // - single line text box
 // - tile widgets with tabs
-// - centered modals
 // - scrollbox for large homogenous lists
 // - refactor ui.c into multiple modules
+// - copy/paste in text box

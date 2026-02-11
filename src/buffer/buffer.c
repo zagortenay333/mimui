@@ -17,6 +17,7 @@ static Void compute_aux (Buf *buf) {
     buf->lines.count = 0;
     buf->widest_line = 0;
     U32 prev_pos = 0;
+
     array_iter (c, &buf->data) {
         if (c != '\n') continue;
         String s = str_slice(buf->data.as_slice, prev_pos, ARRAY_IDX - prev_pos);
@@ -24,15 +25,21 @@ static Void compute_aux (Buf *buf) {
         array_push(&buf->lines, s);
         prev_pos = ARRAY_IDX + 1;
     }
+
+    if (prev_pos < buf->data.count) {
+        String s = str_slice(buf->data.as_slice, prev_pos, buf->data.count - prev_pos);
+        if (s.count > buf->widest_line) buf->widest_line = s.count;
+        array_push(&buf->lines, s);
+    }
 }
 
 Buf *buf_new (Mem *mem, String text) {
     Auto buf   = mem_new(mem, Buf);
     buf->mem   = mem;
     buf->dirty = true;
-    buf_insert(buf, &(BufCursor){}, text);
     array_init(&buf->data, mem);
     array_init(&buf->lines, mem);
+    buf_insert(buf, &(BufCursor){}, text);
     return buf;
 }
 
@@ -94,6 +101,7 @@ U32 buf_get_line_count (Buf *buf) {
 
 U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
     String line_text = buf_get_line(buf, 0, line);
+    if (! line_text.data) return 0;
     U32 line_off = 0;
     U32 idx = 0;
     str_utf8_iter (c, line_text) {

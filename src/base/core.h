@@ -57,8 +57,11 @@ typedef va_list   VaList;
 
 #if BUILD_DEBUG
     #define assert_dbg(...) ({ if (!(__VA_ARGS__)) panic(); })
+    Void print_stack_trace ();
+    #define panic() ({ print_stack_trace(); __builtin_trap(); })
 #else
     #define assert_dbg(...)
+    #define panic() __builtin_trap()
 #endif
 
 #define iunion(N, ...)        typedef union N N; union [[__VA_ARGS__]] N
@@ -77,7 +80,6 @@ typedef va_list   VaList;
 #define cast(T, V)            ((T)(V))
 #define acast(T, V)           ({ T __(v) = (V); __(v); })
 #define PACKED                gnu::packed
-#define panic()               __builtin_trap()
 #define assert_always(...)    ({ if (!(__VA_ARGS__)) panic(); })
 #define assert_static(...)    static_assert(__VA_ARGS__)
 #define badpath               panic()

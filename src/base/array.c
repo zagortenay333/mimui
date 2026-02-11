@@ -78,7 +78,8 @@ Void uarray_remove (UArray *array, U64 esize, U64 idx) {
 }
 
 Void uarray_remove_many (UArray *array, U64 esize, U64 idx, U64 n) {
-    array_bounds_check(array, idx + n);
+    if (n == 0) return;
+    array_bounds_check(array, sat_sub64(idx + n, 1));
     if (idx < (array->count - 1)) {
         U8 *src = &array->data[esize * (idx + n)];
         U8 *dst = &array->data[esize * idx];
