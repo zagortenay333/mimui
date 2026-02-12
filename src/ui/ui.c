@@ -580,6 +580,8 @@ ienum (UiSizeTag, U8) {
 #define UI_THEME_BORDER_FOCUS_WIDTH str("ui_theme_border_focus_width")
 #define UI_THEME_BORDER_FOCUS_COLOR str("ui_theme_border_focus_color")
 #define UI_THEME_MAGENTA_1          str("ui_theme_magenta_1")
+#define UI_THEME_BG_1               str("ui_theme_bg_1")
+#define UI_THEME_BG_2               str("ui_theme_bg_2")
 #define UI_THEME_BG_3               str("ui_theme_bg_3")
 #define UI_THEME_BG_4               str("ui_theme_bg_4")
 #define UI_THEME_FG_1               str("ui_theme_fg_1")
@@ -3073,6 +3075,8 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_style_var_def_vec4(UI_THEME_BORDER_FOCUS_WIDTH, vec4(2, 2, 2, 2));
             ui_style_var_def_vec4(UI_THEME_BORDER_FOCUS_COLOR, vec4(1, 1, 1, .8));
             ui_style_var_def_vec4(UI_THEME_MAGENTA_1, hsva2rgba(vec4(.8, .4, 1, .8f)));
+            ui_style_var_def_vec4(UI_THEME_BG_1, vec4(.2, .2, .2, 1));
+            ui_style_var_def_vec4(UI_THEME_BG_2, vec4(.3, .3, .3, 1));
             ui_style_var_def_vec4(UI_THEME_BG_3, vec4(0, 0, 0, .4));
             ui_style_var_def_vec4(UI_THEME_BG_4, vec4(0, 0, 0, .6));
             ui_style_var_def_vec4(UI_THEME_FG_1, vec4(1, 1, 1, .8));
@@ -3404,7 +3408,7 @@ static Void show_modal () {
 }
 
 static Void app_build () {
-    ui_style_vec4(UI_BG_COLOR, vec4(0.2, 0.2, 0.2, 1));
+    ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_1);
 
     ui_style_rule(".button #button_label") {
         ui_style_font(UI_FONT, app->bold_font);
@@ -3439,8 +3443,6 @@ static Void app_build () {
     ui_box(0, "sub_root") {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        ui_style_f32(UI_SPACING, 0);
-        ui_style_vec2(UI_PADDING, vec2(0, 0));
 
         ui_box(0, "box1") {
             ui_tag("vbox");
