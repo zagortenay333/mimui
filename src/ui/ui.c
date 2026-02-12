@@ -584,8 +584,11 @@ ienum (UiSizeTag, U8) {
 #define UI_THEME_BG_4               str("ui_theme_bg_4")
 #define UI_THEME_FG_1               str("ui_theme_fg_1")
 #define UI_THEME_FG_2               str("ui_theme_fg_2")
+#define UI_THEME_FG_3               str("ui_theme_fg_3")
+#define UI_THEME_FG_4               str("ui_theme_fg_4")
 #define UI_THEME_BLUR               str("ui_theme_blur")
 #define UI_THEME_HIGHLIGHT          str("ui_theme_highlight")
+#define UI_THEME_SLIDER_KNOB        str("ui_theme_slider_knob")
 
 istruct (UiSize) {
     UiSizeTag tag;
@@ -840,8 +843,8 @@ istruct (Ui) {
 Ui *ui;
 
 UiStyle default_box_style = {
-    .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 0},
-    .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 0},
+    .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 1},
+    .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 1},
     .bg_color2      = {-1},
     .text_color     = {1, 1, 1, .8},
     .edge_softness  = .75,
@@ -1854,12 +1857,12 @@ static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon,
         ui_style_from_var(UI_RADIUS, UI_THEME_RADIUS_1);
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-        ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_2_COLOR);
+        ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
+        ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_1_COLOR);
         ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_1_WIDTH);
         ui_style_from_var(UI_INSET_SHADOW_WIDTH, UI_THEME_IN_SHADOW_1_WIDTH);
         ui_style_from_var(UI_INSET_SHADOW_COLOR, UI_THEME_IN_SHADOW_1_COLOR);
         ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
-        ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
         ui_style_rule(".focus") {
             ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_FOCUS_WIDTH);
@@ -1868,6 +1871,7 @@ static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon,
 
         if (*val) {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_MAGENTA_1);
+            ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_2_COLOR);
             ui_icon("mark", icon_font, icon_size, icon);
         } else {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
@@ -1928,7 +1932,8 @@ static UiBox *ui_toggle (CString id, Bool *val) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
         ui_style_vec4(UI_RADIUS, vec4(s/2, s/2, s/2, s/2));
-        ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_2_COLOR);
+        ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
+        ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_1_COLOR);
         ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_1_WIDTH);
         ui_style_from_var(UI_INSET_SHADOW_WIDTH, UI_THEME_IN_SHADOW_1_WIDTH);
         ui_style_from_var(UI_INSET_SHADOW_COLOR, UI_THEME_IN_SHADOW_1_COLOR);
@@ -1941,6 +1946,7 @@ static UiBox *ui_toggle (CString id, Bool *val) {
 
         if (*val) {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_MAGENTA_1);
+            ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_2_COLOR);
         } else {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
         }
@@ -1973,6 +1979,26 @@ static UiBox *ui_button_str (String id, String label) {
         ui_tag("button");
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_from_var(UI_BG_COLOR, UI_THEME_FG_3);
+        ui_style_from_var(UI_BG_COLOR2, UI_THEME_FG_4);
+        ui_style_from_var(UI_RADIUS, UI_THEME_RADIUS_1);
+        ui_style_from_var(UI_OUTSET_SHADOW_WIDTH, UI_THEME_SHADOW_1_WIDTH);
+        ui_style_from_var(UI_OUTSET_SHADOW_COLOR, UI_THEME_SHADOW_1_COLOR);
+        ui_style_from_var(UI_PADDING, UI_THEME_PADDING_1);
+        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
+
+        ui_style_rule(".button.focus") {
+            ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_FOCUS_WIDTH);
+            ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_FOCUS_COLOR);
+        }
+
+        ui_style_rule(".button.press") {
+            ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+            ui_style_from_var(UI_BG_COLOR, UI_THEME_FG_4);
+            ui_style_from_var(UI_BG_COLOR2, UI_THEME_FG_3);
+            ui_style_from_var(UI_INSET_SHADOW_WIDTH, UI_THEME_IN_SHADOW_1_WIDTH);
+            ui_style_from_var(UI_INSET_SHADOW_COLOR, UI_THEME_IN_SHADOW_1_COLOR);
+        }
 
         if (button->signal.hovered) {
             ui_push_clip(button, true);
@@ -2786,13 +2812,13 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
     info->single_line_mode = true;
     UiBox *box = ui_text_box(id, info);
-    ui_style_box_vec4(box, UI_RADIUS, vec4(4, 4, 4, 4));
-    ui_style_box_vec4(box, UI_BG_COLOR, vec4(0, 0, 0, .4));
-    ui_style_box_vec4(box, UI_BORDER_COLOR, vec4(0, 0, 0, .05));
-    ui_style_box_vec4(box, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
-    ui_style_box_f32(box, UI_INSET_SHADOW_WIDTH, 2);
-    ui_style_box_vec4(box, UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
-    ui_style_box_vec2(box, UI_PADDING, vec2(8, 8));
+    ui_style_box_from_var(box, UI_RADIUS, UI_THEME_RADIUS_1);
+    ui_style_box_from_var(box, UI_BG_COLOR, UI_THEME_BG_3);
+    ui_style_box_from_var(box, UI_BORDER_COLOR, UI_THEME_BORDER_1_COLOR);
+    ui_style_box_from_var(box, UI_BORDER_WIDTHS, UI_THEME_BORDER_1_WIDTH);
+    ui_style_box_from_var(box, UI_INSET_SHADOW_WIDTH, UI_THEME_IN_SHADOW_1_WIDTH);
+    ui_style_box_from_var(box, UI_INSET_SHADOW_COLOR, UI_THEME_IN_SHADOW_1_COLOR);
+    ui_style_box_from_var(box, UI_PADDING, UI_THEME_PADDING_1);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
     return box;
 }
@@ -2807,8 +2833,8 @@ static UiBox *ui_slider_str (String label, F32 *val) {
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
 
         ui_style_rule(".focus") {
-            ui_style_vec4(UI_BORDER_WIDTHS, vec4(2, 2, 2, 2));
-            ui_style_vec4(UI_BORDER_COLOR, vec4(1, 1, 1, .8));
+            ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_FOCUS_WIDTH);
+            ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_FOCUS_COLOR);
         }
 
         if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_LEFT)) {
@@ -2838,13 +2864,13 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_f32(UI_FLOAT_X, 0);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 4, 0});
-            ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, 1));
+            ui_style_from_var(UI_BG_COLOR, UI_THEME_FG_1);
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
             ui_box(UI_BOX_CLICK_THROUGH, "slider_track_fill") {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, *val, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-                ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 1, .8));
+                ui_style_from_var(UI_BG_COLOR, UI_THEME_MAGENTA_1);
                 ui_style_f32(UI_EDGE_SOFTNESS, 0);
             }
         }
@@ -2857,12 +2883,11 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             assert_dbg(spacer_width >= 0.0);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, spacer_width, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 2, 0});
-            ui_style_f32(UI_EDGE_SOFTNESS, 0);
         }
 
         ui_box(UI_BOX_CLICK_THROUGH, "slider_knob") {
             ui_style_f32(UI_EDGE_SOFTNESS, 1.3);
-            ui_style_vec4(UI_BG_COLOR, vec4(1, 1, 1, 1));
+            ui_style_from_var(UI_BG_COLOR, UI_THEME_SLIDER_KNOB);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, knob_size, 1});
             ui_style_vec4(UI_RADIUS, vec4(knob_size/2, knob_size/2, knob_size/2, knob_size/2));
@@ -2936,10 +2961,10 @@ static UiBox *ui_grid_cell_push (F32 x, F32 y, F32 w, F32 h) {
     UiBox *cell = ui_box_push_fmt(0, "grid_cell_%f_%f", x, y);
     ui_style_f32(UI_FLOAT_X, 0);
     ui_style_f32(UI_FLOAT_Y, 0);
-    ui_style_vec2(UI_PADDING, vec2(8, 8));
-    ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .4));
-    ui_style_vec4(UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
-    ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .8));
+    ui_style_from_var(UI_PADDING, UI_THEME_PADDING_1);
+    ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
+    ui_style_from_var(UI_BORDER_WIDTHS, UI_THEME_BORDER_1_WIDTH);
+    ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_1_COLOR);
     ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
     Vec4 *coords = mem_new(ui->frame_mem, Vec4);
@@ -3052,8 +3077,11 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_style_var_def_vec4(UI_THEME_BG_4, vec4(0, 0, 0, .6));
             ui_style_var_def_vec4(UI_THEME_FG_1, vec4(1, 1, 1, .8));
             ui_style_var_def_vec4(UI_THEME_FG_2, vec4(1, 1, 1, .5));
+            ui_style_var_def_vec4(UI_THEME_FG_3, vec4(.3, .3, .3, .8));
+            ui_style_var_def_vec4(UI_THEME_FG_4, vec4(.2, .2, .2, .8));
             ui_style_var_def_f32(UI_THEME_BLUR, 3);
-            ui_style_var_def_vec4(UI_THEME_HIGHLIGHT, vec4(1, 1, 1, .2));
+            ui_style_var_def_vec4(UI_THEME_HIGHLIGHT, vec4(1, 1, 1, .05));
+            ui_style_var_def_vec4(UI_THEME_SLIDER_KNOB, vec4(1, 1, 1, 1));
 
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, win_width, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, win_height, 0});
@@ -3343,7 +3371,7 @@ static Void build_grid_view () {
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH);
 
-        ui_style_rule("#second_view") { ui_style_vec2(UI_PADDING, vec2(80, 16)); }
+        ui_style_rule("#second_view") ui_style_vec2(UI_PADDING, vec2(80, 16));
 
         ui_grid("test_grid") {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
@@ -3378,47 +3406,9 @@ static Void show_modal () {
 static Void app_build () {
     ui_style_vec4(UI_BG_COLOR, vec4(0.2, 0.2, 0.2, 1));
 
-    ui_style_rule(".button") {
-        ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, .8f)));
-        ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, .6, .8f)));
-        ui_style_vec4(UI_RADIUS, vec4(4, 4, 4, 4));
-        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -2));
-        ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 2);
-        ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 120, 0});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 1});
-    }
-
     ui_style_rule(".button #button_label") {
         ui_style_font(UI_FONT, app->bold_font);
         ui_style_f32(UI_FONT_SIZE, 12.0);
-   }
-
-    ui_style_rule(".button.hover") {
-        ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, 1, 1.f)));
-        ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, .6, 1.f)));
-    }
-
-    ui_style_rule(".button.focus") {
-        ui_style_vec4(UI_BORDER_WIDTHS, vec4(2.5, 2.5, 2.5, 2.5));
-        ui_style_vec4(UI_BORDER_COLOR, vec4(1, 1, 1, .6));
-    }
-
-    ui_style_rule(".button.press") {
-        ui_style_vec4(UI_BORDER_COLOR, vec4(0,0,0,.05));
-        ui_style_vec4(UI_BORDER_WIDTHS, vec4(1,1,1,1));
-        ui_style_vec4(UI_BG_COLOR, hsva2rgba(vec4(.8, .4, .6, .8f)));
-        ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.8, .4, 1, .8f)));
-        ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
-        ui_style_vec4(UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 0));
-        ui_style_f32(UI_INSET_SHADOW_WIDTH, 2);
-        ui_style_vec4(UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
-    }
-
-    ui_style_rule("#box1 .button:last") {
-        ui_style_vec4(UI_BG_COLOR,  hsva2rgba(vec4(.4, .4, 1, .8f)));
-        ui_style_vec4(UI_BG_COLOR2, hsva2rgba(vec4(.4, .4, .6, .8f)));
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 40, 0});
     }
 
     ui_style_rule(".vbox") {
@@ -3483,12 +3473,6 @@ static Void app_build () {
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
             }
-
-            ui_vspacer();
-
-            ui_box(UI_BOX_INVISIBLE, "bottom_sidebar_button") {
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
-            }
         }
 
         switch (app->view) {
@@ -3542,6 +3526,7 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - time picker
 // - orca style css vars
 // - refactor ui.c into multiple modules
+// - wrappers around the SDLK_ shit
 //
 // - file picker
 // - date picker
