@@ -3196,6 +3196,11 @@ static Void build_misc_view () {
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
+        }
+
+        ui_box(0, "box2_8") {
+            ui_tag("hbox");
+            ui_tag("item");
 
             UiBox *img = ui_image("image", &app->image);
             UiBox *img_overlay = array_get(&img->children, 0);
