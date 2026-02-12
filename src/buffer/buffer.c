@@ -304,3 +304,10 @@ Void buf_cursor_move_to_end (Buf *buf, BufCursor *cursor, Bool move_selection) {
 Bool buf_cursor_at_end_no_newline (Buf *buf, BufCursor *cursor) {
     return (cursor->byte_offset == buf->data.count) && !str_ends_with(buf->data.as_slice, str("\n")) ;
 }
+
+String buf_get_selection (Buf *buf, BufCursor *cursor) {
+    U32 start = cursor->byte_offset;
+    U32 end = cursor->selection_offset;
+    if (start > end) swap(start, end);
+    return str_slice(buf->data.as_slice, start, end - start);
+}

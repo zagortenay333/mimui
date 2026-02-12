@@ -349,6 +349,18 @@ static Void draw_rect_fn (RectAttributes *a) {
     draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
 }
 
+static Void set_clipboard_text (String str) {
+    tmem_new(tm);
+    SDL_SetClipboardText(cstr(tm, str));
+}
+
+static String get_clipboard_text (Mem *mem) {
+    CString txt = SDL_GetClipboardText();
+    String result = str_copy(mem, str(txt));
+    SDL_free(txt);
+    return result;
+}
+
 F64 get_time_sec () {
     U64 counter = SDL_GetPerformanceCounter();
     U64 freq    = SDL_GetPerformanceFrequency();
@@ -2565,6 +2577,27 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                     ui_eat_event();
                 }
                 break;
+            case SDLK_V:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    String text = get_clipboard_text(ui->frame_mem);
+                    buf_insert(info->buf, &info->cursor, text);
+                }
+                break;
+            case SDLK_X:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    String text = buf_get_selection(info->buf, &info->cursor);
+                    if (text.count) {
+                        set_clipboard_text(text);
+                        buf_delete(info->buf, &info->cursor);
+                    }
+                }
+                break;
+            case SDLK_C:
+                if (ui->event->mods & SDL_KMOD_CTRL) {
+                    String text = buf_get_selection(info->buf, &info->cursor);
+                    if (text.count) set_clipboard_text(text);
+                }
+                break;
             case SDLK_RETURN:
                 if (info->single_line_mode) break;
 
@@ -3352,7 +3385,7 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true);
 
     app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->buf = buf_new(parena, str("/home/zagor/Documents/test.txt"));
+    app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
     app->text_box->scrollbar_width = 10;
     app->text_box->line_spacing = 2;
     app->text_box->scroll_animation_time = default_box_style.animation_time;
@@ -3382,4 +3415,3 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - refactor ui.c into multiple modules
-// - copy/paste in text box
