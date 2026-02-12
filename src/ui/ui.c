@@ -3379,7 +3379,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - shortcut picker
 // - color picker
 // - dropdown
-// - single line text box
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - refactor ui.c into multiple modules
