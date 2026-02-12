@@ -2408,16 +2408,17 @@ istruct (UiTextBox) {
     Vec2 scroll_coord_n;
     F32 total_width;
     F32 total_height;
+    Bool dragging;
+    Bool single_line_mode;
+
+    Font *font;
+    F32 font_height;
     U32 scrollbar_width;
     U32 line_spacing;
     F32 scroll_animation_time;
     Vec4 selection_bg_color;
     Vec4 selection_fg_color;
     Vec4 cursor_color;
-    Bool dragging;
-    Font *font;
-    F32 font_height;
-    Bool single_line_mode;
 };
 
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
@@ -3522,6 +3523,7 @@ static Void app_init (Mem *parena, Mem *farena) {
 }
 
 // @todo
+//
 // - int picker
 // - shortcut picker
 // - dropdown
