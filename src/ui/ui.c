@@ -2068,9 +2068,9 @@ static Void ui_scroll_box_pop_ (Void *) {
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
 istruct (UiPopup) {
+    U8 frame;
     Bool shown;
     Bool sideways;
-    U8 first_frame;
     UiBox *anchor;
 };
 
@@ -2109,8 +2109,8 @@ static Void layout_popup (UiBox *popup) {
     // nasty flickering... We have to do this on top of also having to
     // use the deferred_layout_fns feature for popups...
     popup->flags &= ~UI_BOX_INVISIBLE;
-    if (info->first_frame < 2) popup->flags |= UI_BOX_INVISIBLE;
-    if (info->first_frame < 10) info->first_frame++;
+    if (info->frame < 2) popup->flags |= UI_BOX_INVISIBLE;
+    if (info->frame < 10) info->frame++;
 
     enum { POPUP_LEFT, POPUP_RIGHT, POPUP_TOP, POPUP_BOTTOM } side;
 
@@ -2160,8 +2160,8 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
     info->shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) { info->first_frame = 0; info->shown = false; }
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) { info->first_frame = 0; info->shown = false; }
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) { info->frame = 0; info->shown = false; }
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) { info->frame = 0; info->shown = false; }
 
     UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
@@ -2687,7 +2687,7 @@ static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
     ui_style_box_vec4(box, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
     ui_style_box_f32(box, UI_INSET_SHADOW_WIDTH, 2);
     ui_style_box_vec4(box, UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
-    ui_style_box_vec2(box, UI_PADDING, vec2(12, 12));
+    ui_style_box_vec2(box, UI_PADDING, vec2(8, 8));
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
     return box;
 }
@@ -3196,6 +3196,7 @@ static Void build_misc_view () {
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
+
         }
 
         ui_box(0, "box2_8") {
@@ -3410,13 +3411,15 @@ static Void app_init (Mem *parena, Mem *farena) {
 }
 
 // @todo
-// - file picker
 // - int picker
-// - time picker
-// - date picker
 // - shortcut picker
-// - color picker
 // - dropdown
+// - time picker
+// - orca style css vars
+// - refactor ui.c into multiple modules
+//
+// - file picker
+// - date picker
+// - color picker
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
-// - refactor ui.c into multiple modules
