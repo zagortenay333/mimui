@@ -3075,8 +3075,8 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_style_var_def_vec4(UI_THEME_BORDER_FOCUS_WIDTH, vec4(2, 2, 2, 2));
             ui_style_var_def_vec4(UI_THEME_BORDER_FOCUS_COLOR, vec4(1, 1, 1, .8));
             ui_style_var_def_vec4(UI_THEME_MAGENTA_1, hsva2rgba(vec4(.8, .4, 1, .8f)));
-            ui_style_var_def_vec4(UI_THEME_BG_1, vec4(.2, .2, .2, 1));
-            ui_style_var_def_vec4(UI_THEME_BG_2, vec4(.3, .3, .3, 1));
+            ui_style_var_def_vec4(UI_THEME_BG_1, vec4(.15, .15, .15, 1));
+            ui_style_var_def_vec4(UI_THEME_BG_2, vec4(.2, .2, .2, 1));
             ui_style_var_def_vec4(UI_THEME_BG_3, vec4(0, 0, 0, .4));
             ui_style_var_def_vec4(UI_THEME_BG_4, vec4(0, 0, 0, .6));
             ui_style_var_def_vec4(UI_THEME_FG_1, vec4(1, 1, 1, .8));
@@ -3419,7 +3419,7 @@ static Void app_build () {
         ui_style_vec2(UI_PADDING, vec2(8, 8));
         ui_style_f32(UI_SPACING, 8.0);
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .1));
+        ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_1);
         ui_style_vec4(UI_BORDER_COLOR, vec4(0, 0, 0, .4));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
     }
