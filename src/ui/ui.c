@@ -712,6 +712,28 @@ istruct (UiStyleRule) {
     UiStyleMask mask;
 };
 
+ienum (UiStyleVarTag, U8) {
+    UI_STYLE_VAR_U32,
+    UI_STYLE_VAR_F32,
+    UI_STYLE_VAR_VEC2,
+    UI_STYLE_VAR_VEC4,
+    UI_STYLE_VAR_FONT,
+    UI_STYLE_VAR_SIZE,
+};
+
+istruct (UiStyleVar) {
+    UiStyleVarTag tag;
+    String name;
+    union {
+        U32 u32;
+        F32 f32;
+        Vec2 vec2;
+        Vec4 vec4;
+        Font *font;
+        UiSize size;
+    };
+};
+
 istruct (UiBox);
 array_typedef(UiBox*, UiBox);
 array_typedef(UiPattern*, UiPattern);
@@ -747,6 +769,7 @@ istruct (UiBox) {
     UiStyle style;
     UiStyle next_style;
     ArrayUiStyleRule style_rules;
+    Array(UiStyleVar) style_vars;
     ArrayString tags;
     UiSignal signal;
     String label;
@@ -887,12 +910,14 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->tags.count = 0;
         box->children.count = 0;
         box->style_rules.count = 0;
+        box->style_vars.count = 0;
     } else if (ui->free_boxes.count) {
         box = array_pop(&ui->free_boxes);
         box->parent = 0;
         box->tags.count = 0;
         box->children.count = 0;
         box->style_rules.count = 0;
+        box->style_vars.count = 0;
         box->style = default_box_style;
         box->rect = (UiRect){};
         box->content = (UiRect){};
@@ -904,6 +929,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box = mem_new(ui->mem, UiBox);
         array_init(&box->children, ui->mem);
         array_init(&box->style_rules, ui->mem);
+        array_init(&box->style_vars, ui->mem);
         array_init(&box->tags, ui->mem);
         box->style = default_box_style;
         map_add(&ui->box_cache, key, box);
@@ -1366,6 +1392,53 @@ Bool set_font (UiBox *box) {
         ui->font = font_get(ui->font_cache, font->filepath, size, font->is_mono);
     }
     return true;
+}
+
+// =============================================================================
+// Style vars:
+// =============================================================================
+static UiStyleVar *ui_style_var_get (String name) {
+    array_iter_back (box, &ui->box_stack) {
+        array_iter (var, &box->style_vars, *) {
+            if (str_match(name, var->name)) {
+                return var;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static Void ui_style_var_def (UiStyleVar *var) {
+    UiBox *box = array_get_last(&ui->box_stack);
+
+    #if BUILD_DEBUG
+        array_iter (v, &box->style_vars, *) {
+            if (str_match(v->name, var->name)) {
+                error_fmt("Redeclaration of style variable: %.*s", STR(var->name));
+            }
+        }
+    #endif
+
+    array_push(&box->style_vars, *var);
+}
+
+static Void ui_style_var_set (UiStyleVar *var) {
+    UiStyleVar *v = ui_style_var_get(var->name);
+    if (! v) error_fmt("Reference to undeclared style var: %.*s", STR(var->name));
+    *v = *var;
+}
+
+static Void ui_style_from_var (UiStyleAttribute attr, String name) {
+    UiStyleVar *var = ui_style_var_get(name);
+    switch (var->tag) {
+    case UI_STYLE_VAR_U32:  ui_style_u32(attr, var->u32); break;
+    case UI_STYLE_VAR_F32:  ui_style_f32(attr, var->f32); break;
+    case UI_STYLE_VAR_VEC2: ui_style_vec2(attr, var->vec2); break;
+    case UI_STYLE_VAR_VEC4: ui_style_vec4(attr, var->vec4); break;
+    case UI_STYLE_VAR_FONT: ui_style_font(attr, var->font); break;
+    case UI_STYLE_VAR_SIZE: ui_style_size(attr, var->size); break;
+    }
 }
 
 // =============================================================================
@@ -2607,8 +2680,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 if (special_case) {
                     // @todo This is a stupid hack for the case when we insert at the end
                     // of the buffer but the buffer doesn't end with a newline. We have to
-                    // insert 2 newlines in that case, but the cursor ends up in a weird 
-                    // state. 
+                    // insert 2 newlines in that case, but the cursor ends up in a weird
+                    // state.
                     info->cursor.byte_offset--;
                     info->cursor.selection_offset--;
                     buf_insert(info->buf, &info->cursor, str("\n"));
