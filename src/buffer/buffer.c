@@ -114,20 +114,24 @@ U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
 
 Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
     compute_aux(buf);
-    cursor->line = 0;
+
+    cursor->line = buf->lines.count - 1;
     cursor->column = 0;
-    array_iter (line, &buf->lines) { // @todo Replace this with binary search.
+
+    array_iter (line, &buf->lines) {
         U32 end_of_line = (line.data + line.count) - buf->data.data;
         if (end_of_line >= cursor->byte_offset) {
             cursor->line = ARRAY_IDX;
-            U32 off = line.data - buf->data.data;
-            str_utf8_iter (c, line) {
-                if (off >= cursor->byte_offset) break;
-                off += c.decode.inc;
-                cursor->column++;
-            }
             break;
         }
+    }
+
+    String line = buf_get_line(buf, 0, cursor->line);
+    U32 off = line.data - buf->data.data;
+    str_utf8_iter (c, line) {
+        if (off >= cursor->byte_offset) break;
+        off += c.decode.inc;
+        cursor->column++;
     }
 }
 
@@ -291,8 +295,12 @@ Void buf_cursor_move_to_start (Buf *buf, BufCursor *cursor, Bool move_selection)
 }
 
 Void buf_cursor_move_to_end (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    cursor->byte_offset = buf->data.count - 1;
+    cursor->byte_offset = buf->data.count;
     buf_offset_to_line_col(buf, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
+}
+
+Bool buf_cursor_at_end_no_newline (Buf *buf, BufCursor *cursor) {
+    return (cursor->byte_offset == buf->data.count) && !str_ends_with(buf->data.as_slice, str("\n")) ;
 }

@@ -2270,9 +2270,9 @@ istruct (UiTextBox) {
     Vec4 selection_fg_color;
     Vec4 cursor_color;
     Bool dragging;
-    Bool single_line;
     Font *font;
     F32 font_height;
+    Bool single_line_mode;
 };
 
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
@@ -2367,7 +2367,10 @@ static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + info->line_spacing);
 
     F32 visible_h = container->rect.h - 2*container->style.padding.y;
-    if (align == UI_ALIGN_MIDDLE) {
+
+    if (info->total_height <= visible_h) {
+        info->scroll_coord_n.y = 0;
+    } else if (align == UI_ALIGN_MIDDLE) {
         info->scroll_coord_n.y -= round(visible_h / 2);
     } else if (align == UI_ALIGN_END) {
         info->scroll_coord_n.y -= visible_h - cell_h - info->line_spacing;
@@ -2385,7 +2388,9 @@ static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
     // contains the text.
     F32 visible_w = container->rect.w - 2*container->style.padding.y;
 
-    if (align == UI_ALIGN_MIDDLE) {
+    if (info->total_width <= visible_w) {
+        info->scroll_coord_n.x = 0;
+    } else if (align == UI_ALIGN_MIDDLE) {
         info->scroll_coord_n.x -= round(visible_w / 2);
     } else if (align == UI_ALIGN_END) {
         info->scroll_coord_n.x -= visible_w - cell_w;
@@ -2465,6 +2470,12 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
         ui_style_font(UI_FONT, info->font);
         ui_style_f32(UI_FONT_SIZE, info->font_height);
+        set_font(container);
+
+        if (info->single_line_mode) {
+            U32 height = 2*container->style.padding.y + ui->font->height + info->line_spacing;
+            ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
+        }
 
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
@@ -2555,13 +2566,28 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
                 }
                 break;
             case SDLK_RETURN:
+                if (info->single_line_mode) break;
+
+                Bool special_case = buf_cursor_at_end_no_newline(info->buf, &info->cursor);
                 buf_insert(info->buf, &info->cursor, str("\n"));
+
+                if (special_case) {
+                    // @todo This is a stupid hack for the case when we insert at the end
+                    // of the buffer but the buffer doesn't end with a newline. We have to
+                    // insert 2 newlines in that case, but the cursor ends up in a weird 
+                    // state. 
+                    info->cursor.byte_offset--;
+                    info->cursor.selection_offset--;
+                    buf_insert(info->buf, &info->cursor, str("\n"));
+                }
+
                 text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_BACKSPACE:
                 if (info->cursor.byte_offset == info->cursor.selection_offset) buf_cursor_move_left(info->buf, &info->cursor, false);
                 buf_delete(info->buf, &info->cursor);
+                text_box_scroll_into_view(text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_LEFT:
@@ -2620,7 +2646,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 }
 
 static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
-    info->single_line = true;
+    info->single_line_mode = true;
     UiBox *box = ui_text_box(id, info);
     ui_style_box_vec4(box, UI_RADIUS, vec4(4, 4, 4, 4));
     ui_style_box_vec4(box, UI_BG_COLOR, vec4(0, 0, 0, .4));
@@ -2628,8 +2654,8 @@ static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
     ui_style_box_vec4(box, UI_BORDER_WIDTHS, vec4(1, 1, 1, 1));
     ui_style_box_f32(box, UI_INSET_SHADOW_WIDTH, 2);
     ui_style_box_vec4(box, UI_INSET_SHADOW_COLOR, vec4(0, 0, 0, .4));
+    ui_style_box_vec2(box, UI_PADDING, vec2(12, 12));
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
-    ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, info->font_height + 8, 0});
     return box;
 }
 
