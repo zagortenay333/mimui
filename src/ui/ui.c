@@ -440,7 +440,7 @@ Void ui_test () {
 
         log_scope(ls, 1);
 
-        #if 0
+        #if 1
         if (current_frame - first_counted_frame >= 0.1) {
             tmem_new(tm);
             String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
@@ -2683,8 +2683,6 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     UiBox *container = ui_box_str(0, label) {
-        set_font(container);
-
         UiTextBox *old_info = cast(UiTextBox*, container->scratch);
         UiTextBox *info     = mem_new(ui->frame_mem, UiTextBox);
         if (old_info) *info = *old_info;
@@ -2693,6 +2691,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         info->buf = buf;
         info->single_line_mode = single_line_mode;
 
+        set_font(container);
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
         ui_style_f32(UI_FONT_SIZE, font->size);
@@ -2706,10 +2705,8 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
         F32 visible_h = container->rect.h - 2*container->style.padding.y;
-
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
-
         F32 scrollbar_width = ui_config_get_f32(UI_CONFIG_SCROLLBAR_WIDTH);
 
         UiBox *text_box = ui_box(UI_BOX_CAN_FOCUS|UI_BOX_REACTIVE|UI_BOX_CLIPPING, "text") {
@@ -2889,7 +2886,6 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_config_get_f32(UI_CONFIG_ANIMATION_TIME_1));
         if (ui->font) info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
-        container->scratch = cast(U64, info);
     }
 
     return container;
@@ -3467,11 +3463,9 @@ static Void build_misc_view () {
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
+            ui_style_rule("#box2_7") ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
-            for (U64 i = 0; i < 100; ++i) {
-                ui_int_picker(astr_fmt(ui->frame_mem, "%li", i), &app->intval, 0, 10, 4, 3);
-            }
-
+            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 4, 3);
         }
 
         ui_box(0, "box2_8") {
