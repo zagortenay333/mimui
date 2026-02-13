@@ -1485,11 +1485,11 @@ Bool set_font (UiBox *box) {
 }
 
 // =============================================================================
-// Style vars:
+// Config:
 // =============================================================================
 static UiConfig *ui_config_get (String name) {
     array_iter_back (box, &ui->box_stack) {
-        array_iter (config, &box->configs, *) {
+        array_iter_back (config, &box->configs, *) {
             if (str_match(name, config->name)) {
                 return config;
             }
@@ -1508,15 +1508,6 @@ static Font  *ui_config_get_font (String name) { UiConfig *c = ui_config_get(nam
 
 static Void ui_config_def (UiConfig config) {
     UiBox *box = array_get_last(&ui->box_stack);
-
-    #if BUILD_DEBUG
-        array_iter (it, &box->configs, *) {
-            if (str_match(it->name, config.name)) {
-                error_fmt("Redeclaration of style variable: %.*s", STR(config.name));
-            }
-        }
-    #endif
-
     array_push(&box->configs, config);
 }
 
@@ -3477,7 +3468,10 @@ static Void build_misc_view () {
             ui_tag("hbox");
             ui_tag("item");
 
-            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 4, 3);
+            for (U64 i = 0; i < 100; ++i) {
+                ui_int_picker(astr_fmt(ui->frame_mem, "%li", i), &app->intval, 0, 10, 4, 3);
+            }
+
         }
 
         ui_box(0, "box2_8") {
