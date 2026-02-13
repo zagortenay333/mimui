@@ -1475,8 +1475,8 @@ static Void ui_tag_box     (UiBox *box, CString tag) { return ui_tag_box_str(box
 static Void ui_tag         (CString tag)             { return ui_tag_box_str(array_get_last(&ui->box_stack), str(tag)); }
 
 Bool set_font (UiBox *box) {
-    Font *font = box->next_style.font;
-    U32 size = box->next_style.font_size;
+    Font *font = box->style.font;
+    U32 size = box->style.font_size;
     if (!font || !size) return false;
     if (ui->font != font || size != ui->font->size) {
         flush_vertices();
@@ -2684,16 +2684,15 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
+        set_font(container);
+
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
         ui_style_f32(UI_FONT_SIZE, font->size);
 
-        set_font(container);
-
         F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
         if (info->single_line_mode) {
-            if (ui->font) printf("%u\n", ui->font->height);
             U32 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
         }
@@ -3378,9 +3377,7 @@ static Void build_misc_view () {
                 }
             }
 
-            UiBox *entry = ui_entry(str("entry"), app->entry, 200);
-            ui_style_box_font(entry, UI_FONT, app->mono_font);
-            ui_style_box_f32(entry, UI_FONT_SIZE, 12.0);
+            ui_entry(str("entry"), app->entry, 200);
         }
 
         ui_box(0, "box2_7") {
