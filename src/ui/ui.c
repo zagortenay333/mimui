@@ -567,6 +567,14 @@ ienum (UiSizeTag, U8) {
     UI_SIZE_CHILDREN_SUM,
 };
 
+#define UI_THEME_FONT_NORMAL        str("ui_theme_font_normal")
+#define UI_THEME_FONT_BOLD          str("ui_theme_font_bold")
+#define UI_THEME_FONT_MONO          str("ui_theme_font_mono")
+#define UI_THEME_FONT_ICONS         str("ui_theme_font_icons")
+#define UI_THEME_ANIMATION_TIME_1   str("ui_theme_animation_time_1")
+#define UI_THEME_ANIMATION_TIME_2   str("ui_theme_animation_time_2")
+#define UI_THEME_LINE_SPACING       str("ui_theme_line_spacing")
+#define UI_THEME_SCROLLBAR_WIDTH    str("ui_theme_scrollbar_width")
 #define UI_THEME_PADDING_1          str("ui_theme_padding_1")
 #define UI_THEME_RADIUS_1           str("ui_theme_radius_1")
 #define UI_THEME_RADIUS_2           str("ui_theme_radius_2")
@@ -593,6 +601,62 @@ ienum (UiSizeTag, U8) {
 #define UI_THEME_BLUR               str("ui_theme_blur")
 #define UI_THEME_HIGHLIGHT          str("ui_theme_highlight")
 #define UI_THEME_SLIDER_KNOB        str("ui_theme_slider_knob")
+
+ienum (Icon, U32) {
+    ICON_CHECK = 0xe900,
+    ICON_WRENCH,
+    ICON_UNDERSCORE,
+    ICON_TRASH,
+    ICON_TRANSLATE,
+    ICON_TODO,
+    ICON_TODO_LOADING,
+    ICON_TIME_TRACKER,
+    ICON_TIMER,
+    ICON_STRIKETHROUGH,
+    ICON_STOPWATCH,
+    ICON_START,
+    ICON_SORT_DESC,
+    ICON_SORT_ASC,
+    ICON_SEARCH,
+    ICON_QUESTION,
+    ICON_POMODORO,
+    ICON_PLUS,
+    ICON_PIN,
+    ICON_PAUSE,
+    ICON_PAN_UP,
+    ICON_PAN_RIGHT,
+    ICON_PAND_DOWN,
+    ICON_MINUS,
+    ICON_MARK,
+    ICON_LINK,
+    ICON_KANBAN,
+    ICON_ITALIC,
+    ICON_ISSUE,
+    ICON_IMPORT_EXPORT,
+    ICON_HOME,
+    ICON_HIDDEN,
+    ICON_HEATMAP,
+    ICON_HEADER,
+    ICON_HAMBURGER,
+    ICON_GRAPH,
+    ICON_GRAPH_INTERVAL,
+    ICON_FULLSCREEN,
+    ICON_FOLDER,
+    ICON_FLASH,
+    ICON_FIRE,
+    ICON_FILTER,
+    ICON_FILE,
+    ICON_EYE,
+    ICON_EYE_CLOSED,
+    ICON_EXAM,
+    ICON_EDIT,
+    ICON_CODE,
+    ICON_CLOSE,
+    ICON_BOLD,
+    ICON_ALARM,
+};
+
+#define get_icon(X) X
 
 istruct (UiSize) {
     UiSizeTag tag;
@@ -1854,16 +1918,16 @@ static UiBox *ui_label (CString id, String label) {
     return box;
 }
 
-static UiBox *ui_icon (CString id, Font *font, U32 size, U32 icon) {
+static UiBox *ui_icon (CString id, U32 size, U32 icon) {
     UiBox *label = ui_label(id, str_utf32_to_utf8(ui->frame_mem, icon));
-    ui_style_box_font(label, UI_FONT, font);
+    ui_style_box_from_var(label, UI_FONT, UI_THEME_FONT_ICONS);
     ui_style_box_f32(label, UI_FONT_SIZE, size);
     return label;
 }
 
-static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon, Bool *val) {
+static UiBox *ui_checkbox (CString id, Bool *val) {
     UiBox *bg = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
-        F32 s = icon_size + 4;
+        F32 s = 20;
 
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, s, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, s, 1});
@@ -1885,7 +1949,7 @@ static UiBox *ui_checkbox (CString id, Font *icon_font, U32 icon_size, U32 icon,
         if (*val) {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_MAGENTA_1);
             ui_style_from_var(UI_BORDER_COLOR, UI_THEME_BORDER_2_COLOR);
-            ui_icon("mark", icon_font, icon_size, icon);
+            ui_icon("mark", 16, get_icon(ICON_CHECK));
         } else {
             ui_style_from_var(UI_BG_COLOR, UI_THEME_BG_3);
         }
@@ -2421,15 +2485,6 @@ istruct (UiTextBox) {
     F32 total_height;
     Bool dragging;
     Bool single_line_mode;
-
-    Font *font;
-    F32 font_height;
-    U32 scrollbar_width;
-    U32 line_spacing;
-    F32 scroll_animation_time;
-    Vec4 selection_bg_color;
-    Vec4 selection_fg_color;
-    Vec4 cursor_color;
 };
 
 static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
@@ -2445,7 +2500,7 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
     x = floor(x - info->scroll_coord.x);
 
     F32 descent = cast(F32, ui->font->descent);
-    F32 line_spacing = info->line_spacing / 2;
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
 
     U64 selection_start = info->cursor.byte_offset;
     U64 selection_end   =  info->cursor.selection_offset;
@@ -2462,12 +2517,12 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             if (selected) draw_rect(
                 .color        = ui_style_var_get_vec4(UI_THEME_BG_SELECTION),
                 .color2       = ui_style_var_get_vec4(UI_THEME_BG_SELECTION),
-                .top_left     = {x, y - cell_h - info->line_spacing},
+                .top_left     = {x, y - cell_h - line_spacing},
                 .bottom_right = {x + cell_w, y},
             );
 
             AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
-            Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
+            Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing/2 - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
             Vec4 final_text_color = selected ? ui_style_var_get_vec4(UI_THEME_FG_SELECTION) : color;
 
@@ -2496,10 +2551,11 @@ static Void text_box_draw (UiBox *box) {
     U32 cell_h = ui->font->height;
     U32 cell_w = ui->font->width;
 
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
     info->total_width  = buf_get_widest_line(info->buf) * cell_w;
-    info->total_height = buf_get_line_count(info->buf) * (cell_h + info->line_spacing);
+    info->total_height = buf_get_line_count(info->buf) * (cell_h + line_spacing);
 
-    F32 line_height = cell_h + info->line_spacing;
+    F32 line_height = cell_h + line_spacing;
     BufCursor pos = text_box_coord_to_cursor(box, info, box->rect.top_left);
     F32 y = box->rect.y + line_height - info->scroll_coord.y + (pos.line * line_height);
 
@@ -2520,8 +2576,9 @@ static Void text_box_draw (UiBox *box) {
 static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
     UiTextBox *info = cast(UiTextBox*, container->scratch);
 
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
     U32 cell_h = ui->font->height;
-    info->scroll_coord_n.y = cast(F32, line) * (cell_h + info->line_spacing);
+    info->scroll_coord_n.y = cast(F32, line) * (cell_h + line_spacing);
 
     F32 visible_h = container->rect.h - 2*container->style.padding.y;
 
@@ -2530,7 +2587,7 @@ static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
     } else if (align == UI_ALIGN_MIDDLE) {
         info->scroll_coord_n.y -= round(visible_h / 2);
     } else if (align == UI_ALIGN_END) {
-        info->scroll_coord_n.y -= visible_h - cell_h - info->line_spacing;
+        info->scroll_coord_n.y -= visible_h - cell_h - line_spacing;
     }
 }
 
@@ -2559,11 +2616,12 @@ static Void text_box_scroll_into_view (UiBox *box, BufCursor *pos, U32 padding) 
 
     U32 cell_w = ui->font->width;
     U32 cell_h = ui->font->height;
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
 
     Vec2 coord = text_box_cursor_to_coord(box, info, pos);
 
     U32 x_padding = padding * cell_w;
-    U32 y_padding = padding * (cell_h + info->line_spacing);
+    U32 y_padding = padding * (cell_h + line_spacing);
 
     if (coord.x < box->rect.x + x_padding) {
         text_box_hscroll(box->parent, sat_sub32(pos->column, padding), UI_ALIGN_START);
@@ -2584,11 +2642,12 @@ static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coo
 
     F32 cell_w = ui->font->width;
     F32 cell_h = ui->font->height;
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
 
     coord.x = coord.x - box->rect.x + info->scroll_coord.x;
     coord.y = coord.y - box->rect.y + info->scroll_coord.y;
 
-    line = clamp(coord.y / (cell_h + info->line_spacing), cast(F32, 0), cast(F32, buf_get_line_count(info->buf)-1));
+    line = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, buf_get_line_count(info->buf)-1));
 
     tmem_new(tm);
     String line_text = buf_get_line(info->buf, tm, line);
@@ -2603,9 +2662,10 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
     Vec2 coord = {};
 
     F32 char_width  = ui->font->width;
-    F32 line_height = ui->font->height + info->line_spacing;
+    F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
+    F32 line_height = ui->font->height + line_spacing;
 
-    coord.y = pos->line * line_height + info->line_spacing/2;
+    coord.y = pos->line * line_height + line_spacing/2;
 
     tmem_new(tm);
     String line_str = buf_get_line(info->buf, tm, pos->line);
@@ -2625,12 +2685,16 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
-        ui_style_font(UI_FONT, info->font);
-        ui_style_f32(UI_FONT_SIZE, info->font_height);
         set_font(container);
 
+        Font *font = ui_style_var_get_font(UI_THEME_FONT_MONO);
+        ui_style_font(UI_FONT, font);
+        ui_style_f32(UI_FONT_SIZE, font->size);
+
+        F32 line_spacing = ui_style_var_get_f32(UI_THEME_LINE_SPACING);
+
         if (info->single_line_mode) {
-            U32 height = 2*container->style.padding.y + ui->font->height + info->line_spacing;
+            U32 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
         }
 
@@ -2640,17 +2704,19 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         Bool scroll_y = info->total_height > visible_h && visible_h > 0;
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
 
+        F32 scrollbar_width = ui_style_var_get_f32(UI_THEME_SCROLLBAR_WIDTH);
+
         UiBox *text_box = ui_box(UI_BOX_CAN_FOCUS|UI_BOX_REACTIVE|UI_BOX_CLIPPING, "text") {
             ui_style_u32(UI_ANIMATION, UI_MASK_HEIGHT|UI_MASK_WIDTH);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, container->rect.w - container->style.padding.x - (scroll_y ? info->scrollbar_width : 0), 1});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? info->scrollbar_width : 0), 1});
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, container->rect.w - container->style.padding.x - (scroll_y ? scrollbar_width : 0), 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? scrollbar_width : 0), 1});
 
             if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
                 U32 cell_w = ui->font->width;
                 U32 cell_h = ui->font->height;
 
                 if (scroll_y && !is_key_pressed(SDLK_LSHIFT)) {
-                    info->scroll_coord_n.y -= (cell_h + info->line_spacing) * ui->event->y;
+                    info->scroll_coord_n.y -= (cell_h + line_spacing) * ui->event->y;
                     info->scroll_coord_n.y  = clamp(info->scroll_coord_n.y, 0, info->total_height - visible_h);
                     ui_eat_event();
                 } else if (scroll_x) {
@@ -2665,8 +2731,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (scroll_y) {
             F32 ratio = visible_h / info->total_height;
-            UiRect rect = { container->rect.w - info->scrollbar_width, 0, info->scrollbar_width, container->rect.h };
-            if (scroll_x) rect.h -= info->scrollbar_width;
+            UiRect rect = { container->rect.w - scrollbar_width, 0, scrollbar_width, container->rect.h };
+            if (scroll_x) rect.h -= scrollbar_width;
 
             F32 max_y_offset = max(0.0f, info->total_height - visible_h);
             F32 knob_height  = rect.h * (visible_h / info->total_height);
@@ -2680,8 +2746,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
 
         if (scroll_x) {
             F32 ratio = visible_w / info->total_width;
-            UiRect rect = { 0, container->rect.h - info->scrollbar_width, container->rect.w, info->scrollbar_width };
-            if (scroll_y) rect.w -= info->scrollbar_width;
+            UiRect rect = { 0, container->rect.h - scrollbar_width, container->rect.w, scrollbar_width };
+            if (scroll_y) rect.w -= scrollbar_width;
 
             F32 max_x_offset = max(0.0f, info->total_width - visible_w);
             F32 knob_width   = rect.w * (visible_w / info->total_width);
@@ -2815,7 +2881,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             ui_eat_event();
         }
 
-        animate_vec2(&info->scroll_coord, info->scroll_coord_n, info->scroll_animation_time);
+        animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_style_var_get_f32(UI_THEME_ANIMATION_TIME_2));
         if (ui->font) info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
         container->scratch = cast(U64, info);
     }
@@ -3074,6 +3140,14 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
         ui->depth_first.count = 0;
 
         ui->root = ui_box(0, "root") {
+            ui_style_var_def_font(UI_THEME_FONT_NORMAL, font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false));
+            ui_style_var_def_font(UI_THEME_FONT_BOLD,   font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false));
+            ui_style_var_def_font(UI_THEME_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));
+            ui_style_var_def_font(UI_THEME_FONT_ICONS,  font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true));
+            ui_style_var_def_f32(UI_THEME_ANIMATION_TIME_1, .3);
+            ui_style_var_def_f32(UI_THEME_ANIMATION_TIME_2, 1);
+            ui_style_var_def_f32(UI_THEME_LINE_SPACING, 2);
+            ui_style_var_def_f32(UI_THEME_SCROLLBAR_WIDTH, 10);
             ui_style_var_def_vec2(UI_THEME_PADDING_1, vec2(8, 8));
             ui_style_var_def_vec4(UI_THEME_RADIUS_1, vec4(4, 4, 4, 4));
             ui_style_var_def_vec4(UI_THEME_RADIUS_2, vec4(8, 8, 8, 8));
@@ -3091,7 +3165,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_style_var_def_vec4(UI_THEME_BG_2, vec4(.2, .2, .2, 1));
             ui_style_var_def_vec4(UI_THEME_BG_3, vec4(0, 0, 0, .4));
             ui_style_var_def_vec4(UI_THEME_BG_4, vec4(0, 0, 0, .6));
-            ui_style_var_def_vec4(UI_THEME_BG_SELECTION, vec4(0, 0, 1, 1));
+            ui_style_var_def_vec4(UI_THEME_BG_SELECTION, vec4(0, 1, 1, 1));
             ui_style_var_def_vec4(UI_THEME_FG_1, vec4(1, 1, 1, .8));
             ui_style_var_def_vec4(UI_THEME_FG_2, vec4(1, 1, 1, .5));
             ui_style_var_def_vec4(UI_THEME_FG_3, vec4(.3, .3, .3, .8));
@@ -3184,60 +3258,6 @@ istruct (App) {
     UiImage image;
 };
 
-ienum (Icon, U32) {
-    MY_ICON_CHECK = 0xe900,
-    MY_ICON_WRENCH,
-    MY_ICON_UNDERSCORE,
-    MY_ICON_TRASH,
-    MY_ICON_TRANSLATE,
-    MY_ICON_TODO,
-    MY_ICON_TODO_LOADING,
-    MY_ICON_TIME_TRACKER,
-    MY_ICON_TIMER,
-    MY_ICON_STRIKETHROUGH,
-    MY_ICON_STOPWATCH,
-    MY_ICON_START,
-    MY_ICON_SORT_DESC,
-    MY_ICON_SORT_ASC,
-    MY_ICON_SEARCH,
-    MY_ICON_QUESTION,
-    MY_ICON_POMODORO,
-    MY_ICON_PLUS,
-    MY_ICON_PIN,
-    MY_ICON_PAUSE,
-    MY_ICON_PAN_UP,
-    MY_ICON_PAN_RIGHT,
-    MY_ICON_PAND_DOWN,
-    MY_ICON_MINUS,
-    MY_ICON_MARK,
-    MY_ICON_LINK,
-    MY_ICON_KANBAN,
-    MY_ICON_ITALIC,
-    MY_ICON_ISSUE,
-    MY_ICON_IMPORT_EXPORT,
-    MY_ICON_HOME,
-    MY_ICON_HIDDEN,
-    MY_ICON_HEATMAP,
-    MY_ICON_HEADER,
-    MY_ICON_HAMBURGER,
-    MY_ICON_GRAPH,
-    MY_ICON_GRAPH_INTERVAL,
-    MY_ICON_FULLSCREEN,
-    MY_ICON_FOLDER,
-    MY_ICON_FLASH,
-    MY_ICON_FIRE,
-    MY_ICON_FILTER,
-    MY_ICON_FILE,
-    MY_ICON_EYE,
-    MY_ICON_EYE_CLOSED,
-    MY_ICON_EXAM,
-    MY_ICON_EDIT,
-    MY_ICON_CODE,
-    MY_ICON_CLOSE,
-    MY_ICON_BOLD,
-    MY_ICON_ALARM,
-};
-
 App *app;
 
 static Void build_text_view () {
@@ -3327,11 +3347,10 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
 
-            for (U64 i = MY_ICON_CHECK; i < MY_ICON_CHECK + 18; ++i) {
-                tmem_new(tm);
-                String id = astr_fmt(tm, "icon%lu%c", i, 0);
-                ui_icon(id.data, app->icon_font, 16, i);
-            }
+            ui_icon("icon1", 16, get_icon(ICON_TODO));
+            ui_icon("icon2", 16, get_icon(ICON_FIRE));
+            ui_icon("icon3", 16, get_icon(ICON_EYE));
+            ui_icon("icon4", 16, get_icon(ICON_ALARM));
         }
 
         ui_box(0, "box2_6") {
@@ -3339,7 +3358,7 @@ static Void build_misc_view () {
             ui_tag("item");
 
             ui_toggle("toggle", &app->toggle);
-            ui_checkbox("checkbox", app->icon_font, 16, MY_ICON_CHECK, &app->toggle);
+            ui_checkbox("checkbox", &app->toggle);
 
             UiBox *popup_button = ui_button("popup_button");
             app->popup.anchor = popup_button;
@@ -3517,22 +3536,9 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->text_box = mem_new(parena, UiTextBox);
     app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    app->text_box->scrollbar_width = 10;
-    app->text_box->line_spacing = 2;
-    app->text_box->scroll_animation_time = default_box_style.animation_time;
-    app->text_box->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
-    app->text_box->selection_fg_color = vec4(0, 0, 0, 1);
-    app->text_box->cursor_color = vec4(1, 0, 0, 1);
-    app->text_box->font = app->mono_font;
-    app->text_box->font_height = 12;
 
     app->entry = mem_new(parena, UiTextBox);
     app->entry->buf = buf_new(parena, str("asdf"));
-    app->entry->selection_bg_color = vec4(0.2, 0.4, 0.8, 1);
-    app->entry->selection_fg_color = vec4(0, 0, 0, 1);
-    app->entry->cursor_color = vec4(1, 0, 0, 1);
-    app->entry->font = app->mono_font;
-    app->entry->font_height = 12;
 }
 
 // @todo

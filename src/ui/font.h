@@ -38,7 +38,7 @@ istruct (Font) {
     hb_font_t *hb_font;
 
     Bool is_mono;
-    U32 size;
+    U32 size; // As given to font_get().
     U32 height;
     U32 width;
     U32 ascent;
