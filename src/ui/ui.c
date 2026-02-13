@@ -2684,11 +2684,11 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, UiTextBox *info) {
     UiBox *container = ui_box_str(0, label) {
-        set_font(container);
-
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
         ui_style_f32(UI_FONT_SIZE, font->size);
+
+        set_font(container);
 
         F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
