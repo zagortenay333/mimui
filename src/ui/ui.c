@@ -2291,7 +2291,7 @@ static Void ui_scroll_box_pop_ (Void *) {
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
 istruct (UiPopup) {
-    Bool shown;
+    Bool *shown;
     Bool sideways;
     UiBox *anchor;
 };
@@ -2370,7 +2370,7 @@ static Void layout_popup (UiBox *popup) {
     ui_style_box_f32(popup, UI_FLOAT_Y, y);
 }
 
-static UiBox *ui_popup_push (String id, UiPopup *info) {
+static UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *anchor) {
     ui_push_parent(ui->root);
     ui_push_clip(ui->root, false);
 
@@ -2380,12 +2380,16 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-    info->shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) info->shown = false;
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) info->shown = false;
+    *shown = true;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
 
     UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
+    UiPopup *info = mem_new(ui->frame_mem, UiPopup);
+    info->sideways = sideways;
+    info->shown = shown;
+    info->anchor = anchor;
     popup->scratch = cast(U64, info);
     array_push_lit(&ui->deferred_layout_fns, layout_popup, popup);
     ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
@@ -2415,8 +2419,8 @@ static Void ui_popup_pop_ (Void *) {
     ui_popup_pop();
 }
 
-#define ui_popup(LABEL, ANCHOR)\
-    ui_popup_push(str(LABEL), ANCHOR);\
+#define ui_popup(LABEL, SHOWN, SIDEWAYS, ANCHOR)\
+    ui_popup_push(str(LABEL), SHOWN, SIDEWAYS, ANCHOR);\
     if (cleanup(ui_popup_pop_) U8 _; 1)
 
 static Void size_modal (UiBox *modal, U64 axis) {
@@ -2920,9 +2924,9 @@ istruct (UiIntPicker) {
     I64 init;
     I64 val;
     Bool valid;
+    Bool popup_shown;
     U8 width_in_chars;
     UiTextBox text_box;
-    UiPopup popup;
 };
 
 static UiBox *ui_int_picker (String id, UiIntPicker *info) {
@@ -2968,11 +2972,10 @@ static UiBox *ui_int_picker (String id, UiIntPicker *info) {
             UiBox *icon = ui_icon("info_button", 16, get_icon(info->valid ? ICON_QUESTION : ICON_ISSUE));
             if (! info->valid) ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
 
-            info->popup.anchor = button;
-            if (info->popup.shown || button->signal.clicked) {
+            if (info->popup_shown || button->signal.clicked) {
                 ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_BLUE_TEXT);
                 ui_style_box_from_config(button, UI_BG_COLOR, UI_CONFIG_BG_2);
-                ui_popup("popup", &info->popup) {
+                ui_popup("popup", &info->popup_shown, false, button) {
                     ui_label("msg", astr_fmt(ui->frame_mem, "The value must be an integer between %li and %li.", info->min, info->max));
                 }
             }
@@ -3331,8 +3334,7 @@ istruct (App) {
     UiIntPicker int_picker;
 
     Bool modal_shown;
-
-    UiPopup popup;
+    Bool popup_shown;
 
     U32 view;
 
@@ -3445,10 +3447,9 @@ static Void build_misc_view () {
             ui_checkbox("checkbox", &app->toggle);
 
             UiBox *popup_button = ui_button("popup_button");
-            app->popup.anchor = popup_button;
-            if (app->popup.shown || popup_button->signal.clicked) {
+            if (app->popup_shown || popup_button->signal.clicked) {
                 ui_tag_box(popup_button, "press");
-                ui_popup("popup", &app->popup) {
+                ui_popup("popup", &app->popup_shown, false, popup_button) {
                     ui_box(0, "buttons") {
                         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
                         ui_style_f32(UI_SPACING, 8);
