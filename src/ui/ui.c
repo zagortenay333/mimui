@@ -3547,7 +3547,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 // - shortcut picker
 // - dropdown
 // - time picker
-// - orca style css vars
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
 //
