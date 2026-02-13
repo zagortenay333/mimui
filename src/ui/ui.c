@@ -451,7 +451,7 @@ Void ui_test () {
         if (current_frame - first_counted_frame >= 0.1) {
             tmem_new(tm);
             String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
-            glfwSetWindowTitle(window, title.data);
+            SDL_SetWindowTitle(window, title.data);
             frame_count = 0;
             first_counted_frame = current_frame;
         }
@@ -2092,7 +2092,10 @@ static UiBox *ui_button_str (String id, String label) {
             ui_pop_clip();
         }
 
-        ui_label("button_label", label);
+        UiBox *label_box = ui_label("button_label", label);
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+        ui_style_box_font(label_box, UI_FONT, font);
+        ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
     }
 
     return button;
@@ -2902,6 +2905,24 @@ static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
     return box;
 }
 
+istruct (UiIntPicker) {
+    I64 min;
+    I64 max;
+    I64 val;
+    Bool valid;
+    UiTextBox text_box;
+};
+
+static UiBox *ui_int_picker (String id, UiIntPicker *info) {
+    UiBox *container = ui_box_str(0, id) {
+        UiBox *entry = ui_entry(str("entry"), &info->text_box, 32);
+        F32 width = 2*entry->style.padding.x + 3*(entry->style.font ? entry->style.font->width : 12);
+        ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
+    }
+
+    return container;
+}
+
 static UiBox *ui_slider_str (String label, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, label) {
         ui_tag("slider");
@@ -3237,19 +3258,15 @@ istruct (App) {
     Mem *parena;
     Mem *farena;
 
-    UiTextBox *entry;
-    UiTextBox *text_box;
+    UiTextBox entry;
+    UiTextBox text_box;
+    UiIntPicker int_picker;
 
     Bool modal_shown;
 
     UiPopup popup;
 
     U32 view;
-
-    Font *normal_font;
-    Font *bold_font;
-    Font *mono_font;
-    Font *icon_font;
 
     F32 slider;
     Bool toggle;
@@ -3260,7 +3277,7 @@ istruct (App) {
 App *app;
 
 static Void build_text_view () {
-    UiBox *box = ui_text_box(str("text_box"), app->text_box);
+    UiBox *box = ui_text_box(str("text_box"), &app->text_box);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
@@ -3277,7 +3294,7 @@ static Void build_clock_view () {
         String time_str = astr_fmt(ui->frame_mem, "%02u:%02u:%02u", time.hours, time.minutes, time.seconds);
         UiBox *clock = ui_label("clock", time_str);
         ui_style_box_vec2(clock, UI_PADDING, vec2(40, 40));
-        ui_style_box_font(clock, UI_FONT, app->mono_font);
+        ui_style_box_from_config(clock, UI_FONT, UI_CONFIG_FONT_MONO);
         ui_style_box_f32(clock, UI_FONT_SIZE, 100.0);
     }
 }
@@ -3377,13 +3394,14 @@ static Void build_misc_view () {
                 }
             }
 
-            ui_entry(str("entry"), app->entry, 200);
+            ui_entry(str("entry"), &app->entry, 200);
         }
 
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
 
+            ui_int_picker(str("int_picker"), &app->int_picker);
         }
 
         ui_box(0, "box2_8") {
@@ -3439,11 +3457,6 @@ static Void show_modal () {
 
 static Void app_build () {
     ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_1);
-
-    ui_style_rule(".button #button_label") {
-        ui_style_font(UI_FONT, app->bold_font);
-        ui_style_f32(UI_FONT_SIZE, 12.0);
-    }
 
     ui_style_rule(".vbox") {
         ui_style_vec2(UI_PADDING, vec2(8, 8));
@@ -3526,16 +3539,9 @@ static Void app_init (Mem *parena, Mem *farena) {
 
     app->slider = .5;
 
-    app->normal_font = font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false);
-    app->bold_font   = font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false);
-    app->mono_font   = font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true);
-    app->icon_font   = font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true);
-
-    app->text_box = mem_new(parena, UiTextBox);
-    app->text_box->buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-
-    app->entry = mem_new(parena, UiTextBox);
-    app->entry->buf = buf_new(parena, str("asdf"));
+    app->text_box.buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
+    app->entry.buf = buf_new(parena, str("asdf"));
+    app->int_picker.text_box.buf = buf_new(parena, str(""));
 }
 
 // @todo
