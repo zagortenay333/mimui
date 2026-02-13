@@ -2385,7 +2385,7 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_from_config(popup, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
     ui_style_box_from_config(popup, UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
     ui_style_box_from_config(popup, UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
-    ui_style_box_f32(popup, UI_ANIMATION_TIME, 2);
+    ui_style_box_from_config(popup, UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_2);
     ui_style_box_u32(popup, UI_ANIMATION, UI_MASK_BG_COLOR);
     ui_style_from_config(UI_BLUR_RADIUS, UI_CONFIG_BLUR);
 
@@ -2437,7 +2437,6 @@ static UiBox *ui_modal_push (String id, Bool *shown) {
     ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
     ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-    ui_style_box_from_config(overlay, UI_BG_COLOR, UI_CONFIG_BG_3);
 
     *shown = true;
     if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
@@ -2694,6 +2693,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
         F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
         if (info->single_line_mode) {
+            if (ui->font) printf("%u\n", ui->font->height);
             U32 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
         }
@@ -3145,7 +3145,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_font(UI_CONFIG_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));
             ui_config_def_font(UI_CONFIG_FONT_ICONS,  font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true));
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, .3);
-            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 1);
+            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 2);
             ui_config_def_f32(UI_CONFIG_LINE_SPACING, 2);
             ui_config_def_f32(UI_CONFIG_SCROLLBAR_WIDTH, 10);
             ui_config_def_vec2(UI_CONFIG_PADDING_1, vec2(8, 8));
