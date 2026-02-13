@@ -584,10 +584,12 @@ ienum (UiSizeTag, U8) {
 #define UI_THEME_BG_2               str("ui_theme_bg_2")
 #define UI_THEME_BG_3               str("ui_theme_bg_3")
 #define UI_THEME_BG_4               str("ui_theme_bg_4")
+#define UI_THEME_BG_SELECTION       str("ui_theme_bg_selection")
 #define UI_THEME_FG_1               str("ui_theme_fg_1")
 #define UI_THEME_FG_2               str("ui_theme_fg_2")
 #define UI_THEME_FG_3               str("ui_theme_fg_3")
 #define UI_THEME_FG_4               str("ui_theme_fg_4")
+#define UI_THEME_FG_SELECTION       str("ui_theme_fg_selection")
 #define UI_THEME_BLUR               str("ui_theme_blur")
 #define UI_THEME_HIGHLIGHT          str("ui_theme_highlight")
 #define UI_THEME_SLIDER_KNOB        str("ui_theme_slider_knob")
@@ -1434,6 +1436,13 @@ static UiStyleVar *ui_style_var_get (String name) {
     return 0;
 }
 
+static U32    ui_style_var_get_u32  (String name) { UiStyleVar *var = ui_style_var_get(name); return var->u32; }
+static F32    ui_style_var_get_f32  (String name) { UiStyleVar *var = ui_style_var_get(name); return var->f32; }
+static Vec2   ui_style_var_get_vec2 (String name) { UiStyleVar *var = ui_style_var_get(name); return var->vec2; }
+static Vec4   ui_style_var_get_vec4 (String name) { UiStyleVar *var = ui_style_var_get(name); return var->vec4; }
+static UiSize ui_style_var_get_size (String name) { UiStyleVar *var = ui_style_var_get(name); return var->size; }
+static Font  *ui_style_var_get_font (String name) { UiStyleVar *var = ui_style_var_get(name); return var->font; }
+
 static Void ui_style_var_def (UiStyleVar var) {
     UiBox *box = array_get_last(&ui->box_stack);
 
@@ -1764,8 +1773,10 @@ static Void draw_box (UiBox *box) {
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 
+    array_push(&ui->box_stack, box); // For use_style_var_get().
     if (box->draw_fn) box->draw_fn(box);
     array_iter (c, &box->children) draw_box(c);
+    array_pop(&ui->box_stack);
 
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
@@ -2449,8 +2460,8 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             Bool selected = current.byte_offset >= selection_start && current.byte_offset < selection_end;
 
             if (selected) draw_rect(
-                .color        = info->selection_bg_color,
-                .color2       = info->selection_bg_color,
+                .color        = ui_style_var_get_vec4(UI_THEME_BG_SELECTION),
+                .color2       = ui_style_var_get_vec4(UI_THEME_BG_SELECTION),
                 .top_left     = {x, y - cell_h - info->line_spacing},
                 .bottom_right = {x + cell_w, y},
             );
@@ -2458,7 +2469,7 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-            Vec4 final_text_color = selected ? info->selection_fg_color : color;
+            Vec4 final_text_color = selected ? ui_style_var_get_vec4(UI_THEME_FG_SELECTION) : color;
 
             draw_rect(
                 .top_left     = top_left,
@@ -2499,8 +2510,8 @@ static Void text_box_draw (UiBox *box) {
     }
 
     if (box->signal.focused) draw_rect(
-        .color = info->cursor_color,
-        .color2 = info->cursor_color,
+        .color = ui_style_var_get_vec4(UI_THEME_MAGENTA_1),
+        .color2 = {-1},
         .top_left = info->cursor_coord,
         .bottom_right = { info->cursor_coord.x + 2, info->cursor_coord.y + cell_h },
     );
@@ -3080,10 +3091,12 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_style_var_def_vec4(UI_THEME_BG_2, vec4(.2, .2, .2, 1));
             ui_style_var_def_vec4(UI_THEME_BG_3, vec4(0, 0, 0, .4));
             ui_style_var_def_vec4(UI_THEME_BG_4, vec4(0, 0, 0, .6));
+            ui_style_var_def_vec4(UI_THEME_BG_SELECTION, vec4(0, 0, 1, 1));
             ui_style_var_def_vec4(UI_THEME_FG_1, vec4(1, 1, 1, .8));
             ui_style_var_def_vec4(UI_THEME_FG_2, vec4(1, 1, 1, .5));
             ui_style_var_def_vec4(UI_THEME_FG_3, vec4(.3, .3, .3, .8));
             ui_style_var_def_vec4(UI_THEME_FG_4, vec4(.2, .2, .2, .8));
+            ui_style_var_def_vec4(UI_THEME_FG_SELECTION, vec4(0, 0, 0, 1));
             ui_style_var_def_f32(UI_THEME_BLUR, 3);
             ui_style_var_def_vec4(UI_THEME_HIGHLIGHT, vec4(1, 1, 1, .05));
             ui_style_var_def_vec4(UI_THEME_SLIDER_KNOB, vec4(1, 1, 1, 1));
