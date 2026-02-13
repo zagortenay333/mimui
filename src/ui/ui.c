@@ -3617,7 +3617,6 @@ static Void app_init (Mem *parena, Mem *farena) {
 
 // @todo
 //
-// - int picker
 // - shortcut picker
 // - dropdown
 // - time picker
