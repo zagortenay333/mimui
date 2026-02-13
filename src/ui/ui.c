@@ -573,6 +573,7 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_FONT_ICONS         str("ui_config_font_icons")
 #define UI_CONFIG_ANIMATION_TIME_1   str("ui_config_animation_time_1")
 #define UI_CONFIG_ANIMATION_TIME_2   str("ui_config_animation_time_2")
+#define UI_CONFIG_ANIMATION_TIME_3   str("ui_config_animation_time_3")
 #define UI_CONFIG_LINE_SPACING       str("ui_config_line_spacing")
 #define UI_CONFIG_SCROLLBAR_WIDTH    str("ui_config_scrollbar_width")
 #define UI_CONFIG_PADDING_1          str("ui_config_padding_1")
@@ -587,6 +588,9 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_SHADOW_1_WIDTH     str("ui_config_shadow_1_width")
 #define UI_CONFIG_BORDER_FOCUS_WIDTH str("ui_config_border_focus_width")
 #define UI_CONFIG_BORDER_FOCUS_COLOR str("ui_config_border_focus_color")
+#define UI_CONFIG_BLUE_TEXT          str("ui_config_blue_text")
+#define UI_CONFIG_RED_1              str("ui_config_red_1")
+#define UI_CONFIG_RED_TEXT           str("ui_config_red_text")
 #define UI_CONFIG_MAGENTA_1          str("ui_config_magenta_1")
 #define UI_CONFIG_BG_1               str("ui_config_bg_1")
 #define UI_CONFIG_BG_2               str("ui_config_bg_2")
@@ -865,6 +869,7 @@ istruct (UiBox) {
     UiSignal signal;
     String label;
     UiKey key;
+    U64 start_frame;
     UiBoxFlags flags;
     U8 gc_flag;
     U64 scratch;
@@ -1012,6 +1017,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->style = default_box_style;
         box->rect = (UiRect){};
         box->content = (UiRect){};
+        box->start_frame = ui->frame;
         box->scratch = 0;
         box->draw_fn = 0;
         box->size_fn = 0;
@@ -1023,6 +1029,7 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         array_init(&box->configs, ui->mem);
         array_init(&box->tags, ui->mem);
         box->style = default_box_style;
+        box->start_frame = ui->frame;
         map_add(&ui->box_cache, key, box);
     }
 
@@ -1873,8 +1880,8 @@ static Void draw_label (UiBox *box) {
 
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
-    Bool first_frame     = box->rect.w == 0 || box->rect.h == 0;
-    Auto text            = *cast(String*, box->scratch);
+    Bool first_frame     = box->start_frame == ui->frame;
+    String text          = str(cast(CString, box->scratch));
     F32 x                = round(box->rect.x + box->style.padding.x);
     F32 y                = round(box->rect.y + box->rect.h - box->style.padding.y);
     U32 line_width       = 0;
@@ -1884,8 +1891,11 @@ static Void draw_label (UiBox *box) {
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
     array_iter (info, &infos, *) {
-        AtlasSlot *slot   = font_get_atlas_slot(ui->font, info);
-        Vec2 top_left     = {x_pos + slot->bearing_x, y + info->y - descent - slot->bearing_y};
+        AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
+        Vec2 top_left = {
+            ui->font->is_mono ? (x_pos + slot->bearing_x) : (x + info->x + slot->bearing_x),
+            y + info->y - descent - slot->bearing_y
+        };
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
         draw_rect(
@@ -1896,8 +1906,8 @@ static Void draw_label (UiBox *box) {
             .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
         );
 
-        x_pos += ui->font->is_mono ? width : (slot->bearing_x + info->x_advance);
-        if (ARRAY_ITER_DONE) line_width = x_pos - x;
+        x_pos += width;
+        if (ARRAY_ITER_DONE) line_width = ui->font->is_mono ? (x_pos - x) : (info->x + slot->bearing_x + info->x_advance);
     }
 
     box->rect.w = line_width + 2*box->style.padding.x;
@@ -1906,13 +1916,14 @@ static Void draw_label (UiBox *box) {
 
 static UiBox *ui_label (CString id, String label) {
     UiBox *box = ui_box_str(UI_BOX_CLICK_THROUGH, str(id)) {
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_NORMAL);
+        ui_style_font(UI_FONT, font);
+        ui_style_f32(UI_FONT_SIZE, font->size);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 1});
         box->size_fn = size_label;
         box->draw_fn = draw_label;
-        Auto data = mem_new(ui->frame_mem, String);
-        *data = label;
-        box->scratch = cast(U64, data);
+        box->scratch = cast(U64, cstr(ui->frame_mem, label));
     }
 
     return box;
@@ -2280,7 +2291,6 @@ static Void ui_scroll_box_pop_ (Void *) {
     if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 
 istruct (UiPopup) {
-    U8 frame;
     Bool shown;
     Bool sideways;
     UiBox *anchor;
@@ -2321,8 +2331,7 @@ static Void layout_popup (UiBox *popup) {
     // nasty flickering... We have to do this on top of also having to
     // use the deferred_layout_fns feature for popups...
     popup->flags &= ~UI_BOX_INVISIBLE;
-    if (info->frame < 2) popup->flags |= UI_BOX_INVISIBLE;
-    if (info->frame < 10) info->frame++;
+    if (ui->frame - popup->start_frame < 2) popup->flags |= UI_BOX_INVISIBLE;
 
     enum { POPUP_LEFT, POPUP_RIGHT, POPUP_TOP, POPUP_BOTTOM } side;
 
@@ -2372,8 +2381,8 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
     info->shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) { info->frame = 0; info->shown = false; }
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) { info->frame = 0; info->shown = false; }
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) info->shown = false;
+    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) info->shown = false;
 
     UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
@@ -2388,7 +2397,7 @@ static UiBox *ui_popup_push (String id, UiPopup *info) {
     ui_style_box_from_config(popup, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
     ui_style_box_from_config(popup, UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
     ui_style_box_from_config(popup, UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
-    ui_style_box_from_config(popup, UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_2);
+    ui_style_box_from_config(popup, UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_3);
     ui_style_box_u32(popup, UI_ANIMATION, UI_MASK_BG_COLOR);
     ui_style_from_config(UI_BLUR_RADIUS, UI_CONFIG_BLUR);
 
@@ -2746,7 +2755,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             if (before != after) info->scroll_coord.y = info->scroll_coord_n.y = clamp(after / max_knob_v, 0, 1) * max_y_offset;
         }
 
-        if (scroll_x) {
+        if (scroll_x && !info->single_line_mode) {
             F32 ratio = visible_w / info->total_width;
             UiRect rect = { 0, container->rect.h - scrollbar_width, container->rect.w, scrollbar_width };
             if (scroll_y) rect.w -= scrollbar_width;
@@ -2883,7 +2892,7 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
             ui_eat_event();
         }
 
-        animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_config_get_f32(UI_CONFIG_ANIMATION_TIME_2));
+        animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_config_get_f32(UI_CONFIG_ANIMATION_TIME_1));
         if (ui->font) info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
         container->scratch = cast(U64, info);
     }
@@ -2908,16 +2917,71 @@ static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
 istruct (UiIntPicker) {
     I64 min;
     I64 max;
+    I64 init;
     I64 val;
     Bool valid;
+    U8 width_in_chars;
     UiTextBox text_box;
+    UiPopup popup;
 };
 
 static UiBox *ui_int_picker (String id, UiIntPicker *info) {
     UiBox *container = ui_box_str(0, id) {
         UiBox *entry = ui_entry(str("entry"), &info->text_box, 32);
-        F32 width = 2*entry->style.padding.x + 3*(entry->style.font ? entry->style.font->width : 12);
+        F32 width = info->width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
+        ui_style_box_vec4(entry, UI_RADIUS, vec4(0, entry->next_style.radius.y, 0, entry->next_style.radius.w));
+
+        if (container->start_frame == ui->frame) {
+            String str = astr_fmt(ui->frame_mem, "%li", info->init);
+            buf_insert(info->text_box.buf, &info->text_box.cursor, str);
+        }
+
+        { // Parse value:
+            String text = buf_get_str(info->text_box.buf, ui->frame_mem);
+
+            info->valid = true;
+            array_iter (c, &text) {
+                if (c == '-' && ARRAY_IDX == 0) continue;
+                if (c < '0' || c > '9') { info->valid = false; break; }
+            }
+
+            if (info->valid) info->valid = str_to_i64(cstr(ui->frame_mem, text), &info->val, 10);
+            if (info->valid && (info->val < info->min || info->val > info->max)) info->valid = false;
+        }
+
+        UiBox *button = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "info_button") {
+            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+            ui_style_size(UI_HEIGHT, entry->style.size.height);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+            ui_style_box_vec4(button, UI_RADIUS, vec4(button->next_style.radius.x, 0, button->next_style.radius.z, 0));
+            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+
+            if (button->signal.pressed || button->signal.hovered) {
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_2);
+            }
+
+            UiBox *icon = ui_icon("info_button", 16, get_icon(info->valid ? ICON_QUESTION : ICON_ISSUE));
+            if (! info->valid) ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
+
+            info->popup.anchor = button;
+            if (info->popup.shown || button->signal.clicked) {
+                ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_BLUE_TEXT);
+                ui_style_box_from_config(button, UI_BG_COLOR, UI_CONFIG_BG_2);
+                ui_popup("popup", &info->popup) {
+                    ui_label("msg", astr_fmt(ui->frame_mem, "The value must be an integer between %li and %li.", info->min, info->max));
+                }
+            }
+
+            if (button->signal.focused) {
+                ui_style_box_from_config(button, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
+                ui_style_box_from_config(button, UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
+            }
+        }
     }
 
     return container;
@@ -3165,7 +3229,8 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_font(UI_CONFIG_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));
             ui_config_def_font(UI_CONFIG_FONT_ICONS,  font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true));
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, .3);
-            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 2);
+            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 1);
+            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_3, 2);
             ui_config_def_f32(UI_CONFIG_LINE_SPACING, 2);
             ui_config_def_f32(UI_CONFIG_SCROLLBAR_WIDTH, 10);
             ui_config_def_vec2(UI_CONFIG_PADDING_1, vec2(8, 8));
@@ -3180,6 +3245,9 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_f32(UI_CONFIG_SHADOW_1_WIDTH, 1);
             ui_config_def_vec4(UI_CONFIG_BORDER_FOCUS_WIDTH, vec4(2, 2, 2, 2));
             ui_config_def_vec4(UI_CONFIG_BORDER_FOCUS_COLOR, vec4(1, 1, 1, .8));
+            ui_config_def_vec4(UI_CONFIG_BLUE_TEXT, vec4(0, 0, 1, 1));
+            ui_config_def_vec4(UI_CONFIG_RED_1, vec4(1, 0, 0, 1));
+            ui_config_def_vec4(UI_CONFIG_RED_TEXT, vec4(1, 0, 0, 1));
             ui_config_def_vec4(UI_CONFIG_MAGENTA_1, hsva2rgba(vec4(.8, .4, 1, .8f)));
             ui_config_def_vec4(UI_CONFIG_BG_1, vec4(.15, .15, .15, 1));
             ui_config_def_vec4(UI_CONFIG_BG_2, vec4(.2, .2, .2, 1));
@@ -3542,6 +3610,9 @@ static Void app_init (Mem *parena, Mem *farena) {
     app->text_box.buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
     app->entry.buf = buf_new(parena, str("asdf"));
     app->int_picker.text_box.buf = buf_new(parena, str(""));
+    app->int_picker.max = 10;
+    app->int_picker.min = 0;
+    app->int_picker.width_in_chars = 3;
 }
 
 // @todo

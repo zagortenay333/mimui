@@ -54,6 +54,7 @@ String    str_prefix_to_last    (String, U8 byte);
 String    str_suffix_from_first (String, U8 byte);
 String    str_suffix_from_last  (String, U8 byte);
 Void      str_clear             (String, U8 byte);
+Bool      str_to_i64            (CString, I64 *out, U64 base);
 Bool      str_to_u64            (CString, U64 *out, U64 base);
 Bool      str_to_f64            (CString, F64 *out);
 Void      str_split             (String, String seps, Bool keep_seps, Bool keep_empties, ArrayString *);

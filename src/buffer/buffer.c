@@ -311,3 +311,8 @@ String buf_get_selection (Buf *buf, BufCursor *cursor) {
     if (start > end) swap(start, end);
     return str_slice(buf->data.as_slice, start, end - start);
 }
+
+Void buf_clear (Buf *buf) {
+    buf->data.count = 0;
+    buf->dirty = true;
+}

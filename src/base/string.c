@@ -109,6 +109,13 @@ String str_suffix_from_first (String str, U8 byte) {
     return (String){};
 }
 
+Bool str_to_i64 (CString str, I64 *out, U64 base) {
+    errno = 0;
+    Char *endptr = 0;
+    *out = cast(U64, strtol(str, &endptr, base));
+    return (errno == 0) && (endptr != str);
+}
+
 Bool str_to_u64 (CString str, U64 *out, U64 base) {
     errno = 0;
     Char *endptr = 0;
