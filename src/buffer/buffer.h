@@ -25,6 +25,8 @@ Buf         *buf_new                      (Mem *, String);
 Buf         *buf_new_from_file            (Mem *, String filepath);
 BufLineIter *buf_line_iter_new            (Buf *, Mem *, U32);
 Bool         buf_line_iter_next           (BufLineIter *);
+Void         buf_clear                    (Buf *);
+Buf         *buf_copy                     (Buf *, Mem *);
 String       buf_get_line                 (Buf *, Mem *, U32);
 U32          buf_get_widest_line          (Buf *);
 U32          buf_get_line_count           (Buf *);
@@ -46,7 +48,6 @@ Void         buf_cursor_move_to_start     (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_to_end       (Buf *, BufCursor *, Bool);
 Bool         buf_cursor_at_end_no_newline (Buf *, BufCursor *);
 String       buf_get_selection            (Buf *, BufCursor *);
-Void         buf_clear                    (Buf *);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
     for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

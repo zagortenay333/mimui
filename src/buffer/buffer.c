@@ -316,3 +316,7 @@ Void buf_clear (Buf *buf) {
     buf->data.count = 0;
     buf->dirty = true;
 }
+
+Buf *buf_copy (Buf *buf, Mem *mem) {
+    return buf_new(mem, buf->data.as_slice);
+}

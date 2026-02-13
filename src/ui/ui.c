@@ -11,8 +11,8 @@
 #include "os/fs.h"
 
 static Void app_build ();
-static Void app_init (Mem *, Mem *);
-static Void ui_init (Mem *, Mem *);
+static Void app_init ();
+static Void ui_init ();
 static Void ui_frame (Void(*)(), F64 dt);
 
 // =============================================================================
@@ -81,9 +81,6 @@ istruct (Vertex) {
 
 array_typedef(Vertex, Vertex);
 array_typedef(Event, Event);
-
-Arena *parena;
-Arena *farena; // Cleared each frame.
 
 Int win_width  = 800;
 Int win_height = 600;
@@ -368,9 +365,6 @@ F64 get_time_sec () {
 }
 
 Void ui_test () {
-    parena = arena_new(mem_root, 1*MB);
-    farena = arena_new(mem_root, 1*MB);
-
     SDL_Init(SDL_INIT_VIDEO);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
@@ -397,7 +391,7 @@ Void ui_test () {
     blur_shader   = shader_new("src/ui/shaders/blur_vs.glsl", "src/ui/shaders/blur_fs.glsl");
 
     { // Screen quad init:
-        array_init(&screen_vertices, parena);
+        array_init(&screen_vertices, mem_root);
         array_push_lit(&screen_vertices, .pos={-1.0f,  1.0f},  .tex={0.0f, 1.0f});
         array_push_lit(&screen_vertices, .pos={-1.0f, -1.0f},  .tex={0.0f, 0.0f});
         array_push_lit(&screen_vertices, .pos={ 1.0f, -1.0f},  .tex={1.0f, 0.0f});
@@ -417,19 +411,19 @@ Void ui_test () {
         set_int(screen_shader, "tex", 0);
     }
 
-    array_init(&blur_vertices, parena);
+    array_init(&blur_vertices, mem_root);
     glGenVertexArrays(1, &blur_VAO);
     glBindVertexArray(blur_VAO);
     glGenBuffers(1, &blur_VBO);
     ATTR(AElem(&blur_vertices), 0, 2, pos);
     glBindVertexArray(0);
 
-    array_init(&vertices, parena);
-    array_init(&events, parena);
+    array_init(&vertices, mem_root);
+    array_init(&events, mem_root);
     update_projection();
 
-    ui_init(cast(Mem*, parena), cast(Mem*, farena));
-    app_init(cast(Mem*, parena), cast(Mem*, farena));
+    ui_init();
+    app_init();
 
     dt                  = 0;
     frame_count         = 0;
@@ -445,7 +439,6 @@ Void ui_test () {
         frame_count++;
 
         log_scope(ls, 1);
-        arena_pop_all(farena);
 
         #if 0
         if (current_frame - first_counted_frame >= 0.1) {
@@ -548,8 +541,6 @@ Void ui_test () {
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(rect_shader);
     glDeleteProgram(screen_shader);
-    arena_destroy(parena);
-    arena_destroy(farena);
     SDL_GL_DestroyContext(gl_ctx);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -889,8 +880,9 @@ istruct (UiBoxCallback) {
 };
 
 istruct (Ui) {
-    Mem *mem;
+    Mem *perm_mem;
     Mem *frame_mem;
+    Mem *frame_arenas[2];
     U8 gc_flag;
     Event *event;
     Vec2 mouse_dt;
@@ -1023,11 +1015,11 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->size_fn = 0;
         map_add(&ui->box_cache, key, box);
     } else {
-        box = mem_new(ui->mem, UiBox);
-        array_init(&box->children, ui->mem);
-        array_init(&box->style_rules, ui->mem);
-        array_init(&box->configs, ui->mem);
-        array_init(&box->tags, ui->mem);
+        box = mem_new(ui->perm_mem, UiBox);
+        array_init(&box->children, ui->perm_mem);
+        array_init(&box->style_rules, ui->perm_mem);
+        array_init(&box->configs, ui->perm_mem);
+        array_init(&box->tags, ui->perm_mem);
         box->style = default_box_style;
         box->start_frame = ui->frame;
         map_add(&ui->box_cache, key, box);
@@ -2698,9 +2690,17 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
     return coord;
 }
 
-static UiBox *ui_text_box (String label, UiTextBox *info) {
+static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     UiBox *container = ui_box_str(0, label) {
         set_font(container);
+
+        UiTextBox *old_info = cast(UiTextBox*, container->scratch);
+        UiTextBox *info     = mem_new(ui->frame_mem, UiTextBox);
+        if (old_info) *info = *old_info;
+        container->scratch  = cast(U64, info);
+
+        info->buf = buf;
+        info->single_line_mode = single_line_mode;
 
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
@@ -2904,9 +2904,8 @@ static UiBox *ui_text_box (String label, UiTextBox *info) {
     return container;
 }
 
-static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
-    info->single_line_mode = true;
-    UiBox *box = ui_text_box(id, info);
+static UiBox *ui_entry (String id, Buf *buf, F32 width) {
+    UiBox *box = ui_text_box(id, buf, true);
     ui_style_box_from_config(box, UI_RADIUS, UI_CONFIG_RADIUS_1);
     ui_style_box_from_config(box, UI_BG_COLOR, UI_CONFIG_BG_3);
     ui_style_box_from_config(box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -2919,39 +2918,41 @@ static UiBox *ui_entry (String id, UiTextBox *info, F32 width) {
 }
 
 istruct (UiIntPicker) {
-    I64 min;
-    I64 max;
-    I64 init;
-    I64 val;
-    Bool valid;
     Bool popup_shown;
-    U8 width_in_chars;
-    UiTextBox text_box;
+    Buf *buf;
 };
 
-static UiBox *ui_int_picker (String id, UiIntPicker *info) {
+static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, I64 init, U8 width_in_chars) {
     UiBox *container = ui_box_str(0, id) {
-        UiBox *entry = ui_entry(str("entry"), &info->text_box, 32);
-        F32 width = info->width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
+        UiIntPicker *old_info = cast(UiIntPicker*, container->scratch);
+        UiIntPicker *info = mem_new(ui->frame_mem, UiIntPicker);
+        if (old_info) {
+            *info = *old_info;
+            info->buf = buf_copy(info->buf, ui->frame_mem);
+        } else {
+            info->buf = buf_new(ui->frame_mem, str(""));
+        }
+        container->scratch = cast(U64, info);
+
+        UiBox *entry = ui_entry(str("entry"), info->buf, 32);
+        F32 width = width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
         ui_style_box_vec4(entry, UI_RADIUS, vec4(0, entry->next_style.radius.y, 0, entry->next_style.radius.w));
 
         if (container->start_frame == ui->frame) {
-            String str = astr_fmt(ui->frame_mem, "%li", info->init);
-            buf_insert(info->text_box.buf, &info->text_box.cursor, str);
+            String str = astr_fmt(ui->frame_mem, "%li", init);
+            buf_insert(info->buf, &(BufCursor){}, str);
         }
 
-        { // Parse value:
-            String text = buf_get_str(info->text_box.buf, ui->frame_mem);
-
-            info->valid = true;
+        Bool valid = true;
+        {
+            String text = buf_get_str(info->buf, ui->frame_mem);
             array_iter (c, &text) {
                 if (c == '-' && ARRAY_IDX == 0) continue;
-                if (c < '0' || c > '9') { info->valid = false; break; }
+                if (c < '0' || c > '9') { valid = false; break; }
             }
-
-            if (info->valid) info->valid = str_to_i64(cstr(ui->frame_mem, text), &info->val, 10);
-            if (info->valid && (info->val < info->min || info->val > info->max)) info->valid = false;
+            if (valid) valid = str_to_i64(cstr(ui->frame_mem, text), val, 10);
+            if (valid && (*val < min || *val > max)) valid = false;
         }
 
         UiBox *button = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "info_button") {
@@ -2969,14 +2970,14 @@ static UiBox *ui_int_picker (String id, UiIntPicker *info) {
                 ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_2);
             }
 
-            UiBox *icon = ui_icon("info_button", 16, get_icon(info->valid ? ICON_QUESTION : ICON_ISSUE));
-            if (! info->valid) ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
+            UiBox *icon = ui_icon("info_button", 16, get_icon(valid ? ICON_QUESTION : ICON_ISSUE));
+            if (! valid) ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
 
             if (info->popup_shown || button->signal.clicked) {
                 ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_BLUE_TEXT);
                 ui_style_box_from_config(button, UI_BG_COLOR, UI_CONFIG_BG_2);
                 ui_popup("popup", &info->popup_shown, false, button) {
-                    ui_label("msg", astr_fmt(ui->frame_mem, "The value must be an integer between %li and %li.", info->min, info->max));
+                    ui_label("msg", astr_fmt(ui->frame_mem, "The value must be an integer between %li and %li.", min, max));
                 }
             }
 
@@ -3304,34 +3305,39 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
 
     find_topmost_hovered_box(ui->root);
     draw_box(ui->root);
+
     ui->frame++;
+
+    ui->frame_mem = (ui->frame_mem == ui->frame_arenas[0]) ? ui->frame_arenas[1] : ui->frame_arenas[0];
+    arena_pop_all(cast(Arena*, ui->frame_mem));
 }
 
-static Void ui_init (Mem *mem, Mem *frame_mem) {
-    ui = mem_new(mem, Ui);
-    ui->mem = mem;
-    ui->frame_mem = frame_mem;
-    array_init(&ui->free_boxes, ui->mem);
-    array_init(&ui->box_stack, ui->mem);
-    array_init(&ui->clip_stack, ui->mem);
-    array_init(&ui->depth_first, ui->mem);
-    array_init(&ui->deferred_layout_fns, ui->mem);
-    map_init(&ui->box_cache, mem);
-    map_init(&ui->pressed_keys, mem);
+static Void ui_init () {
+    Arena *perm_arena   = arena_new(mem_root, 1*KB);
+    Arena *frame_arena1 = arena_new(mem_root, 64*KB);
+    Arena *frame_arena2 = arena_new(mem_root, 64*KB);
+    ui = mem_new(cast(Mem*, perm_arena), Ui);
+    ui->perm_mem = cast(Mem*, perm_arena);
+    ui->frame_mem = cast(Mem*, frame_arena1);
+    ui->frame_arenas[0] = cast(Mem*, frame_arena1);
+    ui->frame_arenas[1] = cast(Mem*, frame_arena2);
+    array_init(&ui->free_boxes, ui->perm_mem);
+    array_init(&ui->box_stack, ui->perm_mem);
+    array_init(&ui->clip_stack, ui->perm_mem);
+    array_init(&ui->depth_first, ui->perm_mem);
+    array_init(&ui->deferred_layout_fns, ui->perm_mem);
+    map_init(&ui->box_cache, ui->perm_mem);
+    map_init(&ui->pressed_keys, ui->perm_mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->font_cache = font_cache_new(mem, flush_vertices, 64);
+    ui->font_cache = font_cache_new(ui->perm_mem, flush_vertices, 64);
 }
 
 // =============================================================================
 // App layer:
 // =============================================================================
 istruct (App) {
-    Mem *parena;
-    Mem *farena;
-
-    UiTextBox entry;
-    UiTextBox text_box;
-    UiIntPicker int_picker;
+    Buf *buf1;
+    Buf *buf2;
 
     Bool modal_shown;
     Bool popup_shown;
@@ -3341,13 +3347,14 @@ istruct (App) {
     F32 slider;
     Bool toggle;
 
+    I64 intval;
     UiImage image;
 };
 
 App *app;
 
 static Void build_text_view () {
-    UiBox *box = ui_text_box(str("text_box"), &app->text_box);
+    UiBox *box = ui_text_box(str("text_box"), app->buf1, false);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
@@ -3463,14 +3470,14 @@ static Void build_misc_view () {
                 }
             }
 
-            ui_entry(str("entry"), &app->entry, 200);
+            ui_entry(str("entry"), app->buf2, 200);
         }
 
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
 
-            ui_int_picker(str("int_picker"), &app->int_picker);
+            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 4, 3);
         }
 
         ui_box(0, "box2_8") {
@@ -3597,23 +3604,14 @@ static Void app_build () {
     }
 }
 
-static Void app_init (Mem *parena, Mem *farena) {
-    app = mem_new(parena, App);
-    app->parena = parena;
-    app->farena = farena;
-
+static Void app_init () {
+    app = mem_new(ui->perm_mem, App);
     app->view = 0;
     app->image.image = load_image("data/images/screenshot.png", false);
     app->image.pref_width = 300;
-
     app->slider = .5;
-
-    app->text_box.buf = buf_new_from_file(parena, str("/home/zagor/Documents/test.txt"));
-    app->entry.buf = buf_new(parena, str("asdf"));
-    app->int_picker.text_box.buf = buf_new(parena, str(""));
-    app->int_picker.max = 10;
-    app->int_picker.min = 0;
-    app->int_picker.width_in_chars = 3;
+    app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
+    app->buf2 = buf_new(ui->perm_mem, str("asdf"));
 }
 
 // @todo
