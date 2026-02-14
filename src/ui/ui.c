@@ -453,7 +453,9 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
+        SDL_WaitEvent(&event);
+
+        do {
             switch (event.type) {
             case SDL_EVENT_QUIT: {
                 running = false;
@@ -515,8 +517,8 @@ Void ui_test () {
                 e->tag = EVENT_TEXT_INPUT;
                 e->text = str(cast(Char*, event.text.text));
             } break;
-        }
-        }
+            }
+        } while (SDL_PollEvent(&event));
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
