@@ -2913,15 +2913,17 @@ istruct (UiIntPicker) {
 };
 
 static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) {
-    UiBox *container = ui_box_str(0, id) {
+    UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
         UiIntPicker *old_info = cast(UiIntPicker*, container->scratch);
         UiIntPicker *info = mem_new(ui->frame_mem, UiIntPicker);
+
         if (old_info) {
             *info = *old_info;
             info->buf = buf_copy(info->buf, ui->frame_mem);
         } else {
             info->buf = buf_new(ui->frame_mem, str(""));
         }
+
         container->scratch = cast(U64, info);
 
         if (container->start_frame == ui->frame || info->val != *val) {
@@ -2947,6 +2949,17 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_
             if (valid) valid = str_to_i64(cstr(ui->frame_mem, text), &v, 10);
             if (valid && (v < min || v > max)) valid = false;
             if (valid) *val = v;
+        }
+
+        if (valid && container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
+            if (ui->event->y > 0) {
+                *val += 1;
+            } else {
+                *val -= 1;
+            }
+
+            *val = clamp(*val, min, max);
+            ui_eat_event();
         }
 
         UiBox *button = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "info_button") {
