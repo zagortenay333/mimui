@@ -826,7 +826,7 @@ array_typedef(UiPattern*, UiPattern);
 array_typedef(UiStyleRule, UiStyleRule);
 array_typedef(UiSpecificity, UiSpecificity);
 
-istruct (UiSignal) {
+istruct (UiSignals) {
     Bool hovered;
     Bool pressed;
     Bool clicked;
@@ -857,7 +857,7 @@ istruct (UiBox) {
     ArrayUiStyleRule style_rules;
     Array(UiConfig) configs;
     ArrayString tags;
-    UiSignal signal;
+    UiSignals signals;
     String label;
     UiKey key;
     U64 start_frame;
@@ -943,9 +943,9 @@ static UiRect compute_rect_intersect (UiRect r0, UiRect r1) {
 }
 
 static Void compute_signals (UiBox *box) {
-    UiSignal *sig = &box->signal;
+    UiSignals *sig = &box->signals;
     Bool pressed = sig->pressed;
-    *sig = (UiSignal){};
+    *sig = (UiSignals){};
 
     if (! (box->flags & UI_BOX_REACTIVE)) return;
 
@@ -1036,9 +1036,9 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
     box->parent = parent;
     ui_push_parent(box);
     compute_signals(box);
-    if (box->signal.focused) ui_tag("focus");
-    if (box->signal.hovered) ui_tag("hover");
-    if (box->signal.pressed) ui_tag("press");
+    if (box->signals.focused) ui_tag("focus");
+    if (box->signals.hovered) ui_tag("hover");
+    if (box->signals.pressed) ui_tag("press");
     return box;
 }
 
@@ -1948,7 +1948,7 @@ static UiBox *ui_checkbox (CString id, Bool *val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
         }
 
-        if (bg->signal.clicked) {
+        if (bg->signals.clicked) {
             *val = !*val;
         }
     }
@@ -2022,7 +2022,7 @@ static UiBox *ui_toggle (CString id, Bool *val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
         }
 
-        if (bg->signal.clicked) {
+        if (bg->signals.clicked) {
             *val = !*val;
         }
 
@@ -2071,7 +2071,7 @@ static UiBox *ui_button_str (String id, String label) {
             ui_style_from_config(UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
         }
 
-        if (button->signal.hovered) {
+        if (button->signals.hovered) {
             ui_push_clip(button, true);
             ui_box(UI_BOX_CLICK_THROUGH, "button_highlight") {
                 F32 s = button->rect.h/8;
@@ -2116,12 +2116,12 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         F32 knob_size = round(rect.h * ratio);
 
-        if (container->signal.pressed) {
+        if (container->signals.pressed) {
             *val = ui->mouse.y - container->rect.y - knob_size/2;
             *val = clamp(*val, 0, rect.h - knob_size);
         }
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
             *val = clamp(*val, 0, rect.h - knob_size);
             ui_eat_event();
@@ -2137,7 +2137,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_2);
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
-            if (knob->signal.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+            if (knob->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
                 *val += ui->mouse_dt.y;
                 *val = clamp(*val, 0, rect.h - knob_size);
             }
@@ -2164,12 +2164,12 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
 
         F32 knob_size = rect.w * ratio;
 
-        if (container->signal.pressed) {
+        if (container->signals.pressed) {
             *val = ui->mouse.x - container->rect.x - knob_size/2;
             *val = clamp(*val, 0, rect.w - knob_size);
         }
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val -= (25 * ui->event->y);
             *val = clamp(*val, 0, rect.w - knob_size);
             ui_eat_event();
@@ -2185,7 +2185,7 @@ static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_2);
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
-            if (knob->signal.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+            if (knob->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
                 *val += ui->mouse_dt.x;
                 *val = clamp(*val, 0, rect.w - knob_size);
             }
@@ -2235,7 +2235,7 @@ static Void ui_scroll_box_pop () {
         ui_hscroll_bar(str("scroll_bar_x"), (UiRect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
         container->content.x = -(scroll_val/container->rect.w*container->content.w);
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(SDLK_LCTRL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(SDLK_LCTRL)) {
             container->content.x += speed * ui->event->y;
             ui_eat_event();
         }
@@ -2251,7 +2251,7 @@ static Void ui_scroll_box_pop () {
         ui_vscroll_bar(str("scroll_bar_y"), (UiRect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
         container->content.y = -(scroll_val/container->rect.h*container->content.h);
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(SDLK_LCTRL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(SDLK_LCTRL)) {
             container->content.y += speed * ui->event->y;
             ui_eat_event();
         }
@@ -2365,7 +2365,7 @@ static UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *ancho
 
     *shown = true;
     if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
+    if (overlay->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
 
     UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
@@ -2439,7 +2439,7 @@ static UiBox *ui_modal_push (String id, Bool *shown) {
 
     *shown = true;
     if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
-    if (overlay->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
+    if (overlay->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
 
     UiBox *modal = ui_scroll_box_push(str("modal"));
     modal->size_fn = size_modal;
@@ -2453,7 +2453,7 @@ static UiBox *ui_modal_push (String id, Bool *shown) {
     ui_style_box_from_config(modal, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
     ui_style_box_from_config(modal, UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
     ui_style_box_from_config(modal, UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
-    ui_style_box_f32(modal, UI_BLUR_RADIUS, 3);
+    ui_style_box_from_config(modal, UI_BLUR_RADIUS, UI_CONFIG_BLUR);
 
     return overlay;
 }
@@ -2472,6 +2472,41 @@ static Void ui_modal_pop_ (Void *) {
 #define ui_modal(LABEL, SHOWN)\
     ui_modal_push(str(LABEL), SHOWN);\
     if (cleanup(ui_modal_pop_) U8 _; 1)
+
+static UiBox *ui_tooltip_push (String id) {
+    ui_push_parent(ui->root);
+    ui_push_clip(ui->root, false);
+
+    UiBox *tooltip = ui_box_push_str(0, id);
+    ui_style_box_f32(tooltip, UI_FLOAT_X, ui->mouse.x);
+    ui_style_box_f32(tooltip, UI_FLOAT_Y, ui->mouse.y + 20);
+    ui_style_box_from_config(tooltip, UI_BG_COLOR, UI_CONFIG_BG_4);
+    ui_style_box_from_config(tooltip, UI_RADIUS, UI_CONFIG_RADIUS_2);
+    ui_style_box_from_config(tooltip, UI_PADDING, UI_CONFIG_PADDING_1);
+    ui_style_box_from_config(tooltip, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+    ui_style_box_from_config(tooltip, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+    ui_style_box_from_config(tooltip, UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
+    ui_style_box_from_config(tooltip, UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
+    ui_style_box_from_config(tooltip, UI_BLUR_RADIUS, UI_CONFIG_BLUR);
+    ui_style_box_from_config(tooltip, UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_3);
+    ui_style_box_u32(tooltip, UI_ANIMATION, UI_MASK_BG_COLOR);
+
+    return tooltip;
+}
+
+static Void ui_tooltip_pop () {
+    ui_pop_parent();
+    ui_pop_clip();
+    ui_pop_parent();
+}
+
+static Void ui_tooltip_pop_ (Void *) {
+    ui_tooltip_pop();
+}
+
+#define ui_tooltip(LABEL)\
+    ui_tooltip_push(str(LABEL));\
+    if (cleanup(ui_tooltip_pop_) U8 _; 1)
 
 istruct (UiTextBox) {
     Buf *buf;
@@ -2563,7 +2598,7 @@ static Void text_box_draw (UiBox *box) {
         y += line_height;
     }
 
-    if (box->signal.focused) draw_rect(
+    if (box->signals.focused) draw_rect(
         .color = ui_config_get_vec4(UI_CONFIG_MAGENTA_1),
         .color2 = {-1},
         .top_left = info->cursor_coord,
@@ -2716,7 +2751,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, container->rect.w - container->style.padding.x - (scroll_y ? scrollbar_width : 0), 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? scrollbar_width : 0), 1});
 
-            if (text_box->signal.hovered && ui->event->tag == EVENT_SCROLL) {
+            if (text_box->signals.hovered && ui->event->tag == EVENT_SCROLL) {
                 U32 cell_w = ui->font->width;
                 U32 cell_h = ui->font->height;
 
@@ -2764,7 +2799,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             if (before != after) info->scroll_coord.x = info->scroll_coord_n.x = clamp(after / max_knob_h, 0, 1) * max_x_offset;
         }
 
-        if (text_box->signal.focused && ui->event->tag == EVENT_KEY_PRESS) {
+        if (text_box->signals.focused && ui->event->tag == EVENT_KEY_PRESS) {
             switch (ui->event->key) {
             case SDLK_DELETE:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
@@ -2862,11 +2897,11 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             }
         }
 
-        if (text_box->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
+        if (text_box->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) {
             info->dragging = false;
         }
 
-        if (text_box->signal.pressed) {
+        if (text_box->signals.pressed) {
             grab_focus(text_box);
             U32 soff = info->cursor.selection_offset;
             info->cursor = text_box_coord_to_cursor(text_box, info, ui->mouse);
@@ -2880,7 +2915,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             }
         }
 
-        if (text_box->signal.focused && ui->event->tag == EVENT_TEXT_INPUT) {
+        if (text_box->signals.focused && ui->event->tag == EVENT_TEXT_INPUT) {
             buf_insert(info->buf, &info->cursor, ui->event->text);
             text_box_scroll_into_view(text_box, &info->cursor, 4);
             ui_eat_event();
@@ -2936,7 +2971,6 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_
         UiBox *entry = ui_entry(str("entry"), info->buf, 32);
         F32 width = width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
-        ui_style_box_vec4(entry, UI_RADIUS, vec4(0, entry->next_style.radius.y, 0, entry->next_style.radius.w));
 
         Bool valid = true;
         {
@@ -2951,46 +2985,20 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_
             if (valid) *val = v;
         }
 
-        if (valid && container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
-            if (ui->event->y > 0) {
-                *val += 1;
-            } else {
-                *val -= 1;
-            }
+        if (! valid) ui_style_box_from_config(entry, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
 
-            *val = clamp(*val, min, max);
-            ui_eat_event();
-        }
+        if (container->signals.hovered) {
+            ui_tooltip("tooltip") ui_label("label", astr_fmt(ui->frame_mem, "Integer in range [%li, %li].", min, max));
 
-        UiBox *button = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "info_button") {
-            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
-            ui_style_size(UI_HEIGHT, entry->style.size.height);
-            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-            ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-            ui_style_box_vec4(button, UI_RADIUS, vec4(button->next_style.radius.x, 0, button->next_style.radius.z, 0));
-            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-
-            if (button->signal.pressed || button->signal.hovered) {
-                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_2);
-            }
-
-            UiBox *icon = ui_icon("info_button", 16, get_icon(valid ? ICON_QUESTION : ICON_ISSUE));
-            if (! valid) ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
-
-            if (info->popup_shown || button->signal.clicked) {
-                ui_style_box_from_config(icon, UI_TEXT_COLOR, UI_CONFIG_BLUE_TEXT);
-                ui_style_box_from_config(button, UI_BG_COLOR, UI_CONFIG_BG_2);
-                ui_popup("popup", &info->popup_shown, false, button) {
-                    ui_label("msg", astr_fmt(ui->frame_mem, "The value must be an integer between %li and %li.", min, max));
+            if (valid && (ui->event->tag == EVENT_SCROLL)) {
+                if (ui->event->y > 0) {
+                    *val += 1;
+                } else {
+                    *val -= 1;
                 }
-            }
 
-            if (button->signal.focused) {
-                ui_style_box_from_config(button, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
-                ui_style_box_from_config(button, UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
+                *val = clamp(*val, min, max);
+                ui_eat_event();
             }
         }
     }
@@ -3012,24 +3020,24 @@ static UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
         }
 
-        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_LEFT)) {
+        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_LEFT)) {
             *val -= .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
         }
 
-        if (container->signal.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RIGHT)) {
+        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RIGHT)) {
             *val += .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
         }
 
-        if (container->signal.pressed) {
+        if (container->signals.pressed) {
             *val = (ui->mouse.x - container->rect.x) / container->rect.w;
             *val = clamp(*val, 0, 1);
         }
 
-        if (container->signal.hovered && (ui->event->tag == EVENT_SCROLL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL)) {
             *val = *val - (10*ui->event->y) / container->rect.w;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
@@ -3461,7 +3469,7 @@ static Void build_misc_view () {
             ui_checkbox("checkbox", &app->toggle);
 
             UiBox *popup_button = ui_button("popup_button");
-            if (app->popup_shown || popup_button->signal.clicked) {
+            if (app->popup_shown || popup_button->signals.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup_shown, false, popup_button) {
                     ui_box(0, "buttons") {
@@ -3577,7 +3585,7 @@ static Void app_build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) {
+            if (ui_button("Foo1")->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) {
                 app->modal_shown = !app->modal_shown;
             }
 
@@ -3593,9 +3601,9 @@ static Void app_build () {
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
 
-            if (foo2->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
-            if (foo3->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
-            if (foo4->signal.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
+            if (foo2->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
+            if (foo3->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
+            if (foo4->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
