@@ -2944,7 +2944,6 @@ static UiBox *ui_entry (String id, Buf *buf, F32 width) {
 istruct (UiIntPicker) {
     I64 val;
     Buf *buf;
-    Bool popup_shown;
 };
 
 static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) {
