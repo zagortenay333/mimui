@@ -3178,9 +3178,8 @@ static Void draw_color_sat_val_picker (UiBox *box) {
     SatValPicker *info = cast(SatValPicker*, box->scratch);
     UiRect *r = &box->rect;
     Vec4 c = hsva_to_rgba(vec4(info->hue, 1, 1, 1));
-    Vec4 lc = srgba_to_linear(c);
+    Vec4 lc = c;
 
-    // Color:
     draw_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
@@ -3188,18 +3187,16 @@ static Void draw_color_sat_val_picker (UiBox *box) {
         .color2       = {-1},
     );
 
-    // White gradient:
     SliceVertex v = draw_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
-        .color        = {lc.x, lc.y, lc.z, 0},
+        .color        = {1, 1, 1, 0},
         .color2       = {-1},
     );
     v.data[0].color = vec4(1, 1, 1, 1);
     v.data[1].color = vec4(1, 1, 1, 1);
     v.data[5].color = vec4(1, 1, 1, 1);
 
-    // Black gradient:
     draw_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
@@ -3207,7 +3204,6 @@ static Void draw_color_sat_val_picker (UiBox *box) {
         .color2       = {0, 0, 0, 1},
     );
 
-    // Indicator:
     F32 half = ui_config_get_font(UI_CONFIG_FONT_NORMAL)->size;
     Vec2 center = {
         box->rect.x + (info->sat * box->rect.w),
@@ -3236,12 +3232,106 @@ static UiBox *ui_color_sat_val_picker (String id, F32 hue, F32 *sat, F32 *val) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
 
-        if (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+        if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
             *sat = (ui->mouse.x - container->rect.x) / container->rect.w;
             *sat = clamp(*sat, 0, 1);
             *val = 1 - (ui->mouse.y - container->rect.y) / container->rect.h;
             *val = clamp(*val, 0, 1);
-            printf("%f %f %f\n", hue, *sat, *val);
+        }
+    }
+
+    return container;
+}
+
+static Void draw_color_hue_picker (UiBox *box) {
+    F32 *hue = cast(F32*, box->scratch);
+    F32 segment = box->rect.h / 6;
+    UiRect r = box->rect;
+    r.h = segment;
+
+    for (U64 i = 0; i < 6; ++i) {
+        Vec4 col1 = hsva_to_rgba(vec4(cast(F32,i)/6, 1, 1, 1));
+        Vec4 col2 = hsva_to_rgba(vec4(cast(F32, i+1)/6, 1, 1, 1));
+        draw_rect(
+            .top_left     = r.top_left,
+            .bottom_right = {r.x+r.w, r.y+r.h},
+            .color        = col1,
+            .color2       = col2,
+        );
+        r.y += segment;
+    }
+
+    F32 half = ui_config_get_font(UI_CONFIG_FONT_NORMAL)->size;
+    Vec2 center = {
+        box->rect.x + box->rect.w/2,
+        box->rect.y + *hue * box->rect.h,
+    };
+    draw_rect(
+        .edge_softness = 1,
+        .radius        = { half, half, half, half },
+        .top_left      = { center.x-half, center.y-half },
+        .bottom_right  = { center.x+half, center.y+half },
+        .color         = hsva_to_rgba(vec4(*hue, 1, 1, 1)),
+        .color2        = {-1},
+        .border_color  = {1, 1, 1, 1},
+        .border_widths = {2, 2, 2, 2},
+    );
+}
+
+static UiBox *ui_color_hue_picker (String id, F32 *hue) {
+    UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
+        container->draw_fn = draw_color_hue_picker;
+        container->scratch = cast(U64, hue);
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+
+        if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
+            *hue = (ui->mouse.y - container->rect.y) / container->rect.h;
+            *hue = clamp(*hue, 0, 1);
+        }
+    }
+
+    return container;
+}
+
+static Void draw_color_alpha_picker (UiBox *box) {
+    F32 *alpha = cast(F32*, box->scratch);
+    UiRect *r = &box->rect;
+
+    draw_rect(
+        .top_left     = r->top_left,
+        .bottom_right = {r->x+r->w, r->y+r->h},
+        .color        = {1, 1, 1, 1},
+        .color2       = {0, 0, 0, 1},
+    );
+
+    F32 half = ui_config_get_font(UI_CONFIG_FONT_NORMAL)->size;
+    Vec2 center = {
+        box->rect.x + box->rect.w/2,
+        box->rect.y + (1 - *alpha) * box->rect.h,
+    };
+    draw_rect(
+        .edge_softness = 1,
+        .radius        = { half, half, half, half },
+        .top_left      = { center.x-half, center.y-half },
+        .bottom_right  = { center.x+half, center.y+half },
+        .color         = { *alpha, *alpha, *alpha, 1 },
+        .color2        = {-1},
+        .border_color  = {1, 1, 1, 1},
+        .border_widths = {2, 2, 2, 2},
+    );
+}
+
+static UiBox *ui_color_alpha_picker (String id, F32 *alpha) {
+    UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
+        container->draw_fn = draw_color_alpha_picker;
+        container->scratch = cast(U64, alpha);
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+
+        if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
+            *alpha = (ui->mouse.y - container->rect.y) / container->rect.h;
+            *alpha = 1 - clamp(*alpha, 0, 1);
         }
     }
 
@@ -3449,6 +3539,7 @@ istruct (App) {
     F32 hue;
     F32 sat;
     F32 val;
+    F32 alpha;
 };
 
 App *app;
@@ -3633,7 +3724,14 @@ static Void show_modal () {
 }
 
 static Void build_color_view () {
-    ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
+    ui_box(0, "color_view") {
+        ui_style_vec2(UI_PADDING, vec2(8.0, 8));
+        ui_style_f32(UI_SPACING, 8.0);
+
+        ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
+        ui_color_hue_picker(str("hue"), &app->hue);
+        ui_color_alpha_picker(str("alpha"), &app->alpha);
+    }
 }
 
 static Void app_build () {
@@ -3732,6 +3830,7 @@ static Void app_init () {
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
+// - hint text in entry
 //
 // - file picker
 // - date picker
