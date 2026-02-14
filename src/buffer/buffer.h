@@ -47,6 +47,7 @@ Void         buf_cursor_move_down         (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_to_start     (Buf *, BufCursor *, Bool);
 Void         buf_cursor_move_to_end       (Buf *, BufCursor *, Bool);
 Bool         buf_cursor_at_end_no_newline (Buf *, BufCursor *);
+Void         buf_cursor_clamp             (Buf *, BufCursor *);
 String       buf_get_selection            (Buf *, BufCursor *);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\

@@ -440,7 +440,7 @@ Void ui_test () {
 
         log_scope(ls, 1);
 
-        #if 1
+        #if 0
         if (current_frame - first_counted_frame >= 0.1) {
             tmem_new(tm);
             String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
@@ -2691,6 +2691,8 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         info->buf = buf;
         info->single_line_mode = single_line_mode;
 
+        buf_cursor_clamp(info->buf, &info->cursor); // In case the buffer changed.
+
         set_font(container);
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
@@ -2905,11 +2907,12 @@ static UiBox *ui_entry (String id, Buf *buf, F32 width) {
 }
 
 istruct (UiIntPicker) {
-    Bool popup_shown;
+    I64 val;
     Buf *buf;
+    Bool popup_shown;
 };
 
-static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, I64 init, U8 width_in_chars) {
+static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) {
     UiBox *container = ui_box_str(0, id) {
         UiIntPicker *old_info = cast(UiIntPicker*, container->scratch);
         UiIntPicker *info = mem_new(ui->frame_mem, UiIntPicker);
@@ -2921,15 +2924,17 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, I64 init, U8
         }
         container->scratch = cast(U64, info);
 
+        if (container->start_frame == ui->frame || info->val != *val) {
+            String str = astr_fmt(ui->frame_mem, "%li", *val);
+            buf_clear(info->buf);
+            buf_insert(info->buf, &(BufCursor){}, str);
+            info->val = *val;
+        }
+
         UiBox *entry = ui_entry(str("entry"), info->buf, 32);
         F32 width = width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
         ui_style_box_vec4(entry, UI_RADIUS, vec4(0, entry->next_style.radius.y, 0, entry->next_style.radius.w));
-
-        if (container->start_frame == ui->frame) {
-            String str = astr_fmt(ui->frame_mem, "%li", init);
-            buf_insert(info->buf, &(BufCursor){}, str);
-        }
 
         Bool valid = true;
         {
@@ -2938,8 +2943,10 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, I64 init, U8
                 if (c == '-' && ARRAY_IDX == 0) continue;
                 if (c < '0' || c > '9') { valid = false; break; }
             }
-            if (valid) valid = str_to_i64(cstr(ui->frame_mem, text), val, 10);
-            if (valid && (*val < min || *val > max)) valid = false;
+            I64 v;
+            if (valid) valid = str_to_i64(cstr(ui->frame_mem, text), &v, 10);
+            if (valid && (v < min || v > max)) valid = false;
+            if (valid) *val = v;
         }
 
         UiBox *button = ui_box(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "info_button") {
@@ -3463,9 +3470,9 @@ static Void build_misc_view () {
         ui_box(0, "box2_7") {
             ui_tag("hbox");
             ui_tag("item");
-            ui_style_rule("#box2_7") ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
-            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 4, 3);
+            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 3);
+            ui_int_picker(str("int_picker2"), &app->intval, 0, 10, 3);
         }
 
         ui_box(0, "box2_8") {
@@ -3609,6 +3616,7 @@ static Void app_init () {
 // - time picker
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
+// - sanitize pasted string for newlines if in single line mode
 //
 // - file picker
 // - date picker

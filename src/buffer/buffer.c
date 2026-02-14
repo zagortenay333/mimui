@@ -305,6 +305,12 @@ Bool buf_cursor_at_end_no_newline (Buf *buf, BufCursor *cursor) {
     return (cursor->byte_offset == buf->data.count) && !str_ends_with(buf->data.as_slice, str("\n")) ;
 }
 
+Void buf_cursor_clamp (Buf *buf, BufCursor *cursor) {
+    if (cursor->byte_offset > buf->data.count) {
+        buf_cursor_move_to_end(buf, cursor, true);
+    }
+}
+
 String buf_get_selection (Buf *buf, BufCursor *cursor) {
     U32 start = cursor->byte_offset;
     U32 end = cursor->selection_offset;
