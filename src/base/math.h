@@ -29,7 +29,11 @@ F32 lerp_f32 (F32 a, F32 b, F32 t);
 // =============================================================================
 iunion (Vec2) { struct { F32 x, y; }; F32 v[2]; };
 iunion (Vec3) { struct { F32 x, y, z; }; F32 v[3]; };
-iunion (Vec4) { struct { F32 x, y, z, w; };  F32 v[4]; };
+iunion (Vec4) {
+    struct { F32 x, y, z, w; };
+    Vec3 xyz;
+    F32 v[4];
+};
 
 array_typedef(Vec2, Vec2);
 array_typedef(Vec3, Vec3);
@@ -92,7 +96,11 @@ Void print_m4        (Mat4, AString *, CString prefix, CString suffix);
 // =============================================================================
 // Colors:
 // =============================================================================
-Vec3 rgb2hsv   (Vec3 rgb);
-Vec3 hsv2rgb   (Vec3 hsv);
-Vec4 rgba2hsva (Vec4 rgba);
-Vec4 hsva2rgba (Vec4 hsva);
+Vec3 rgb_to_hsv      (Vec3 rgb);
+Vec3 hsv_to_rgb      (Vec3 hsv);
+Vec4 rgba_to_hsva    (Vec4 rgba);
+Vec4 hsva_to_rgba    (Vec4 hsva);
+Vec3 srgb_to_linear  (Vec3 srgb);
+Vec3 linear_to_srgb  (Vec3 linear);
+Vec4 srgba_to_linear (Vec4 srgba);
+Vec4 linear_to_srgba (Vec4 linear);

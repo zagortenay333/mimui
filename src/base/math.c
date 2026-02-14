@@ -129,7 +129,7 @@ Mat4 mul_m4 (Mat4 a, Mat4 b) {
 // =============================================================================
 // color:
 // =============================================================================
-Vec3 rgb2hsv (Vec3 rgb) {
+Vec3 rgb_to_hsv (Vec3 rgb) {
     F32 c_max = max(rgb.x, max(rgb.y, rgb.z));
     F32 c_min = min(rgb.x, min(rgb.y, rgb.z));
     F32 delta = c_max - c_min;
@@ -143,7 +143,7 @@ Vec3 rgb2hsv (Vec3 rgb) {
     return vec3(h/6.f, s, v);
 }
 
-Vec3 hsv2rgb (Vec3 hsv) {
+Vec3 hsv_to_rgb (Vec3 hsv) {
     F32 h = fmod(hsv.x * 360.f, 360.f);
     F32 s = hsv.y;
     F32 v = hsv.z;
@@ -166,16 +166,34 @@ Vec3 hsv2rgb (Vec3 hsv) {
     return vec3(r + m, g + m, b + m);
 }
 
-Vec4 rgba2hsva (Vec4 rgba) {
-    Vec3 rgb  = vec3(rgba.x, rgba.y, rgba.z);
-    Vec3 hsv  = rgb2hsv(rgb);
-    Vec4 hsva = vec4(hsv.x, hsv.y, hsv.z, rgba.w);
-    return hsva;
+Vec4 rgba_to_hsva (Vec4 rgba) {
+    Vec3 hsv = rgb_to_hsv(rgba.xyz);
+    return vec4(hsv.x, hsv.y, hsv.z, rgba.w);
 }
 
-Vec4 hsva2rgba (Vec4 hsva) {
-    Vec3 hsv  = vec3(hsva.x, hsva.y, hsva.z);
-    Vec3 rgb  = hsv2rgb(hsv);
-    Vec4 rgba = vec4(rgb.x, rgb.y, rgb.z, hsva.w);
-    return rgba;
+Vec4 hsva_to_rgba (Vec4 hsva) {
+    Vec3 rgb = hsv_to_rgb(hsva.xyz);
+    return vec4(rgb.x, rgb.y, rgb.z, hsva.w);
+}
+
+Vec3 srgb_to_linear (Vec3 srgb) {
+    Vec3 result;
+    for (U64 i = 0; i < 3; ++i) result.v[i] = (srgb.v[i] < 0.0404482362771082f ? srgb.v[i] / 12.92f : pow((srgb.v[i] + 0.055f) / 1.055f, 2.4f));
+    return result;
+}
+
+Vec3 linear_to_srgb (Vec3 linear) {
+    Vec3 result;
+    for (U64 i = 0; i < 3; ++i) result.v[i] = (0 <= linear.v[i] && linear.v[i] < 0.00313066844250063) ? linear.v[i]*12.92f : 1.05f * pow(linear.v[i], 1.f/2.4f) - 0.055f;
+    return result;
+}
+
+Vec4 srgba_to_linear (Vec4 srgba) {
+    Vec3 v = srgb_to_linear(srgba.xyz);
+    return vec4(v.x, v.y, v.z, srgba.w);
+}
+
+Vec4 linear_to_srgba (Vec4 linear) {
+    Vec3 v = linear_to_srgb(linear.xyz);
+    return vec4(v.x, v.y, v.z, linear.w);
 }

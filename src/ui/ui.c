@@ -3177,12 +3177,14 @@ istruct (SatValPicker) {
 static Void draw_color_sat_val_picker (UiBox *box) {
     SatValPicker *info = cast(SatValPicker*, box->scratch);
     UiRect *r = &box->rect;
+    Vec4 c = hsva_to_rgba(vec4(info->hue, 1, 1, 1));
+    Vec4 lc = srgba_to_linear(c);
 
     // Color:
     draw_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
-        .color        = hsva2rgba(vec4(info->hue, 1, 1, 1)),
+        .color        = lc,
         .color2       = {-1},
     );
 
@@ -3190,8 +3192,8 @@ static Void draw_color_sat_val_picker (UiBox *box) {
     SliceVertex v = draw_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
-        .color        = {0, 0, 0, 0},
-        .color2       = {0, 0, 0, 0},
+        .color        = {lc.x, lc.y, lc.z, 0},
+        .color2       = {-1},
     );
     v.data[0].color = vec4(1, 1, 1, 1);
     v.data[1].color = vec4(1, 1, 1, 1);
@@ -3206,17 +3208,17 @@ static Void draw_color_sat_val_picker (UiBox *box) {
     );
 
     // Indicator:
+    F32 half = ui_config_get_font(UI_CONFIG_FONT_NORMAL)->size;
     Vec2 center = {
         box->rect.x + (info->sat * box->rect.w),
         box->rect.y + (1 - info->val) * box->rect.h
     };
-    F32 half = 12;
     draw_rect(
         .edge_softness = 1,
         .radius        = { half, half, half, half },
         .top_left      = { center.x-half, center.y-half },
         .bottom_right  = { center.x+half, center.y+half },
-        .color         = hsva2rgba(vec4(info->hue, info->sat, info->val, 1)),
+        .color         = hsva_to_rgba(vec4(info->hue, info->sat, info->val, 1)),
         .color2        = {-1},
         .border_color  = {1, 1, 1, 1},
         .border_widths = {2, 2, 2, 2},
@@ -3346,7 +3348,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_vec4(UI_CONFIG_BLUE_TEXT, vec4(0, 0, 1, 1));
             ui_config_def_vec4(UI_CONFIG_RED_1, vec4(1, 0, 0, 1));
             ui_config_def_vec4(UI_CONFIG_RED_TEXT, vec4(1, 0, 0, 1));
-            ui_config_def_vec4(UI_CONFIG_MAGENTA_1, hsva2rgba(vec4(.8, .4, 1, .8f)));
+            ui_config_def_vec4(UI_CONFIG_MAGENTA_1, hsva_to_rgba(vec4(.8, .4, 1, .8f)));
             ui_config_def_vec4(UI_CONFIG_BG_1, vec4(.15, .15, .15, 1));
             ui_config_def_vec4(UI_CONFIG_BG_2, vec4(.2, .2, .2, 1));
             ui_config_def_vec4(UI_CONFIG_BG_3, vec4(0, 0, 0, .4));
