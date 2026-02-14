@@ -318,7 +318,7 @@ static Void draw_rect_vertex (Vertex *v, Vec2 pos, Vec2 uv, Vec4 color, RectAttr
 
 #define draw_rect(...) draw_rect_fn(&(RectAttributes){__VA_ARGS__})
 
-static Void draw_rect_fn (RectAttributes *a) {
+static SliceVertex draw_rect_fn (RectAttributes *a) {
     Vertex *p = reserve_vertices(6);
 
     if (a->color2.x == -1.0) a->color2 = a->color;
@@ -344,6 +344,8 @@ static Void draw_rect_fn (RectAttributes *a) {
     draw_rect_vertex(&p[3], a->bottom_right, vec2(tr.x+tr.z, tr.y+tr.w), a->color2, a);
     draw_rect_vertex(&p[4], top_right, vec2(tr.x+tr.z, tr.y), a->color, a);
     draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
+
+    return (SliceVertex){p,6};
 }
 
 static Void set_clipboard_text (String str) {
@@ -3166,6 +3168,84 @@ static Void ui_grid_cell_pop_ (Void *) { ui_grid_cell_pop(); }
     ui_grid_cell_push(__VA_ARGS__);\
     if (cleanup(ui_grid_cell_pop_) U8 _; 1)
 
+istruct (SatValPicker) {
+    F32 hue;
+    F32 sat;
+    F32 val;
+};
+
+static Void draw_color_sat_val_picker (UiBox *box) {
+    SatValPicker *info = cast(SatValPicker*, box->scratch);
+    UiRect *r = &box->rect;
+
+    // Color:
+    draw_rect(
+        .top_left     = r->top_left,
+        .bottom_right = {r->x+r->w, r->y+r->h},
+        .color        = hsva2rgba(vec4(info->hue, 1, 1, 1)),
+        .color2       = {-1},
+    );
+
+    // White gradient:
+    SliceVertex v = draw_rect(
+        .top_left     = r->top_left,
+        .bottom_right = {r->x+r->w, r->y+r->h},
+        .color        = {0, 0, 0, 0},
+        .color2       = {0, 0, 0, 0},
+    );
+    v.data[0].color = vec4(1, 1, 1, 1);
+    v.data[1].color = vec4(1, 1, 1, 1);
+    v.data[5].color = vec4(1, 1, 1, 1);
+
+    // Black gradient:
+    draw_rect(
+        .top_left     = r->top_left,
+        .bottom_right = {r->x+r->w, r->y+r->h},
+        .color        = {0, 0, 0, 0},
+        .color2       = {0, 0, 0, 1},
+    );
+
+    // Indicator:
+    Vec2 center = {
+        box->rect.x + (info->sat * box->rect.w),
+        box->rect.y + (1 - info->val) * box->rect.h
+    };
+    F32 half = 12;
+    draw_rect(
+        .edge_softness = 1,
+        .radius        = { half, half, half, half },
+        .top_left      = { center.x-half, center.y-half },
+        .bottom_right  = { center.x+half, center.y+half },
+        .color         = hsva2rgba(vec4(info->hue, info->sat, info->val, 1)),
+        .color2        = {-1},
+        .border_color  = {1, 1, 1, 1},
+        .border_widths = {2, 2, 2, 2},
+    );
+}
+
+static UiBox *ui_color_sat_val_picker (String id, F32 hue, F32 *sat, F32 *val) {
+    UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
+        SatValPicker *data = mem_new(ui->frame_mem, SatValPicker);
+        data->hue = hue;
+        data->sat = *sat;
+        data->val = *val;
+        container->scratch = cast(U64, data);
+        container->draw_fn = draw_color_sat_val_picker;
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+
+        if (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+            *sat = (ui->mouse.x - container->rect.x) / container->rect.w;
+            *sat = clamp(*sat, 0, 1);
+            *val = 1 - (ui->mouse.y - container->rect.y) / container->rect.h;
+            *val = clamp(*val, 0, 1);
+            printf("%f %f %f\n", hue, *sat, *val);
+        }
+    }
+
+    return container;
+}
+
 // =============================================================================
 // Frame:
 // =============================================================================
@@ -3363,6 +3443,10 @@ istruct (App) {
 
     I64 intval;
     UiImage image;
+
+    F32 hue;
+    F32 sat;
+    F32 val;
 };
 
 App *app;
@@ -3546,6 +3630,10 @@ static Void show_modal () {
     }
 }
 
+static Void build_color_view () {
+    ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
+}
+
 static Void app_build () {
     ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_1);
 
@@ -3599,15 +3687,18 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
+            UiBox *foo5 = ui_button("Foo5");
 
             if (foo2->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
             if (foo3->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
             if (foo4->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
+            if (foo5->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
+            case 3: ui_tag_box(foo5, "press"); break;
             }
         }
 
@@ -3615,18 +3706,20 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
+        case 3: build_color_view(); break;
         }
     }
 }
 
 static Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 0;
+    app->view = 3;
     app->image.image = load_image("data/images/screenshot.png", false);
     app->image.pref_width = 300;
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
+    app->hue = .3;
 }
 
 // @todo
