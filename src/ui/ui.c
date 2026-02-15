@@ -3969,7 +3969,6 @@ static Void app_init () {
 // - shortcut picker
 // - dropdown
 // - time picker
-// - color picker
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
