@@ -3994,3 +3994,4 @@ static Void app_init () {
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - rich text (markup)
+// - line wrapping in text box
