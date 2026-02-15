@@ -499,8 +499,8 @@ Void ui_test () {
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
-    U64 frame_parity = 0;
     Bool running = true;
+    Bool poll_events = true;
     while (running) {
         current_frame = get_time_sec();
         dt            = current_frame - prev_frame;
@@ -520,15 +520,15 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        if (frame_parity == 0 || ui_is_animating()) {
+        if (poll_events || ui_is_animating()) {
             while (SDL_PollEvent(&event)) process_event(&event, &running);
         } else {
             SDL_WaitEvent(&event);
             do process_event(&event, &running); while (SDL_PollEvent(&event));
-            frame_parity = 1;
+            poll_events = false;
             prev_frame = get_time_sec();
         }
-        frame_parity = (frame_parity + 1) % 2;
+        poll_events = !poll_events;
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
