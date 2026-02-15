@@ -521,13 +521,7 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        if (n == 0 || ui_is_animating()) {
-            while (SDL_PollEvent(&event)) process_event(&event, &running);
-        } else {
-            SDL_WaitEvent(&event);
-            do process_event(&event, &running); while (SDL_PollEvent(&event));
-        }
-        n = (n + 1) % 2;
+        while (SDL_PollEvent(&event)) process_event(&event, &running);
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
@@ -548,6 +542,11 @@ Void ui_test () {
         glDrawArrays(GL_TRIANGLES, 0, screen_vertices.count);
 
         SDL_GL_SwapWindow(window);
+
+        if (!ui_is_animating()) {
+            SDL_WaitEvent(&event);
+            do process_event(&event, &running); while (SDL_PollEvent(&event));
+        }
     }
 
     glDeleteVertexArrays(1, &VAO);
