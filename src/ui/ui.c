@@ -3989,8 +3989,8 @@ static Void app_init () {
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
-// - hint text in entry
 // - file picker
 // - date picker
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
+// - rich text (markup)
