@@ -607,7 +607,9 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_FG_2               str("ui_config_fg_2")
 #define UI_CONFIG_FG_3               str("ui_config_fg_3")
 #define UI_CONFIG_FG_4               str("ui_config_fg_4")
-#define UI_CONFIG_FG_SELECTION       str("ui_config_fg_selection")
+#define UI_CONFIG_TEXT_SELECTION     str("ui_config_text_selection")
+#define UI_CONFIG_TEXT_COLOR_1       str("ui_config_text_color_1")
+#define UI_CONFIG_TEXT_COLOR_2       str("ui_config_text_color_2")
 #define UI_CONFIG_BLUR               str("ui_config_blur")
 #define UI_CONFIG_HIGHLIGHT          str("ui_config_highlight")
 #define UI_CONFIG_SLIDER_KNOB        str("ui_config_slider_knob")
@@ -2575,7 +2577,7 @@ static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 colo
             AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
             Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing/2 - slot->bearing_y};
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-            Vec4 final_text_color = selected ? ui_config_get_vec4(UI_CONFIG_FG_SELECTION) : color;
+            Vec4 final_text_color = selected ? ui_config_get_vec4(UI_CONFIG_TEXT_SELECTION) : color;
 
             draw_rect(
                 .top_left     = top_left,
@@ -2946,17 +2948,30 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     return container;
 }
 
-static UiBox *ui_entry (String id, Buf *buf, F32 width) {
-    UiBox *box = ui_text_box(id, buf, true);
-    ui_style_box_from_config(box, UI_RADIUS, UI_CONFIG_RADIUS_1);
-    ui_style_box_from_config(box, UI_BG_COLOR, UI_CONFIG_BG_3);
-    ui_style_box_from_config(box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-    ui_style_box_from_config(box, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-    ui_style_box_from_config(box, UI_INSET_SHADOW_WIDTH, UI_CONFIG_IN_SHADOW_1_WIDTH);
-    ui_style_box_from_config(box, UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
-    ui_style_box_from_config(box, UI_PADDING, UI_CONFIG_PADDING_1);
-    ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
-    return box;
+static UiBox *ui_entry (String id, Buf *buf, F32 width, String hint) {
+    UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
+        UiBox *text_box = ui_text_box(str("text"), buf, true);
+        ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
+        ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
+        ui_style_box_from_config(text_box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+        ui_style_box_from_config(text_box, UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+        ui_style_box_from_config(text_box, UI_INSET_SHADOW_WIDTH, UI_CONFIG_IN_SHADOW_1_WIDTH);
+        ui_style_box_from_config(text_box, UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
+        ui_style_box_from_config(text_box, UI_PADDING, UI_CONFIG_PADDING_1);
+        ui_style_box_size(text_box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
+
+        if (hint.count && buf_get_count(buf) == 0) {
+            UiBox *h = ui_label("hint", hint);
+            UiBox *inner_text = array_get(&text_box->children, 0);
+            ui_style_box_f32(h, UI_FLOAT_X, inner_text->rect.x - container->rect.x);
+            ui_style_box_f32(h, UI_FLOAT_Y, inner_text->rect.y - container->rect.y);
+            ui_style_box_font(h, UI_FONT, text_box->next_style.font);
+            ui_style_box_f32(h, UI_FONT_SIZE, text_box->next_style.font_size);
+            ui_style_box_from_config(h, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_2);
+        }
+    }
+
+    return container;
 }
 
 istruct (UiIntPicker) {
@@ -2985,7 +3000,7 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_
             info->val = *val;
         }
 
-        UiBox *entry = ui_entry(str("entry"), info->buf, 32);
+        UiBox *entry = ui_entry(str("entry"), info->buf, 32, str(""));
         F32 width = width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
 
@@ -3406,7 +3421,7 @@ static UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s
             }
         }
 
-        UiBox *entry = ui_entry(str("entry"), info->buf, 0);
+        UiBox *entry = ui_entry(str("entry"), info->buf, 0, str(""));
         F32 width = 18*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
         ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
         container->next_style.size.width.strictness = 1;
@@ -3574,7 +3589,9 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_vec4(UI_CONFIG_FG_2, vec4(1, 1, 1, .5));
             ui_config_def_vec4(UI_CONFIG_FG_3, vec4(.3, .3, .3, .8));
             ui_config_def_vec4(UI_CONFIG_FG_4, vec4(.2, .2, .2, .8));
-            ui_config_def_vec4(UI_CONFIG_FG_SELECTION, vec4(0, 0, 0, 1));
+            ui_config_def_vec4(UI_CONFIG_TEXT_SELECTION, vec4(0, 0, 0, 1));
+            ui_config_def_vec4(UI_CONFIG_TEXT_COLOR_1, vec4(1, 1, 1, 1));
+            ui_config_def_vec4(UI_CONFIG_TEXT_COLOR_2, vec4(1, 1, 1, .4));
             ui_config_def_f32(UI_CONFIG_BLUR, 3);
             ui_config_def_vec4(UI_CONFIG_HIGHLIGHT, vec4(1, 1, 1, .05));
             ui_config_def_vec4(UI_CONFIG_SLIDER_KNOB, vec4(1, 1, 1, 1));
@@ -3818,7 +3835,7 @@ static Void build_misc_view () {
                 }
             }
 
-            ui_entry(str("entry"), app->buf2, 200);
+            ui_entry(str("entry"), app->buf2, 200, str("Type something..."));
         }
 
         ui_box(0, "box2_7") {
