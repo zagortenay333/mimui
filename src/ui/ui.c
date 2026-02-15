@@ -3750,6 +3750,9 @@ static Void build_color_view () {
     }
 }
 
+static Void build_tile_view () {
+}
+
 static Void build_misc_view () {
     ui_scroll_box("misc_view") {
         ui_tag("vbox");
@@ -3950,15 +3953,18 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
+            UiBox *foo5 = ui_button("Foo5");
 
             if (foo2->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
             if (foo3->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
             if (foo4->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
+            if (foo5->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
+            case 3: ui_tag_box(foo5, "press"); break;
             }
         }
 
@@ -3966,13 +3972,14 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
+        case 3: build_tile_view(); break;
         }
     }
 }
 
 static Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 0;
+    app->view = 3;
     app->image.image = load_image("data/images/screenshot.png", false);
     app->image.pref_width = 300;
     app->slider = .5;
