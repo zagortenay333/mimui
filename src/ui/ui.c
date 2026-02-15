@@ -501,6 +501,7 @@ Void ui_test () {
 
     Bool running = true;
     Bool poll_events = true;
+
     while (running) {
         current_frame = get_time_sec();
         dt            = current_frame - prev_frame;
@@ -1096,25 +1097,12 @@ static UiRect ui_pop_clip () {
 }
 
 static Void animate_f32 (F32 *current, F32 final, F32 duration) {
-    if (isnan(*current)) *current = final;
-
-    if (duration <= 0.0f) {
-        *current = final;
-        return;
-    }
-
-    F32 delta = final - *current;
-    if (fabsf(delta) < 0.0001f) {
-        *current = final;
-        return;
-    }
-
+    if (isnan(*current)) *current = 0;
+    const F32 epsilon = 0.001f;
+    if (duration <= 0.0f) { *current = final; return; }
+    if (fabsf(*current - final) <= epsilon) { *current = final; return; }
     ui->animation_running = true;
-
-    // Proper time-based smoothing factor
-    F32 alpha = 1.0f - expf(-ui->dt / duration);
-
-    *current += delta * alpha;
+    *current = lerp_f32(*current, final, 1.0f - powf(epsilon, ui->dt / duration));
 }
 
 static Void animate_vec2 (Vec2 *current, Vec2 final, F32 duration) {
@@ -3451,7 +3439,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_font(UI_CONFIG_FONT_BOLD,   font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false));
             ui_config_def_font(UI_CONFIG_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));
             ui_config_def_font(UI_CONFIG_FONT_ICONS,  font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true));
-            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, 2);
+            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, .3);
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 1);
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_3, 2);
             ui_config_def_f32(UI_CONFIG_LINE_SPACING, 2);
