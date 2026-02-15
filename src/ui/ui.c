@@ -1096,12 +1096,25 @@ static UiRect ui_pop_clip () {
 }
 
 static Void animate_f32 (F32 *current, F32 final, F32 duration) {
-    if (isnan(*current)) *current = 0;
-    const F32 epsilon = 0.001f;
-    if (duration <= 0.0f) { *current = final; return; }
-    if (fabsf(*current - final) <= epsilon) { *current = final; return; }
+    if (isnan(*current)) *current = final;
+
+    if (duration <= 0.0f) {
+        *current = final;
+        return;
+    }
+
+    F32 delta = final - *current;
+    if (fabsf(delta) < 0.0001f) {
+        *current = final;
+        return;
+    }
+
     ui->animation_running = true;
-    *current = lerp_f32(*current, final, 1.0f - powf(epsilon, ui->dt / duration));
+
+    // Proper time-based smoothing factor
+    F32 alpha = 1.0f - expf(-ui->dt / duration);
+
+    *current += delta * alpha;
 }
 
 static Void animate_vec2 (Vec2 *current, Vec2 final, F32 duration) {
