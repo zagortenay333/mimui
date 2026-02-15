@@ -924,8 +924,8 @@ istruct (Ui) {
 Ui *ui;
 
 UiStyle default_box_style = {
-    .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 1},
-    .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 1},
+    .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 0},
+    .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 0},
     .bg_color2      = {-1},
     .text_color     = {1, 1, 1, .8},
     .edge_softness  = .75,
@@ -3245,8 +3245,8 @@ static UiBox *ui_color_sat_val_picker (String id, F32 hue, F32 *sat, F32 *val) {
         data->val = *val;
         container->scratch = cast(U64, data);
         container->draw_fn = draw_color_sat_val_picker;
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 0});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 0});
 
         if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
             *sat = (ui->mouse.x - container->rect.x) / container->rect.w;
@@ -3299,7 +3299,7 @@ static UiBox *ui_color_hue_picker (String id, F32 *hue) {
         container->draw_fn = draw_color_hue_picker;
         container->scratch = cast(U64, hue);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 0});
 
         if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
             *hue = (ui->mouse.y - container->rect.y) / container->rect.h;
@@ -3343,11 +3343,116 @@ static UiBox *ui_color_alpha_picker (String id, F32 *alpha) {
         container->draw_fn = draw_color_alpha_picker;
         container->scratch = cast(U64, alpha);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 0});
 
         if (container->signals.clicked || (container->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE)) {
             *alpha = (ui->mouse.y - container->rect.y) / container->rect.h;
             *alpha = 1 - clamp(*alpha, 0, 1);
+        }
+    }
+
+    return container;
+}
+
+ienum (UiColorPickerMode, U8) {
+    COLOR_PICKER_HEX,
+    COLOR_PICKER_RGBA,
+    COLOR_PICKER_HSVA,
+};
+
+istruct (UiColorPicker) {
+    F32 h, s, v, a;
+    Buf *buf;
+};
+
+static UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *v, F32 *a) {
+    UiBox *container = ui_box_str(0, id) {
+        UiColorPicker *old_info = cast(UiColorPicker*, container->scratch);
+        UiColorPicker *info = mem_new(ui->frame_mem, UiColorPicker);
+
+        if (old_info) {
+            *info = *old_info;
+            info->buf = buf_copy(info->buf, ui->frame_mem);
+        } else {
+            info->buf = buf_new(ui->frame_mem, str(""));
+        }
+
+        container->scratch = cast(U64, info);
+
+        if (container->start_frame == ui->frame || info->h != *h || info->s != *s || info->v != *v || info->a != *a) {
+            buf_clear(info->buf);
+            info->h = *h;
+            info->s = *s;
+            info->v = *v;
+            info->a = *a;
+
+            switch (mode) {
+            case COLOR_PICKER_HEX: {
+                Vec4 c = hsva_to_rgba(vec4(*h, *s, *v, *a));
+                String str = astr_fmt(ui->frame_mem, "#%02x%02x%02x%02x", cast(U32, round(c.x*255)), cast(U32, round(c.y*255)), cast(U32, round(c.z*255)), cast(U32, round(c.w*255)));
+                buf_insert(info->buf, &(BufCursor){}, str);
+            } break;
+
+            case COLOR_PICKER_HSVA: {
+                String str = astr_fmt(ui->frame_mem, "%u, %u, %u, %u", cast(U32, round(*h*255)), cast(U32, round(*s*255)), cast(U32, round(*v*255)), cast(U32, round(*a*255)));
+                buf_insert(info->buf, &(BufCursor){}, str);
+            } break;
+
+            case COLOR_PICKER_RGBA: {
+                Vec4 c = hsva_to_rgba(vec4(*h, *s, *v, *a));
+                String str = astr_fmt(ui->frame_mem, "%u, %u, %u, %u", cast(U32, round(c.x*255)), cast(U32, round(c.y*255)), cast(U32, round(c.z*255)), cast(U32, round(c.w*255)));
+                buf_insert(info->buf, &(BufCursor){}, str);
+            } break;
+            }
+        }
+
+        UiBox *entry = ui_entry(str("entry"), info->buf, 0);
+        F32 width = 18*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
+        ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
+        container->next_style.size.width.strictness = 1;
+
+        String text = buf_get_str(info->buf, ui->frame_mem);
+        Bool valid = true;
+        Vec4 hsva = {};
+
+        switch (mode) {
+        case COLOR_PICKER_HEX: {
+            valid = (text.count == 9);
+            if (valid && text.data[0] != '#') valid = false;
+            for (U64 i = 0; i < 4; ++i) {
+                if (! valid) break;
+                String token = str_slice(text, 1+2*i, 2);
+                U64 v;
+                valid = str_to_u64(cstr(ui->frame_mem, token), &v, 16);
+                if (valid && v > 255) valid = false;
+                if (valid) hsva.v[i] = cast(F32, v) / 255.f;
+            }
+        } break;
+
+        case COLOR_PICKER_HSVA:
+        case COLOR_PICKER_RGBA: {
+            ArrayString tokens;
+            array_init(&tokens, ui->frame_mem);
+            str_split(text, str(", "), 0, 0, &tokens);
+            if (tokens.count != 4) valid = false;
+            array_iter (token, &tokens) {
+                if (! valid) break;
+                U64 v;
+                valid = str_to_u64(cstr(ui->frame_mem, token), &v, 10);
+                if (valid && v > 255) valid = false;
+                if (valid) hsva.v[ARRAY_IDX] = cast(F32, v) / 255.f;
+            }
+        } break;
+        }
+
+        if (! valid) ui_style_box_from_config(entry, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
+        if (mode != COLOR_PICKER_HSVA) hsva = rgba_to_hsva(hsva);
+
+        if (valid) {
+            *h = hsva.x;
+            *s = hsva.y;
+            *v = hsva.z;
+            *a = hsva.w;
         }
     }
 
@@ -3588,6 +3693,46 @@ static Void build_clock_view () {
     }
 }
 
+static Void build_color_view () {
+    ui_box(0, "color_view") {
+        ui_style_vec2(UI_PADDING, vec2(16.0, 16));
+        ui_style_f32(UI_SPACING, 10.0);
+        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 250, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 350, 1});
+
+        ui_box(0, "graphical_pickers"){
+            ui_style_f32(UI_SPACING, 8.0);
+            ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
+            ui_color_hue_picker(str("hue"), &app->hue);
+            ui_color_alpha_picker(str("alpha"), &app->alpha);
+        }
+
+        ui_box(UI_BOX_INVISIBLE, "spacer") ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 10, 1});
+
+        ui_box(0, "hex_picker") {
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+            ui_label("label", str("HEX: "));
+            ui_hspacer();
+            ui_color_picker(str("picker"), COLOR_PICKER_HEX, &app->hue, &app->sat, &app->val, &app->alpha);
+        }
+
+        ui_box(0, "rgba_picker") {
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+            ui_label("label", str("RGBA: "));
+            ui_hspacer();
+            ui_color_picker(str("picker"), COLOR_PICKER_RGBA, &app->hue, &app->sat, &app->val, &app->alpha);
+        }
+
+        ui_box(0, "hsva_picker") {
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+            ui_label("label", str("HSVA: "));
+            ui_hspacer();
+            ui_color_picker(str("picker"), COLOR_PICKER_HSVA, &app->hue, &app->sat, &app->val, &app->alpha);
+        }
+    }
+}
+
 static Void build_misc_view () {
     ui_scroll_box("misc_view") {
         ui_tag("vbox");
@@ -3669,16 +3814,7 @@ static Void build_misc_view () {
             if (app->popup_shown || popup_button->signals.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup_shown, false, popup_button) {
-                    ui_box(0, "buttons") {
-                        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-                        ui_style_f32(UI_SPACING, 8);
-                        ui_style_rule(".button") ui_style_u32(UI_ANIMATION, UI_MASK_HEIGHT|UI_MASK_WIDTH);
-
-                        for (U64 i = 0; i < 5; ++i) {
-                            String s = astr_fmt(ui->frame_mem, "btn%lu", i);
-                            ui_button_str(s, s);
-                        }
-                    }
+                    build_color_view();
                 }
             }
 
@@ -3740,18 +3876,7 @@ static Void build_grid_view () {
 
 static Void show_modal () {
     ui_modal("modal", &app->modal_shown) {
-        build_clock_view();
-    }
-}
-
-static Void build_color_view () {
-    ui_box(0, "color_view") {
-        ui_style_vec2(UI_PADDING, vec2(8.0, 8));
-        ui_style_f32(UI_SPACING, 8.0);
-
-        ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
-        ui_color_hue_picker(str("hue"), &app->hue);
-        ui_color_alpha_picker(str("alpha"), &app->alpha);
+        build_color_view();
     }
 }
 
@@ -3808,18 +3933,15 @@ static Void app_build () {
             UiBox *foo2 = ui_button("Foo2");
             UiBox *foo3 = ui_button("Foo3");
             UiBox *foo4 = ui_button("Foo4");
-            UiBox *foo5 = ui_button("Foo5");
 
             if (foo2->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
             if (foo3->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
             if (foo4->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
-            if (foo5->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;
             case 1: ui_tag_box(foo3, "press"); break;
             case 2: ui_tag_box(foo4, "press"); break;
-            case 3: ui_tag_box(foo5, "press"); break;
             }
         }
 
@@ -3827,14 +3949,13 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
-        case 3: build_color_view(); break;
         }
     }
 }
 
 static Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 3;
+    app->view = 0;
     app->image.image = load_image("data/images/screenshot.png", false);
     app->image.pref_width = 300;
     app->slider = .5;
