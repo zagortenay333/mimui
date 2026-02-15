@@ -499,10 +499,9 @@ Void ui_test () {
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
-    U64 event_parity = 0;
+    U64 frame_parity = 0;
     Bool running = true;
     while (running) {
-
         current_frame = get_time_sec();
         dt            = current_frame - prev_frame;
         prev_frame    = current_frame;
@@ -521,13 +520,15 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        if (event_parity == 0 || ui_is_animating()) {
+        if (frame_parity == 0 || ui_is_animating()) {
             while (SDL_PollEvent(&event)) process_event(&event, &running);
         } else {
             SDL_WaitEvent(&event);
             do process_event(&event, &running); while (SDL_PollEvent(&event));
+            frame_parity = 1;
+            prev_frame = get_time_sec();
         }
-        event_parity = (event_parity + 1) % 2;
+        frame_parity = (frame_parity + 1) % 2;
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
@@ -2054,6 +2055,7 @@ static UiBox *ui_toggle (CString id, Bool *val) {
             ui_style_from_config(UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
             ui_style_from_config(UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
             ui_style_u32(UI_ANIMATION, UI_MASK_FLOAT_X);
+            ui_style_from_config(UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_1);
         }
     }
 
@@ -3436,7 +3438,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_font(UI_CONFIG_FONT_BOLD,   font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false));
             ui_config_def_font(UI_CONFIG_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));
             ui_config_def_font(UI_CONFIG_FONT_ICONS,  font_get(ui->font_cache, str("data/fonts/icons.ttf"), 16, true));
-            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, .3);
+            ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_1, 2);
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_2, 1);
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_3, 2);
             ui_config_def_f32(UI_CONFIG_LINE_SPACING, 2);
