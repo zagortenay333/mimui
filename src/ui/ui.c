@@ -14,6 +14,7 @@ static Void app_build ();
 static Void app_init ();
 static Void ui_init ();
 static Void ui_frame (Void(*)(), F64 dt);
+static Bool ui_is_animating ();
 
 // =============================================================================
 // Glfw and opengl layer:
@@ -366,6 +367,71 @@ F64 get_time_sec () {
     return cast(F64, counter) / cast(F64, freq);
 }
 
+static Void process_event (SDL_Event *event, Bool *running) {
+    switch (event->type) {
+    case SDL_EVENT_QUIT: {
+        *running = false;
+    } break;
+
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+        Int width  = event->window.data1;
+        Int height = event->window.data2;
+
+        win_width  = width;
+        win_height = height;
+
+        update_projection();
+        glViewport(0, 0, width, height);
+
+        framebuffer = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
+        blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+        blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+
+        glScissor(0, 0, width, height);
+
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_WINDOW_SIZE;
+    } break;
+
+    case SDL_EVENT_MOUSE_WHEEL: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_SCROLL;
+        e->x = event->wheel.x;
+        e->y = event->wheel.y;
+    } break;
+
+    case SDL_EVENT_MOUSE_MOTION: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_MOUSE_MOVE;
+        e->x = event->motion.x;
+        e->y = event->motion.y;
+    } break;
+
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+        Auto e  = array_push_slot(&events);
+        e->tag  = (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
+        e->key  = event->button.button;
+        e->mods = SDL_GetModState();
+    } break;
+
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP: {
+        Auto e = array_push_slot(&events);
+        e->tag = (event->type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
+        e->key = event->key.key;
+        e->scancode = event->key.scancode;
+        e->mods = event->key.mod;
+    } break;
+
+    case SDL_EVENT_TEXT_INPUT: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_TEXT_INPUT;
+        e->text = str(cast(Char*, event->text.text));
+    } break;
+}
+}
+
 Void ui_test () {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
@@ -433,8 +499,10 @@ Void ui_test () {
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
+    U64 n = 0;
     Bool running = true;
     while (running) {
+
         current_frame = get_time_sec();
         dt            = current_frame - prev_frame;
         prev_frame    = current_frame;
@@ -453,72 +521,13 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        SDL_WaitEvent(&event);
-
-        do {
-            switch (event.type) {
-            case SDL_EVENT_QUIT: {
-                running = false;
-            } break;
-
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
-                Int width  = event.window.data1;
-                Int height = event.window.data2;
-
-                win_width  = width;
-                win_height = height;
-
-                update_projection();
-                glViewport(0, 0, width, height);
-
-                framebuffer = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
-                blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
-                blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
-
-                glScissor(0, 0, width, height);
-
-                Auto e = array_push_slot(&events);
-                e->tag = EVENT_WINDOW_SIZE;
-            } break;
-
-            case SDL_EVENT_MOUSE_WHEEL: {
-                Auto e = array_push_slot(&events);
-                e->tag = EVENT_SCROLL;
-                e->x = event.wheel.x;
-                e->y = event.wheel.y;
-            } break;
-
-            case SDL_EVENT_MOUSE_MOTION: {
-                Auto e = array_push_slot(&events);
-                e->tag = EVENT_MOUSE_MOVE;
-                e->x = event.motion.x;
-                e->y = event.motion.y;
-            } break;
-
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            case SDL_EVENT_MOUSE_BUTTON_UP: {
-                Auto e  = array_push_slot(&events);
-                e->tag  = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-                e->key  = event.button.button;
-                e->mods = SDL_GetModState();
-            } break;
-
-            case SDL_EVENT_KEY_DOWN:
-            case SDL_EVENT_KEY_UP: {
-                Auto e = array_push_slot(&events);
-                e->tag = (event.type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
-                e->key = event.key.key;
-                e->scancode = event.key.scancode;
-                e->mods = event.key.mod;
-            } break;
-
-            case SDL_EVENT_TEXT_INPUT: {
-                Auto e = array_push_slot(&events);
-                e->tag = EVENT_TEXT_INPUT;
-                e->text = str(cast(Char*, event.text.text));
-            } break;
-            }
-        } while (SDL_PollEvent(&event));
+        if (n == 0 || ui_is_animating()) {
+            while (SDL_PollEvent(&event)) process_event(&event, &running);
+        } else {
+            SDL_WaitEvent(&event);
+            do process_event(&event, &running); while (SDL_PollEvent(&event));
+        }
+        n = (n + 1) % 2;
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
@@ -891,6 +900,7 @@ istruct (Ui) {
     Event *event;
     Vec2 mouse_dt;
     Vec2 mouse;
+    Bool animation_running;
     Map(U32, U8) pressed_keys;
     U64 frame;
     F64 dt;
@@ -1089,6 +1099,7 @@ static Void animate_f32 (F32 *current, F32 final, F32 duration) {
     const F32 epsilon = 0.001f;
     if (duration <= 0.0f) { *current = final; return; }
     if (fabsf(*current - final) <= epsilon) { *current = final; return; }
+    ui->animation_running = true;
     *current = lerp_f32(*current, final, 1.0f - powf(epsilon, ui->dt / duration));
 }
 
@@ -3395,8 +3406,13 @@ static Void find_prev_focus () {
     }
 }
 
+static Bool ui_is_animating () {
+    return ui->animation_running;
+}
+
 static Void ui_frame (Void(*app_build)(), F64 dt) {
     ui->dt = dt;
+    ui->animation_running = false;
 
     array_iter (event, &events, *) {
         update_input_state(event);
@@ -3829,13 +3845,12 @@ static Void app_init () {
 // - shortcut picker
 // - dropdown
 // - time picker
+// - color picker
 // - refactor ui.c into multiple modules
 // - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
 // - hint text in entry
-//
 // - file picker
 // - date picker
-// - color picker
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
