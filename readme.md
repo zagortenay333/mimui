@@ -1,4 +1,4 @@
-![preview](./data/screenshot.png)
+![preview](./data/images/screenshot.png)
 
 A toy gui application done for the purpose of studying immediate mode graphics UI's.
 
