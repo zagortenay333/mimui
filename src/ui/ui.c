@@ -2948,7 +2948,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     return container;
 }
 
-static UiBox *ui_entry (String id, Buf *buf, F32 width, String hint) {
+static UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
         UiBox *text_box = ui_text_box(str("text"), buf, true);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
@@ -2958,7 +2958,8 @@ static UiBox *ui_entry (String id, Buf *buf, F32 width, String hint) {
         ui_style_box_from_config(text_box, UI_INSET_SHADOW_WIDTH, UI_CONFIG_IN_SHADOW_1_WIDTH);
         ui_style_box_from_config(text_box, UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
         ui_style_box_from_config(text_box, UI_PADDING, UI_CONFIG_PADDING_1);
-        ui_style_box_size(text_box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 0});
+        F32 width = width_in_chars*(text_box->style.font ? text_box->style.font->width : 12) + 2*text_box->style.padding.x;
+        ui_style_box_size(text_box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
 
         if (hint.count && buf_get_count(buf) == 0) {
             UiBox *h = ui_label("hint", hint);
@@ -3000,9 +3001,7 @@ static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_
             info->val = *val;
         }
 
-        UiBox *entry = ui_entry(str("entry"), info->buf, 32, str(""));
-        F32 width = width_in_chars*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
-        ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
+        UiBox *entry = ui_entry(str("entry"), info->buf, width_in_chars, str(""));
 
         Bool valid = true;
         {
@@ -3377,6 +3376,7 @@ ienum (UiColorPickerMode, U8) {
 
 istruct (UiColorPicker) {
     F32 h, s, v, a;
+    Bool valid;
     Buf *buf;
 };
 
@@ -3396,6 +3396,7 @@ static UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s
 
         if (container->start_frame == ui->frame || info->h != *h || info->s != *s || info->v != *v || info->a != *a) {
             buf_clear(info->buf);
+            info->valid = true;
             info->h = *h;
             info->s = *s;
             info->v = *v;
@@ -3421,53 +3422,57 @@ static UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s
             }
         }
 
-        UiBox *entry = ui_entry(str("entry"), info->buf, 0, str(""));
-        F32 width = 18*(entry->style.font ? entry->style.font->width : 12) + 2*entry->style.padding.x;
-        ui_style_box_size(entry, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
+        EventTag event_tag = ui->event->tag;
+        UiBox *entry = ui_entry(str("entry"), info->buf, 18, str(""));
         container->next_style.size.width.strictness = 1;
 
-        String text = buf_get_str(info->buf, ui->frame_mem);
-        Bool valid = true;
-        Vec4 hsva = {};
+        if (event_tag != ui->event->tag) {
+            String text = buf_get_str(info->buf, ui->frame_mem);
+            Vec4 hsva = {};
+            info->valid = true;
 
-        switch (mode) {
-        case COLOR_PICKER_HEX: {
-            valid = (text.count == 9);
-            if (valid && text.data[0] != '#') valid = false;
-            for (U64 i = 0; i < 4; ++i) {
-                if (! valid) break;
-                String token = str_slice(text, 1+2*i, 2);
-                U64 v;
-                valid = str_to_u64(cstr(ui->frame_mem, token), &v, 16);
-                if (valid && v > 255) valid = false;
-                if (valid) hsva.v[i] = cast(F32, v) / 255.f;
-            }
-        } break;
+            switch (mode) {
+            case COLOR_PICKER_HEX: {
+                info->valid = (text.count == 9);
+                if (info->valid && text.data[0] != '#') info->valid = false;
+                for (U64 i = 0; i < 4; ++i) {
+                    if (! info->valid) break;
+                    String token = str_slice(text, 1+2*i, 2);
+                    U64 v;
+                    info->valid = str_to_u64(cstr(ui->frame_mem, token), &v, 16);
+                    if (info->valid && v > 255) info->valid = false;
+                    if (info->valid) hsva.v[i] = cast(F32, v) / 255.f;
+                }
+            } break;
 
-        case COLOR_PICKER_HSVA:
-        case COLOR_PICKER_RGBA: {
-            ArrayString tokens;
-            array_init(&tokens, ui->frame_mem);
-            str_split(text, str(", "), 0, 0, &tokens);
-            if (tokens.count != 4) valid = false;
-            array_iter (token, &tokens) {
-                if (! valid) break;
-                U64 v;
-                valid = str_to_u64(cstr(ui->frame_mem, token), &v, 10);
-                if (valid && v > 255) valid = false;
-                if (valid) hsva.v[ARRAY_IDX] = cast(F32, v) / 255.f;
+            case COLOR_PICKER_HSVA:
+            case COLOR_PICKER_RGBA: {
+                ArrayString tokens;
+                array_init(&tokens, ui->frame_mem);
+                str_split(text, str(", "), 0, 0, &tokens);
+                if (tokens.count != 4) info->valid = false;
+                array_iter (token, &tokens) {
+                    if (! info->valid) break;
+                    U64 v;
+                    info->valid = str_to_u64(cstr(ui->frame_mem, token), &v, 10);
+                    if (info->valid && v > 255) info->valid = false;
+                    if (info->valid) hsva.v[ARRAY_IDX] = cast(F32, v) / 255.f;
+                }
+            } break;
             }
-        } break;
+
+            if (info->valid) {
+                if (mode != COLOR_PICKER_HSVA) hsva = rgba_to_hsva(hsva);
+                *h = hsva.x;
+                *s = hsva.y;
+                *v = hsva.z;
+                *a = hsva.w;
+            }
         }
 
-        if (! valid) ui_style_box_from_config(entry, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
-        if (mode != COLOR_PICKER_HSVA) hsva = rgba_to_hsva(hsva);
-
-        if (valid) {
-            *h = hsva.x;
-            *s = hsva.y;
-            *v = hsva.z;
-            *a = hsva.w;
+        if (! info->valid) {
+            UiBox *inner = array_get(&entry->children, 0);
+            ui_style_box_from_config(inner, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
         }
     }
 
@@ -3838,7 +3843,7 @@ static Void build_misc_view () {
                 }
             }
 
-            ui_entry(str("entry"), app->buf2, 200, str("Type something..."));
+            ui_entry(str("entry"), app->buf2, 30, str("Type something..."));
         }
 
         ui_box(0, "box2_7") {
@@ -3972,7 +3977,7 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
-        case 3: build_tile_view(); break;
+        case 3: build_color_view(); break;
         }
     }
 }
