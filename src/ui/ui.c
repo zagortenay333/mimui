@@ -499,7 +499,7 @@ Void ui_test () {
     prev_frame          = current_frame - 0.16f;
     first_counted_frame = current_frame;
 
-    U64 n = 0;
+    U64 event_parity = 0;
     Bool running = true;
     while (running) {
 
@@ -521,7 +521,13 @@ Void ui_test () {
         #endif
 
         SDL_Event event;
-        while (SDL_PollEvent(&event)) process_event(&event, &running);
+        if (event_parity == 0 || ui_is_animating()) {
+            while (SDL_PollEvent(&event)) process_event(&event, &running);
+        } else {
+            SDL_WaitEvent(&event);
+            do process_event(&event, &running); while (SDL_PollEvent(&event));
+        }
+        event_parity = (event_parity + 1) % 2;
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
@@ -542,11 +548,6 @@ Void ui_test () {
         glDrawArrays(GL_TRIANGLES, 0, screen_vertices.count);
 
         SDL_GL_SwapWindow(window);
-
-        if (!ui_is_animating()) {
-            SDL_WaitEvent(&event);
-            do process_event(&event, &running); while (SDL_PollEvent(&event));
-        }
     }
 
     glDeleteVertexArrays(1, &VAO);
