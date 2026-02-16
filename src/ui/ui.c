@@ -493,31 +493,35 @@ Void ui_test () {
     ui_init();
     app_init();
 
-    dt                  = 0;
-    frame_count         = 0;
-    current_frame       = get_time_sec();
-    prev_frame          = current_frame - 0.16f;
-    first_counted_frame = current_frame;
+    F64 dt   = 0;
+    U64 now  = SDL_GetPerformanceCounter();
+    U64 last = 0;
 
     Bool running = true;
     Bool poll_events = true;
 
     while (running) {
-        current_frame = get_time_sec();
-        dt            = current_frame - prev_frame;
-        prev_frame    = current_frame;
-        frame_count++;
+        last = now;
+        now  =  SDL_GetPerformanceCounter();
+        dt   = (now - last) / cast(F64, SDL_GetPerformanceFrequency());
 
         log_scope(ls, 1);
 
-        #if 0
-        if (current_frame - first_counted_frame >= 0.1) {
-            tmem_new(tm);
-            String title = astr_fmt(tm, "fps: %lu%c", cast(U64, round(frame_count/(current_frame - first_counted_frame))), 0);
-            SDL_SetWindowTitle(window, title.data);
-            frame_count = 0;
-            first_counted_frame = current_frame;
-        }
+        #if 1
+            static U64 fps_last_counter = 0;
+            static U64 fps_frame_count  = 0;
+
+            fps_frame_count++;
+            if (fps_last_counter == 0) fps_last_counter = now;
+            F64 elapsed = (now - fps_last_counter) / cast(F64, SDL_GetPerformanceFrequency());
+
+            if (elapsed >= 0.5) {
+                tmem_new(tm);
+                F64 fps = cast(F64, fps_frame_count) / elapsed;
+                SDL_SetWindowTitle(window, astr_fmt(tm, "fps: %.1f%c", fps, 0).data);
+                fps_frame_count  = 0;
+                fps_last_counter = now;
+            }
         #endif
 
         SDL_Event event;
@@ -527,7 +531,7 @@ Void ui_test () {
             SDL_WaitEvent(&event);
             do process_event(&event, &running); while (SDL_PollEvent(&event));
             poll_events = false;
-            prev_frame = get_time_sec();
+            now = SDL_GetPerformanceCounter();
         }
         poll_events = !poll_events;
 
