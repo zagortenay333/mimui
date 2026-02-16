@@ -900,6 +900,7 @@ istruct (Ui) {
     Mem *perm_mem;
     Mem *frame_mem;
     Mem *frame_arenas[2];
+    Map(UiKey, Void*) box_data;
     U8 gc_flag;
     Event *event;
     Vec2 mouse_dt;
@@ -942,6 +943,30 @@ static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
 static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *);
 static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord);
+
+static Void free_box_data (UiBox *box) {
+    Void *data = map_get_ptr(&ui->box_data, box->key);
+
+    if (data) {
+        Mem **mem = data;
+        arena_destroy(cast(Arena*, *mem));
+        map_remove(&ui->box_data, box->key);
+    }
+}
+
+static Void *get_box_data (UiBox *box, U64 size, U64 arena_block_size) {
+    Void *data = map_get_ptr(&ui->box_data, box->key);
+
+    if (! data) {
+        Arena *arena = arena_new(mem_root, arena_block_size);
+        Mem **header = mem_alloc(arena, Mem*, .size=size, .zeroed=true);
+        *header = cast(Mem*, arena);
+        data = header;
+        map_add(&ui->box_data, box->key, data);
+    }
+
+    return data;
+}
 
 static Bool is_key_pressed (Int key) {
     U8 val; Bool pressed = map_get(&ui->pressed_keys, key, &val);
@@ -3616,6 +3641,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             Auto box = slot->val;
             if (box->gc_flag != ui->gc_flag) {
                 array_push(&ui->free_boxes, box);
+                free_box_data(box);
 
                 // @todo This should be officially supported by the map.
                 slot->hash = MAP_HASH_OF_TOMB_ENTRY;
@@ -3662,6 +3688,7 @@ static Void ui_init () {
     array_init(&ui->deferred_layout_fns, ui->perm_mem);
     map_init(&ui->box_cache, ui->perm_mem);
     map_init(&ui->pressed_keys, ui->perm_mem);
+    map_init(&ui->box_data, ui->perm_mem);
     array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
     ui->font_cache = font_cache_new(ui->perm_mem, flush_vertices, 64);
 }
