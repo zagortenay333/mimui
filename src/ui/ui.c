@@ -903,7 +903,6 @@ istruct (UiBoxCallback) {
 istruct (Ui) {
     Mem *perm_mem;
     Mem *frame_mem;
-    Mem *frame_arenas[2];
     Map(UiKey, Void*) box_data;
     U8 gc_flag;
     Event *event;
@@ -3643,19 +3642,15 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
 
     ui->frame++;
 
-    ui->frame_mem = (ui->frame_mem == ui->frame_arenas[0]) ? ui->frame_arenas[1] : ui->frame_arenas[0];
     arena_pop_all(cast(Arena*, ui->frame_mem));
 }
 
 static Void ui_init () {
-    Arena *perm_arena   = arena_new(mem_root, 1*KB);
-    Arena *frame_arena1 = arena_new(mem_root, 64*KB);
-    Arena *frame_arena2 = arena_new(mem_root, 64*KB);
+    Arena *perm_arena  = arena_new(mem_root, 1*KB);
+    Arena *frame_arena = arena_new(mem_root, 64*KB);
     ui = mem_new(cast(Mem*, perm_arena), Ui);
     ui->perm_mem = cast(Mem*, perm_arena);
-    ui->frame_mem = cast(Mem*, frame_arena1);
-    ui->frame_arenas[0] = cast(Mem*, frame_arena1);
-    ui->frame_arenas[1] = cast(Mem*, frame_arena2);
+    ui->frame_mem = cast(Mem*, frame_arena);
     array_init(&ui->free_boxes, ui->perm_mem);
     array_init(&ui->box_stack, ui->perm_mem);
     array_init(&ui->clip_stack, ui->perm_mem);
