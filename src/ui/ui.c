@@ -941,8 +941,8 @@ istruct (UiTextBox);
 static Void ui_eat_event ();
 static Void ui_tag (CString tag);
 static Void grab_focus (UiBox *box);
-static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *);
-static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord);
+static Vec2 text_box_cursor_to_coord (UiTextBox *info, UiBox *box, BufCursor *);
+static BufCursor text_box_coord_to_cursor (UiTextBox *info, UiBox *box, Vec2 coord);
 
 static Void free_box_data (UiBox *box) {
     Void *data = map_get_ptr(&ui->box_data, box->key);
@@ -2554,6 +2554,7 @@ static Void ui_tooltip_pop_ (Void *) {
     if (cleanup(ui_tooltip_pop_) U8 _; 1)
 
 istruct (UiTextBox) {
+    Mem *mem;
     Buf *buf;
     BufCursor cursor;
     Vec2 cursor_coord;
@@ -2565,12 +2566,10 @@ istruct (UiTextBox) {
     Bool single_line_mode;
 };
 
-static Void text_box_draw_line (UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
+static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     glBindTexture(GL_TEXTURE_2D, ui->font->atlas_texture);
 
-    UiBox *container = box->parent;
-    Auto info = cast(UiTextBox*, container->scratch);
     U32 cell_w = ui->font->width;
     U32 cell_h = ui->font->height;
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
@@ -2622,7 +2621,7 @@ static Void text_box_draw (UiBox *box) {
     tmem_new(tm);
 
     UiBox *container = box->parent;
-    Auto info = cast(UiTextBox*, container->scratch);
+    UiTextBox *info = get_box_data(container, 0, 0);
 
     if (! set_font(container)) return;
 
@@ -2634,12 +2633,12 @@ static Void text_box_draw (UiBox *box) {
     info->total_height = buf_get_line_count(info->buf) * (cell_h + line_spacing);
 
     F32 line_height = cell_h + line_spacing;
-    BufCursor pos = text_box_coord_to_cursor(box, info, box->rect.top_left);
+    BufCursor pos = text_box_coord_to_cursor(info, box, box->rect.top_left);
     F32 y = box->rect.y + line_height - info->scroll_coord.y + (pos.line * line_height);
 
     buf_iter_lines (line, info->buf, tm, pos.line) {
         if (y - line_height > box->rect.y + box->rect.h) break;
-        text_box_draw_line(box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
+        text_box_draw_line(info, box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
         y += line_height;
     }
 
@@ -2651,14 +2650,12 @@ static Void text_box_draw (UiBox *box) {
     );
 }
 
-static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
-    UiTextBox *info = cast(UiTextBox*, container->scratch);
-
+static Void text_box_vscroll (UiTextBox *info, UiBox *box, U32 line, UiAlign align) {
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     U32 cell_h = ui->font->height;
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + line_spacing);
 
-    F32 visible_h = container->rect.h - 2*container->style.padding.y;
+    F32 visible_h = box->rect.h;
 
     if (info->total_height <= visible_h) {
         info->scroll_coord_n.y = 0;
@@ -2669,16 +2666,11 @@ static Void text_box_vscroll (UiBox *container, U32 line, UiAlign align) {
     }
 }
 
-static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
-    UiTextBox *info = cast(UiTextBox*, container->scratch);
-
+static Void text_box_hscroll (UiTextBox *info, UiBox *box, U32 column, UiAlign align) {
     U32 cell_w = ui->font->width;
     info->scroll_coord_n.x = cast(F32, column) * cell_w;
 
-    // @todo We cannot do container->rect.w because later we might want to
-    // add more boxes inside container. We specifically need the box that
-    // contains the text.
-    F32 visible_w = container->rect.w - 2*container->style.padding.y;
+    F32 visible_w = box->rect.w;
 
     if (info->total_width <= visible_w) {
         info->scroll_coord_n.x = 0;
@@ -2689,32 +2681,30 @@ static Void text_box_hscroll (UiBox *container, U32 column, UiAlign align) {
     }
 }
 
-static Void text_box_scroll_into_view (UiBox *box, BufCursor *pos, U32 padding) {
-    UiTextBox *info = cast(UiTextBox*, box->parent->scratch);
-
+static Void text_box_scroll_into_view (UiTextBox *info, UiBox *box, BufCursor *pos, U32 padding) {
     U32 cell_w = ui->font->width;
     U32 cell_h = ui->font->height;
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
-    Vec2 coord = text_box_cursor_to_coord(box, info, pos);
+    Vec2 coord = text_box_cursor_to_coord(info, box, pos);
 
     U32 x_padding = padding * cell_w;
     U32 y_padding = padding * (cell_h + line_spacing);
 
     if (coord.x < box->rect.x + x_padding) {
-        text_box_hscroll(box->parent, sat_sub32(pos->column, padding), UI_ALIGN_START);
+        text_box_hscroll(info, box, sat_sub32(pos->column, padding), UI_ALIGN_START);
     } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
-        text_box_hscroll(box->parent, clamp(sat_add32(pos->column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
+        text_box_hscroll(info, box, clamp(sat_add32(pos->column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
     }
 
     if (coord.y < box->rect.y + y_padding) {
-        text_box_vscroll(box->parent, sat_sub32(pos->line, padding), UI_ALIGN_START);
+        text_box_vscroll(info, box, sat_sub32(pos->line, padding), UI_ALIGN_START);
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(box->parent, clamp(sat_add32(pos->line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
+        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
     }
 }
 
-static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coord) {
+static BufCursor text_box_coord_to_cursor (UiTextBox *info, UiBox *box, Vec2 coord) {
     U32 line = 0;
     U32 column = 0;
 
@@ -2736,7 +2726,7 @@ static BufCursor text_box_coord_to_cursor (UiBox *box, UiTextBox *info, Vec2 coo
     return buf_cursor_new(info->buf, line, column);
 }
 
-static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *pos) {
+static Vec2 text_box_cursor_to_coord (UiTextBox *info, UiBox *box, BufCursor *pos) {
     Vec2 coord = {};
 
     F32 char_width  = ui->font->width;
@@ -2763,10 +2753,7 @@ static Vec2 text_box_cursor_to_coord (UiBox *box, UiTextBox *info, BufCursor *po
 
 static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     UiBox *container = ui_box_str(0, label) {
-        UiTextBox *old_info = cast(UiTextBox*, container->scratch);
-        UiTextBox *info     = mem_new(ui->frame_mem, UiTextBox);
-        if (old_info) *info = *old_info;
-        container->scratch  = cast(U64, info);
+        UiTextBox *info = get_box_data(container, sizeof(UiTextBox), sizeof(UiTextBox));
 
         info->buf = buf;
         info->single_line_mode = single_line_mode;
@@ -2855,13 +2842,13 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                     buf_delete(info->buf, &info->cursor);
                 }
                 ui_eat_event();
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 break;
             case SDLK_W:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     buf_cursor_move_left_word(info->buf, &info->cursor, false);
                     buf_delete(info->buf, &info->cursor);
-                    text_box_scroll_into_view(text_box, &info->cursor, 4);
+                    text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
                 break;
@@ -2869,7 +2856,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     buf_cursor_move_to_end(info->buf, &info->cursor, true);
                     buf_cursor_move_to_start(info->buf, &info->cursor, false);
-                    text_box_scroll_into_view(text_box, &info->cursor, 4);
+                    text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
                 break;
@@ -2910,33 +2897,33 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                     buf_insert(info->buf, &info->cursor, str("\n"));
                 }
 
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_BACKSPACE:
                 if (info->cursor.byte_offset == info->cursor.selection_offset) buf_cursor_move_left(info->buf, &info->cursor, false);
                 buf_delete(info->buf, &info->cursor);
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_LEFT:
                 buf_cursor_move_left(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_RIGHT:
                 buf_cursor_move_right(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_UP:
                 buf_cursor_move_up(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case SDLK_DOWN:
                 buf_cursor_move_down(info->buf, &info->cursor, !(ui->event->mods & SDL_KMOD_SHIFT));
-                text_box_scroll_into_view(text_box, &info->cursor, 4);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             }
@@ -2949,11 +2936,11 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         if (text_box->signals.pressed) {
             grab_focus(text_box);
             U32 soff = info->cursor.selection_offset;
-            info->cursor = text_box_coord_to_cursor(text_box, info, ui->mouse);
+            info->cursor = text_box_coord_to_cursor(info, text_box, ui->mouse);
             info->cursor.selection_offset = soff;
 
             if (info->dragging) {
-                text_box_scroll_into_view(text_box, &info->cursor, 0);
+                text_box_scroll_into_view(info, text_box, &info->cursor, 0);
             } else {
                 info->dragging = true;
                 info->cursor.selection_offset = info->cursor.byte_offset;
@@ -2962,12 +2949,12 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         if (text_box->signals.focused && ui->event->tag == EVENT_TEXT_INPUT) {
             buf_insert(info->buf, &info->cursor, ui->event->text);
-            text_box_scroll_into_view(text_box, &info->cursor, 4);
+            text_box_scroll_into_view(info, text_box, &info->cursor, 4);
             ui_eat_event();
         }
 
         animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_config_get_f32(UI_CONFIG_ANIMATION_TIME_1));
-        if (ui->font) info->cursor_coord = text_box_cursor_to_coord(text_box, info, &info->cursor);
+        if (ui->font) info->cursor_coord = text_box_cursor_to_coord(info, text_box, &info->cursor);
     }
 
     return container;
