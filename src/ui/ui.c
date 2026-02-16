@@ -507,7 +507,7 @@ Void ui_test () {
 
         log_scope(ls, 1);
 
-        #if 1
+        #if 0
             static U64 fps_last_counter = 0;
             static U64 fps_frame_count  = 0;
 
@@ -2992,23 +2992,15 @@ static UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
 }
 
 istruct (UiIntPicker) {
+    Mem *mem;
     I64 val;
     Buf *buf;
 };
 
 static UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
-        UiIntPicker *old_info = cast(UiIntPicker*, container->scratch);
-        UiIntPicker *info = mem_new(ui->frame_mem, UiIntPicker);
-
-        if (old_info) {
-            *info = *old_info;
-            info->buf = buf_copy(info->buf, ui->frame_mem);
-        } else {
-            info->buf = buf_new(ui->frame_mem, str(""));
-        }
-
-        container->scratch = cast(U64, info);
+        UiIntPicker *info = get_box_data(container, sizeof(UiIntPicker), sizeof(UiIntPicker));
+        if (! info->buf) info->buf = buf_new(info->mem, str(""));
 
         if (container->start_frame == ui->frame || info->val != *val) {
             String str = astr_fmt(ui->frame_mem, "%li", *val);
@@ -3391,6 +3383,7 @@ ienum (UiColorPickerMode, U8) {
 };
 
 istruct (UiColorPicker) {
+    Mem *mem;
     F32 h, s, v, a;
     Bool valid;
     Buf *buf;
@@ -3398,17 +3391,8 @@ istruct (UiColorPicker) {
 
 static UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *v, F32 *a) {
     UiBox *container = ui_box_str(0, id) {
-        UiColorPicker *old_info = cast(UiColorPicker*, container->scratch);
-        UiColorPicker *info = mem_new(ui->frame_mem, UiColorPicker);
-
-        if (old_info) {
-            *info = *old_info;
-            info->buf = buf_copy(info->buf, ui->frame_mem);
-        } else {
-            info->buf = buf_new(ui->frame_mem, str(""));
-        }
-
-        container->scratch = cast(U64, info);
+        UiColorPicker *info = get_box_data(container, sizeof(UiColorPicker), sizeof(UiColorPicker));
+        if (! info->buf) info->buf = buf_new(info->mem, str(""));
 
         if (container->start_frame == ui->frame || info->h != *h || info->s != *s || info->v != *v || info->a != *a) {
             buf_clear(info->buf);
