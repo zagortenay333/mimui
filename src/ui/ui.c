@@ -3995,6 +3995,7 @@ static Void app_init () {
 
 // @todo
 //
+// - tile widgets with tabs
 // - shortcut picker
 // - dropdown
 // - time picker
@@ -4004,7 +4005,7 @@ static Void app_init () {
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
 // - date picker
-// - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - rich text (markup)
 // - line wrapping in text box
+// - support for tabs in text box
