@@ -3977,7 +3977,7 @@ static Void app_build () {
         case 0: build_misc_view(); break;
         case 1: build_grid_view(); break;
         case 2: build_text_view(); break;
-        case 3: build_color_view(); break;
+        case 3: build_tile_view(); break;
         }
     }
 }
@@ -3999,6 +3999,7 @@ static Void app_init () {
 // - dropdown
 // - time picker
 // - refactor ui.c into multiple modules
+// - when no text in single line entry cursor can move down
 // - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
