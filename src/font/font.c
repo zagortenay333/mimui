@@ -10,7 +10,7 @@
 #include "os/time.h"
 #include "window/window.h"
 
-#define LOG_HEADER "FontCache"
+#define LOG_HEADER "Font"
 
 AtlasSlot *font_get_atlas_slot (Font *font, GlyphInfo *info) {
     AtlasSlot *slot = map_get_ptr(&font->slot_map, info->glyph_index);
@@ -109,7 +109,7 @@ AtlasSlot *font_get_atlas_slot (Font *font, GlyphInfo *info) {
         default: badpath;
         }
 
-        dr_2d_texture_update(font->atlas_texture, slot->x, slot->y, font->atlas_slot_size, font->atlas_slot_size, buf);
+        dr_2d_texture_update(&font->atlas_texture, slot->x, slot->y, font->atlas_slot_size, font->atlas_slot_size, buf);
 
         done:;
     }

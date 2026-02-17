@@ -20,7 +20,7 @@ static BufCursor text_box_coord_to_cursor (UiTextBox *info, UiBox *box, Vec2 coo
 
 static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
-    dr_bind_texture(ui->font->atlas_texture);
+    dr_bind_texture(&ui->font->atlas_texture);
 
     U32 cell_w = ui->font->width;
     U32 cell_h = ui->font->height;

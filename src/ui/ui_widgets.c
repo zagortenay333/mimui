@@ -1,4 +1,5 @@
 #include "ui/ui_widgets.h"
+#include "ui/ui_text_box.h"
 #include "base/string.h"
 
 UiBox *ui_hspacer () {
@@ -20,7 +21,7 @@ static Void draw_label (UiBox *box) {
 
     tmem_new(tm);
 
-    dr_bind_texture(ui->font->atlas_texture);
+    dr_bind_texture(&ui->font->atlas_texture);
 
     Bool first_frame     = box->start_frame == ui->frame;
     String text          = str(cast(CString, box->scratch));
@@ -116,7 +117,7 @@ UiBox *ui_checkbox (CString id, Bool *val) {
 }
 
 istruct (UiImage) {
-    Image *image;
+    Texture *texture;
     Bool blur;
     Vec4 tint;
     F32 pref_width;
@@ -125,28 +126,28 @@ istruct (UiImage) {
 static Void draw_image (UiBox *box) {
     Auto info = cast(UiImage *, box->scratch);
     dr_flush_vertices();
-    dr_bind_texture(info->image->texture);
+    dr_bind_texture(info->texture);
     dr_rect(
         .top_left          = box->rect.top_left,
         .bottom_right      = {box->rect.x + box->rect.w, box->rect.y + box->rect.h},
         .radius            = box->style.radius,
-        .texture_rect      = {0, 0, info->image->width, info->image->height},
+        .texture_rect      = {0, 0, info->texture->width, info->texture->height},
         .text_color        = (info->tint.w > 0) ? info->tint : vec4(1, 1, 1, 1),
         .text_is_grayscale = (info->tint.w > 0) ? 1 : 0,
     );
 }
 
-UiBox *ui_image (CString id, Image *image, Bool blur, Vec4 tint, F32 pref_width) {
+UiBox *ui_image (CString id, Texture *texture, Bool blur, Vec4 tint, F32 pref_width) {
     UiBox *img = ui_box(UI_BOX_INVISIBLE, id) {
         img->draw_fn = draw_image;
         UiImage *info = mem_new(ui->frame_mem, UiImage);
-        info->image = image;
+        info->texture = texture;
         info->blur = blur;
         info->tint = tint;
         info->pref_width = pref_width;
         img->scratch = cast(U64, info);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, info->pref_width, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, round(image->height * (info->pref_width / image->width)), 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, round(texture->height * (info->pref_width / texture->width)), 1});
         ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_2);
 
         ui_box(0, "overlay") {

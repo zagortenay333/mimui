@@ -4,6 +4,7 @@
 #include <hb-ft.h>
 #include "base/core.h"
 #include "base/map.h"
+#include "window/window.h"
 
 istruct (GlyphInfo) {
     U32 x;
@@ -50,7 +51,7 @@ istruct (Font) {
     Array(AtlasSlot*) free_slots;
     Map(U32, AtlasSlot*) slot_map;
 
-    U32 atlas_texture;
+    Texture atlas_texture;
     U16 atlas_slot_size;
 };
 

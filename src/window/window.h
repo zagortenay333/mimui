@@ -9,7 +9,7 @@
 #include "os/fs.h"
 
 // =============================================================================
-// Window api:
+// Window:
 // =============================================================================
 ienum (Key, U32) {
     KEY_A,
@@ -106,7 +106,7 @@ String      win_get_clipboard_text (Mem *);
 Vec2        win_get_size           ();
 
 // =============================================================================
-// Drawing api:
+// Drawing:
 // =============================================================================
 istruct (Rect) {
     union { struct { F32 x, y; }; Vec2 top_left; };
@@ -151,23 +151,23 @@ istruct (Vertex) {
     F32 text_is_grayscale;
 };
 
-istruct (Image) {
-    U32 texture;
+istruct (Texture) {
+    U32 id;
     F32 width;
     F32 height;
 };
 
 array_typedef(Vertex, Vertex);
 
-Image       dr_image             (CString filepath, Bool flip);
 Void        dr_flush_vertices    ();
 Vertex     *dr_reserve_vertices  (U32 n);
 SliceVertex dr_rect_fn           (RectAttributes *);
 Void        dr_blur              (Rect, F32 strength, Vec4 corner_radius);
 Void        dr_scissor           (Rect);
-Void        dr_bind_texture      (U32);
-U32         dr_2d_texture_alloc  (U32 w, U32 h);
-Void        dr_2d_texture_update (U32 texture, U32 x, U32 y, U32 w, U32 h, U8 *buf);
+Texture     dr_image             (CString filepath, Bool flip);
+Void        dr_bind_texture      (Texture *);
+Texture     dr_2d_texture_alloc  (U32 w, U32 h);
+Void        dr_2d_texture_update (Texture *, U32 x, U32 y, U32 w, U32 h, U8 *buf);
 
 #define dr_rect(...)\
     dr_rect_fn(&(RectAttributes){__VA_ARGS__})

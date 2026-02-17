@@ -64,24 +64,7 @@ static Void update_projection () {
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
 }
 
-U32 dr_2d_texture_alloc (U32 width, U32 height) {
-    U32 id;
-    glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_2D, id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    return id;
-}
-
-Void dr_2d_texture_update (U32 texture, U32 x, U32 y, U32 w, U32 h, U8 *buf) {
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-}
-
-Image dr_image (CString filepath, Bool flip) {
+Texture dr_image (CString filepath, Bool flip) {
     U32 id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
@@ -100,12 +83,7 @@ Image dr_image (CString filepath, Bool flip) {
     glGenerateMipmap(GL_TEXTURE_2D);
 
     stbi_image_free(data);
-
-    return (Image){
-        .texture = id,
-        .width   = w,
-        .height  = h,
-    };
+    return (Texture){ .id=id, .width=w, .height=h };
 }
 
 static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h) {
@@ -343,8 +321,25 @@ Void dr_scissor (Rect r) {
     glScissor(r.x, r.y, r.w, r.h);
 }
 
-Void dr_bind_texture (U32 texture_id) {
-    glBindTexture(GL_TEXTURE_2D, texture_id);
+Void dr_bind_texture (Texture *texture) {
+    glBindTexture(GL_TEXTURE_2D, texture->id);
+}
+
+Texture dr_2d_texture_alloc (U32 width, U32 height) {
+    U32 id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    return (Texture){.id=id, .width=width, .height=height};
+}
+
+Void dr_2d_texture_update (Texture *texture, U32 x, U32 y, U32 w, U32 h, U8 *buf) {
+    glBindTexture(GL_TEXTURE_2D, texture->id);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
 }
 
 Vec2 win_get_size () {

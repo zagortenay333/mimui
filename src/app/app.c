@@ -1,6 +1,7 @@
 #include "app/app.h"
 #include "ui/ui.h"
 #include "ui/ui_widgets.h"
+#include "ui/ui_text_box.h"
 #include "buffer/buffer.h"
 #include "window/window.h"
 
@@ -17,7 +18,7 @@ istruct (App) {
     Bool toggle;
 
     I64 intval;
-    Image image;
+    Texture image;
 
     F32 hue;
     F32 sat;
