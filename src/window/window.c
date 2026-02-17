@@ -2,7 +2,7 @@
 #include <SDL3/SDL.h>
 #include "vendor/stb/stb_image.h"
 #include "window/window.h"
-#include "ui/ui.h" // @todo For ui_is_animating(). Get rid of.
+#include "ui/ui.h"
 
 #define VERTEX_MAX_BATCH_SIZE 2400
 
