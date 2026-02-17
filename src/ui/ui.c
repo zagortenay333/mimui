@@ -113,12 +113,6 @@ U32 screen_shader;
 U32 screen_VBO, screen_VAO;
 Array(struct { Vec2 pos; Vec2 tex; }) screen_vertices;
 
-F32 dt;
-F32 prev_frame;
-F32 current_frame;
-U64 frame_count;
-F32 first_counted_frame;
-
 static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h);
 
 static Void set_bool  (U32 p, CString name, Bool v) { glUniform1i(glGetUniformLocation(p, name), cast(Int, v)); }
