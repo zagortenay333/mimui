@@ -405,6 +405,10 @@ static Key convert_scancode (SDL_Scancode scancode) {
     case SDL_SCANCODE_KP_ENTER: return KEY_RETURN;
     case SDL_SCANCODE_LSHIFT: return KEY_SHIFT;
     case SDL_SCANCODE_RSHIFT: return KEY_SHIFT;
+    case SDL_SCANCODE_LCTRL: return KEY_CTRL;
+    case SDL_SCANCODE_RCTRL: return KEY_CTRL;
+    case SDL_SCANCODE_TAB: return KEY_TAB;
+    case SDL_SCANCODE_ESCAPE: return KEY_ESC;
 
     case SDL_SCANCODE_LEFT: return KEY_LEFT;
     case SDL_SCANCODE_RIGHT: return KEY_RIGHT;
@@ -471,7 +475,7 @@ static Void process_event (SDL_Event *event, Bool *running) {
         Auto e = array_push_slot(&events);
         e->tag = (event->type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
         e->key = convert_scancode(event->key.scancode);
-        e->mods = event->key.mod;
+        e->mods = convert_key_mod(event->key.mod);
     } break;
 
     case SDL_EVENT_TEXT_INPUT: {

@@ -1,4 +1,3 @@
-#include <SDL3/SDL.h>
 #include "ui/ui_widgets.h"
 #include "base/string.h"
 
@@ -374,7 +373,7 @@ Void ui_scroll_box_pop () {
     UiBox *container = array_get_last(&ui->box_stack);
 
     Bool contains_focused = (ui->focus_idx >= container->scratch);
-    if (contains_focused && ui->event->tag == EVENT_KEY_PRESS && ui->event->key == SDLK_TAB) {
+    if (contains_focused && ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
         F32 fx1 = ui->focused->rect.x + ui->focused->rect.w;
         F32 cx1 = container->rect.x + container->rect.w;
         if (fx1 > cx1) {
@@ -401,7 +400,7 @@ Void ui_scroll_box_pop () {
         ui_hscroll_bar(str("scroll_bar_x"), (Rect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
         container->content.x = -(scroll_val/container->rect.w*container->content.w);
 
-        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && ui_is_key_pressed(SDLK_LCTRL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && ui_is_key_pressed(KEY_CTRL)) {
             container->content.x += speed * ui->event->y;
             ui_eat_event();
         }
@@ -417,7 +416,7 @@ Void ui_scroll_box_pop () {
         ui_vscroll_bar(str("scroll_bar_y"), (Rect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
         container->content.y = -(scroll_val/container->rect.h*container->content.h);
 
-        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && !ui_is_key_pressed(SDLK_LCTRL)) {
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && !ui_is_key_pressed(KEY_CTRL)) {
             container->content.y += speed * ui->event->y;
             ui_eat_event();
         }
@@ -522,8 +521,8 @@ UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *anchor) {
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
     *shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
-    if (overlay->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_ESC)) *shown = false;
+    if (overlay->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) *shown = false;
 
     UiBox *popup = ui_scroll_box_push(str("popup"));
     popup->size_fn = size_popup;
@@ -588,8 +587,8 @@ UiBox *ui_modal_push (String id, Bool *shown) {
     ui_style_box_size(overlay, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
     *shown = true;
-    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_ESCAPE)) *shown = false;
-    if (overlay->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) *shown = false;
+    if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_ESC)) *shown = false;
+    if (overlay->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) *shown = false;
 
     UiBox *modal = ui_scroll_box_push(str("modal"));
     modal->size_fn = size_modal;
@@ -737,13 +736,13 @@ UiBox *ui_slider_str (String label, F32 *val) {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
         }
 
-        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_LEFT)) {
+        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_LEFT)) {
             *val -= .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();
         }
 
-        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RIGHT)) {
+        if (container->signals.focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_RIGHT)) {
             *val += .1;
             *val = clamp(*val, 0, 1);
             ui_eat_event();

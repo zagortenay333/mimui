@@ -1,5 +1,4 @@
 #include "app/app.h"
-#include <SDL3/SDL.h>
 #include "ui/ui.h"
 #include "ui/ui_widgets.h"
 #include "buffer/buffer.h"
@@ -279,7 +278,7 @@ Void app_build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) {
+            if (ui_button("Foo1")->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) {
                 app->modal_shown = !app->modal_shown;
             }
 
@@ -296,10 +295,10 @@ Void app_build () {
             UiBox *foo4 = ui_button("Foo4");
             UiBox *foo5 = ui_button("Foo5");
 
-            if (foo2->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 0;
-            if (foo3->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 1;
-            if (foo4->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 2;
-            if (foo5->signals.clicked && ui->event->key == SDL_BUTTON_LEFT) app->view = 3;
+            if (foo2->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 0;
+            if (foo3->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 1;
+            if (foo4->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 2;
+            if (foo5->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 3;
 
             switch (app->view) {
             case 0: ui_tag_box(foo2, "press"); break;

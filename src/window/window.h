@@ -54,6 +54,9 @@ ienum (Key, U32) {
     KEY_BACKSPACE,
     KEY_RETURN,
     KEY_SHIFT,
+    KEY_CTRL,
+    KEY_TAB,
+    KEY_ESC,
 
     KEY_LEFT,
     KEY_RIGHT,

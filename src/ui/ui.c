@@ -1,4 +1,3 @@
-#include <SDL3/SDL.h>
 #include "font/font.h"
 #include "base/log.h"
 #include "base/math.h"
@@ -84,7 +83,7 @@ static Void compute_signals (UiBox *box) {
     if (! (box->flags & UI_BOX_REACTIVE)) return;
 
     sig->focused = (box == ui->focused);
-    sig->clicked = sig->focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == SDLK_RETURN);
+    sig->clicked = sig->focused && (ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_RETURN);
 
     sig->hovered = false;
     for (UiBox *b = ui->hovered; b; b = b->parent) {
@@ -97,8 +96,8 @@ static Void compute_signals (UiBox *box) {
 
     if (! pressed) {
         Int k = ui->event->key;
-        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (k == SDL_BUTTON_LEFT || k == SDL_BUTTON_MIDDLE || k == SDL_BUTTON_RIGHT);
-    } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == SDL_BUTTON_LEFT)) {
+        sig->pressed = (ui->hovered == box) && (ui->event->tag == EVENT_KEY_PRESS) && (k == KEY_MOUSE_LEFT || k == KEY_MOUSE_MIDDLE || k == KEY_MOUSE_RIGHT);
+    } else if ((ui->event->tag == EVENT_KEY_RELEASE) && (ui->event->key == KEY_MOUSE_LEFT)) {
         sig->pressed = false;
         if (sig->hovered) sig->clicked = true;
     } else {
@@ -972,9 +971,9 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
         root_clip->h = win.y;
 
         if (ui->depth_first.count) {
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == SDLK_TAB)) {
-                if (event->mods & SDL_KMOD_SHIFT) find_prev_focus();
-                else                              find_next_focus();
+            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == KEY_TAB)) {
+                if (event->mods & KEY_MOD_SHIFT) find_prev_focus();
+                else                             find_next_focus();
             }
         }
 
@@ -1095,7 +1094,6 @@ Void ui_init () {
 // - time picker
 // - refactor ui.c into multiple modules
 // - when no text in single line entry cursor can move down
-// - wrappers around the SDLK_ shit
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
 // - date picker
