@@ -1,1 +1,541 @@
-#include "window.h"
+#include "vendor/glad/glad.h"
+#include <SDL3/SDL.h>
+#include "vendor/stb/stb_image.h"
+#include "window/window.h"
+#include "ui/ui.h" // @todo For ui_is_animating(). Get rid of.
+
+#define VERTEX_MAX_BATCH_SIZE 2400
+
+SDL_Window *window;
+SDL_GLContext gl_ctx;
+ArrayEvent events;
+
+Int win_width  = 800;
+Int win_height = 600;
+
+#define BLUR_SHRINK 4
+U32 blur_shader;
+U32 blur_VBO, blur_VAO;
+U32 blur_buffer1;
+U32 blur_buffer2;
+U32 blur_tex1;
+U32 blur_tex2;
+Array(struct { Vec2 pos; }) blur_vertices;
+
+ArrayVertex vertices;
+
+U32 rect_shader;
+U32 VBO, VAO;
+Mat4 projection;
+U32 framebuffer;
+U32 framebuffer_tex;
+
+U32 screen_shader;
+U32 screen_VBO, screen_VAO;
+Array(struct { Vec2 pos; Vec2 tex; }) screen_vertices;
+
+static Void set_bool  (U32 p, CString name, Bool v) { glUniform1i(glGetUniformLocation(p, name), cast(Int, v)); }
+static Void set_int   (U32 p, CString name, Int v)  { glUniform1i(glGetUniformLocation(p, name), v); }
+static Void set_float (U32 p, CString name, F32 v)  { glUniform1f(glGetUniformLocation(p, name), v); }
+static Void set_vec2  (U32 p, CString name, Vec2 v) { glUniform2f(glGetUniformLocation(p, name), v.x, v.y); }
+static Void set_vec4  (U32 p, CString name, Vec4 v) { glUniform4f(glGetUniformLocation(p, name), v.x, v.y, v.z, v.w); }
+static Void set_mat4  (U32 p, CString name, Mat4 m) { glUniformMatrix4fv(glGetUniformLocation(p, name), 1, GL_FALSE, cast(F32*, &m)); }
+
+#define ATTR(T, OFFSET, LEN, NAME) ({\
+    glVertexAttribPointer(OFFSET, LEN, GL_FLOAT, GL_FALSE, sizeof(T), cast(Void*, offsetof(T, NAME)));\
+    glEnableVertexAttribArray(OFFSET);\
+})
+
+Noreturn static Void error () {
+    log_scope_end_all();
+    panic();
+}
+
+Noreturn Fmt(1, 2) static Void error_fmt (CString fmt, ...) {
+    log_msg(m, LOG_ERROR, "Win", 1);
+    astr_push_fmt_vam(m, fmt);
+    astr_push_byte(m, '\n');
+    error();
+}
+
+static Void update_projection () {
+    F32 h = cast(F32, win_height);
+    F32 w = cast(F32, win_width);
+    projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
+}
+
+Image dr_image (CString filepath, Bool flip) {
+    U32 id; glGenTextures(1, &id);
+
+    glBindTexture(GL_TEXTURE_2D, id);
+
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_set_flip_vertically_on_load(flip);
+
+    Int w, h, n; U8 *data = stbi_load(filepath, &w, &h, &n, 0);
+    if (! data) error_fmt("Couldn't load image from file: %s\n", filepath);
+
+    Int fmt = (n == 3) ? GL_RGB : GL_RGBA;
+    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(data);
+
+    return (Image){
+        .texture = id,
+        .width   = w,
+        .height  = h,
+    };
+}
+
+static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h) {
+    U32 r;
+    glGenFramebuffers(1, &r);
+    glBindFramebuffer(GL_FRAMEBUFFER, r);
+
+    U32 texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    if (out_texture) *out_texture = texture;
+
+    if (! only_color_attach) {
+        U32 rbo;
+        glGenRenderbuffers(1, &rbo);
+        glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    }
+
+    assert_always(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    return r;
+}
+
+static U32 shader_compile (GLenum type, String filepath) {
+    tmem_new(tm);
+
+    String source = fs_read_entire_file(tm, filepath, 0);
+    if (! source.data) error_fmt("Unable to read file: %.*s\n", STR(filepath));
+
+    U32 shader = glCreateShader(type);
+
+    glShaderSource(shader, 1, cast(const GLchar**, &source.data), 0);
+    glCompileShader(shader);
+
+    Int success; glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (! success) {
+        log_msg(msg, LOG_ERROR, "", 1);
+        Int count; glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &count);
+        astr_push_fmt(msg, "Shader compilation error: %.*s\n  ", STR(filepath));
+        U32 offset = msg->count;
+        array_increase_count(msg, cast(U32, count), false);
+        glGetShaderInfoLog(shader, count, 0, msg->data + offset);
+        msg->count--; // Get rid of the NUL byte...
+        error();
+    }
+
+    return shader;
+}
+
+static U32 shader_new (CString vshader_path, CString fshader_path) {
+    U32 id      = glCreateProgram();
+    U32 vshader = shader_compile(GL_VERTEX_SHADER, str(vshader_path));
+    U32 fshader = shader_compile(GL_FRAGMENT_SHADER, str(fshader_path));
+
+    glAttachShader(id, vshader);
+    glAttachShader(id, fshader);
+    glLinkProgram(id);
+
+    Int success; glGetProgramiv(id, GL_LINK_STATUS, &success);
+    if (! success) {
+        log_msg(msg, LOG_ERROR, "", 1);
+        Int count; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &count);
+        astr_push_cstr(msg, "Shader prog link error.\n  ");
+        U32 offset = msg->count;
+        array_increase_count(msg, cast(U32, count), false);
+        glGetProgramInfoLog(id, count, 0, msg->data + offset);
+        msg->count--; // Get rid of the NUL byte...
+        error();
+    }
+
+    glDeleteShader(vshader);
+    glDeleteShader(fshader);
+
+    return id;
+}
+
+Void dr_flush_vertices () {
+    glBindVertexArray(VAO);
+    glUseProgram(rect_shader);
+    set_mat4(rect_shader, "projection", projection);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+    ATTR(Vertex, 0, 2, position);
+    ATTR(Vertex, 1, 4, color);
+    ATTR(Vertex, 2, 2, top_left);
+    ATTR(Vertex, 3, 2, bottom_right);
+    ATTR(Vertex, 4, 4, radius);
+    ATTR(Vertex, 5, 1, edge_softness);
+    ATTR(Vertex, 6, 4, border_color);
+    ATTR(Vertex, 7, 4, border_widths);
+    ATTR(Vertex, 8, 4, inset_shadow_color);
+    ATTR(Vertex, 9, 4, outset_shadow_color);
+    ATTR(Vertex, 10, 1, outset_shadow_width);
+    ATTR(Vertex, 11, 1, inset_shadow_width);
+    ATTR(Vertex, 12, 2, shadow_offsets);
+    ATTR(Vertex, 13, 2, uv);
+    ATTR(Vertex, 14, 4, text_color);
+    ATTR(Vertex, 15, 1, text_is_grayscale);
+
+    glBufferData(GL_ARRAY_BUFFER, array_size(&vertices), vertices.data, GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, vertices.count);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    vertices.count = 0;
+}
+
+Vertex *dr_reserve_vertices (U32 n) {
+    if (vertices.count + n >= VERTEX_MAX_BATCH_SIZE) dr_flush_vertices();
+    SliceVertex slice;
+    array_increase_count_o(&vertices, n, false, &slice);
+    return slice.data;
+}
+
+static Void draw_rect_vertex (Vertex *v, Vec2 pos, Vec2 uv, Vec4 color, RectAttributes *a) {
+    v->position            = pos;
+    v->color               = color;
+    v->top_left            = a->top_left;
+    v->bottom_right        = a->bottom_right;
+    v->radius              = a->radius;
+    v->edge_softness       = a->edge_softness;
+    v->border_color        = a->border_color;
+    v->border_widths       = a->border_widths;
+    v->inset_shadow_color  = a->inset_shadow_color;
+    v->outset_shadow_color = a->outset_shadow_color;
+    v->outset_shadow_width = a->outset_shadow_width;
+    v->inset_shadow_width  = a->inset_shadow_width;
+    v->shadow_offsets      = a->shadow_offsets;
+    v->uv                  = uv;
+    v->text_color          = a->text_color;
+    v->text_is_grayscale   = a->text_is_grayscale;
+}
+
+SliceVertex dr_rect_fn (RectAttributes *a) {
+    Vertex *p = dr_reserve_vertices(6);
+
+    if (a->color2.x == -1.0) a->color2 = a->color;
+
+    // We make the rect slightly bigger because the fragment
+    // shader will shrink it to make room for the drop shadow.
+    a->top_left.x     -= 2*a->outset_shadow_width + 2*a->edge_softness;
+    a->top_left.y     -= 2*a->outset_shadow_width + 2*a->edge_softness;
+    a->bottom_right.x += 2*a->outset_shadow_width + 2*a->edge_softness;
+    a->bottom_right.y += 2*a->outset_shadow_width + 2*a->edge_softness;
+
+    a->top_left.y = win_height - a->top_left.y;
+    a->bottom_right.y = win_height - a->bottom_right.y;
+
+    Vec2 bottom_left = vec2(a->top_left.x, a->bottom_right.y);
+    Vec2 top_right   = vec2(a->bottom_right.x, a->top_left.y);
+
+    Vec4 tr = a->texture_rect;
+
+    draw_rect_vertex(&p[0], a->top_left, vec2(tr.x, tr.y), a->color, a);
+    draw_rect_vertex(&p[1], bottom_left, vec2(tr.x, tr.y+tr.w), a->color2, a);
+    draw_rect_vertex(&p[2], a->bottom_right, vec2(tr.x+tr.z, tr.y+tr.w), a->color2, a);
+    draw_rect_vertex(&p[3], a->bottom_right, vec2(tr.x+tr.z, tr.y+tr.w), a->color2, a);
+    draw_rect_vertex(&p[4], top_right, vec2(tr.x+tr.z, tr.y), a->color, a);
+    draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
+
+    return (SliceVertex){p,6};
+}
+
+Void dr_blur (Rect r, F32 strength, Vec4 corner_radius) {
+    dr_flush_vertices();
+    glScissor(0, 0, win_width, win_height);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, blur_buffer1);
+    glBlitFramebuffer(0, 0, win_width, win_height, 0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glViewport(0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK);
+
+    blur_vertices.count = 0;
+    array_push_lit(&blur_vertices, -1.0f,  1.0f);
+    array_push_lit(&blur_vertices, -1.0f, -1.0f);
+    array_push_lit(&blur_vertices,  1.0f, -1.0f);
+    array_push_lit(&blur_vertices, -1.0f,  1.0f);
+    array_push_lit(&blur_vertices,  1.0f, -1.0f);
+    array_push_lit(&blur_vertices,  1.0f,  1.0f);
+
+    glBindVertexArray(blur_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, blur_VBO);
+    ATTR(AElem(&blur_vertices), 0, 2, pos);
+    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
+
+    glUseProgram(blur_shader);
+    set_int(blur_shader, "blur_radius", strength);
+    set_bool(blur_shader, "do_blurring", true);
+    set_mat4(blur_shader, "projection", mat4(1));
+
+    for (U64 i = 0; i < 3; ++i) {
+        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer2);
+        glBindTexture(GL_TEXTURE_2D, blur_tex1);
+        set_bool(blur_shader, "horizontal", true);
+        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer1);
+        glBindTexture(GL_TEXTURE_2D, blur_tex2);
+        set_bool(blur_shader, "horizontal", false);
+        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+    }
+
+    glViewport(0, 0, win_width, win_height);
+    glBindTexture(GL_TEXTURE_2D, blur_tex1);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    r.y = win_height - r.y;
+    blur_vertices.count = 0;
+    array_push_lit(&blur_vertices, r.x, r.y);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y);
+    array_push_lit(&blur_vertices, r.x, r.y-r.h);
+    array_push_lit(&blur_vertices, r.x, r.y-r.h);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y-r.h);
+
+    set_mat4(blur_shader, "projection", projection);
+    set_bool(blur_shader, "do_blurring", false);
+    set_vec2(blur_shader, "half_size", vec2(r.w/2, r.h/2));
+    set_vec2(blur_shader, "center", vec2(r.x+r.w/2, r.y-r.h/2));
+    set_vec4(blur_shader, "radius", corner_radius);
+    set_float(blur_shader, "blur_shrink", BLUR_SHRINK);
+
+    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+Vec2 win_get_size () {
+    return vec2(win_width, win_height);
+}
+
+SliceEvent *win_get_events () {
+    return &events.as_slice;
+}
+
+Void win_set_clipboard_text (String str) {
+    tmem_new(tm);
+    SDL_SetClipboardText(cstr(tm, str));
+}
+
+String win_get_clipboard_text (Mem *mem) {
+    CString txt = SDL_GetClipboardText();
+    String result = str_copy(mem, str(txt));
+    SDL_free(txt);
+    return result;
+}
+
+static Void process_event (SDL_Event *event, Bool *running) {
+    switch (event->type) {
+    case SDL_EVENT_QUIT: {
+        *running = false;
+    } break;
+
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+        Int width  = event->window.data1;
+        Int height = event->window.data2;
+
+        win_width  = width;
+        win_height = height;
+
+        update_projection();
+        glViewport(0, 0, width, height);
+
+        framebuffer = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
+        blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+        blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
+
+        glScissor(0, 0, width, height);
+
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_WINDOW_SIZE;
+    } break;
+
+    case SDL_EVENT_MOUSE_WHEEL: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_SCROLL;
+        e->x = event->wheel.x;
+        e->y = event->wheel.y;
+    } break;
+
+    case SDL_EVENT_MOUSE_MOTION: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_MOUSE_MOVE;
+        e->x = event->motion.x;
+        e->y = event->motion.y;
+    } break;
+
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+        Auto e  = array_push_slot(&events);
+        e->tag  = (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
+        e->key  = event->button.button;
+        e->mods = SDL_GetModState();
+    } break;
+
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP: {
+        Auto e = array_push_slot(&events);
+        e->tag = (event->type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
+        e->key = event->key.key;
+        e->scancode = event->key.scancode;
+        e->mods = event->key.mod;
+    } break;
+
+    case SDL_EVENT_TEXT_INPUT: {
+        Auto e = array_push_slot(&events);
+        e->tag = EVENT_TEXT_INPUT;
+        e->text = str(cast(Char*, event->text.text));
+    } break;
+}
+}
+
+Void win_init () {
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    window = SDL_CreateWindow("Mimui", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    gl_ctx = SDL_GL_CreateContext(window);
+    gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
+    SDL_StartTextInput(window);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glEnable(GL_SCISSOR_TEST);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
+    blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
+    blur_buffer2  = framebuffer_new(&blur_tex2, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
+    rect_shader   = shader_new("src/ui/shaders/rect_vs.glsl", "src/ui/shaders/rect_fs.glsl");
+    screen_shader = shader_new("src/ui/shaders/screen_vs.glsl", "src/ui/shaders/screen_fs.glsl");
+    blur_shader   = shader_new("src/ui/shaders/blur_vs.glsl", "src/ui/shaders/blur_fs.glsl");
+
+    { // Screen quad init:
+        array_init(&screen_vertices, mem_root);
+        array_push_lit(&screen_vertices, .pos={-1.0f,  1.0f},  .tex={0.0f, 1.0f});
+        array_push_lit(&screen_vertices, .pos={-1.0f, -1.0f},  .tex={0.0f, 0.0f});
+        array_push_lit(&screen_vertices, .pos={ 1.0f, -1.0f},  .tex={1.0f, 0.0f});
+        array_push_lit(&screen_vertices, .pos={-1.0f,  1.0f},  .tex={0.0f, 1.0f});
+        array_push_lit(&screen_vertices, .pos={ 1.0f, -1.0f},  .tex={1.0f, 0.0f});
+        array_push_lit(&screen_vertices, .pos={ 1.0f,  1.0f},  .tex={1.0f, 1.0f});
+
+        glGenVertexArrays(1, &screen_VAO);
+        glGenBuffers(1, &screen_VBO);
+        glBindVertexArray(screen_VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, screen_VBO);
+        glBufferData(GL_ARRAY_BUFFER, array_size(&screen_vertices), screen_vertices.data, GL_STATIC_DRAW);
+        ATTR(AElem(&screen_vertices), 0, 2, pos);
+        ATTR(AElem(&screen_vertices), 1, 2, tex);
+
+        glUseProgram(screen_shader);
+        set_int(screen_shader, "tex", 0);
+    }
+
+    array_init(&blur_vertices, mem_root);
+    glGenVertexArrays(1, &blur_VAO);
+    glBindVertexArray(blur_VAO);
+    glGenBuffers(1, &blur_VBO);
+    ATTR(AElem(&blur_vertices), 0, 2, pos);
+    glBindVertexArray(0);
+
+    array_init(&vertices, mem_root);
+    array_init(&events, mem_root);
+    update_projection();
+}
+
+Void win_run (Void (*frame)(F64 dt)) {
+    F64 dt   = 0;
+    U64 now  = SDL_GetPerformanceCounter();
+    U64 last = 0;
+
+    Bool running = true;
+    Bool poll_events = true;
+
+    while (running) {
+        last = now;
+        now  =  SDL_GetPerformanceCounter();
+        dt   = (now - last) / cast(F64, SDL_GetPerformanceFrequency());
+
+        log_scope(ls, 1);
+
+        #if 0
+            static U64 fps_last_counter = 0;
+            static U64 fps_frame_count  = 0;
+
+            fps_frame_count++;
+            if (fps_last_counter == 0) fps_last_counter = now;
+            F64 elapsed = (now - fps_last_counter) / cast(F64, SDL_GetPerformanceFrequency());
+
+            if (elapsed >= 0.5) {
+                tmem_new(tm);
+                F64 fps = cast(F64, fps_frame_count) / elapsed;
+                SDL_SetWindowTitle(window, astr_fmt(tm, "fps: %.1f%c", fps, 0).data);
+                fps_frame_count  = 0;
+                fps_last_counter = now;
+            }
+        #endif
+
+        SDL_Event event;
+        if (poll_events || ui_is_animating()) {
+            while (SDL_PollEvent(&event)) process_event(&event, &running);
+        } else {
+            SDL_WaitEvent(&event);
+            do process_event(&event, &running); while (SDL_PollEvent(&event));
+            poll_events = false;
+            now = SDL_GetPerformanceCounter();
+        }
+        poll_events = !poll_events;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glClearColor(0, 0, 0, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (events.count == 0) array_push_lit(&events, .tag=EVENT_DUMMY);
+        frame(dt);
+        events.count = 0;
+        if (vertices.count) dr_flush_vertices();
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(screen_shader);
+        glBindVertexArray(screen_VAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
+        glDrawArrays(GL_TRIANGLES, 0, screen_vertices.count);
+
+        SDL_GL_SwapWindow(window);
+    }
+
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteProgram(rect_shader);
+    glDeleteProgram(screen_shader);
+    SDL_GL_DestroyContext(gl_ctx);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}

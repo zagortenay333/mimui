@@ -9,123 +9,7 @@
 #include "base/map.h"
 #include "buffer/buffer.h"
 #include "os/fs.h"
-
-static Void app_build ();
-static Void app_init ();
-static Void ui_init ();
-static Void ui_frame (Void(*)(), F64 dt);
-static Bool ui_is_animating ();
-
-// =============================================================================
-// Sdl and opengl layer:
-// =============================================================================
-#define VERTEX_MAX_BATCH_SIZE 2400
-
-ienum (EventTag, U8) {
-    EVENT_DUMMY,
-    EVENT_EATEN,
-    EVENT_WINDOW_SIZE,
-    EVENT_MOUSE_MOVE,
-    EVENT_SCROLL,
-    EVENT_KEY_PRESS,
-    EVENT_KEY_RELEASE,
-    EVENT_TEXT_INPUT,
-};
-
-istruct (Event) {
-    EventTag tag;
-    F64 x;
-    F64 y;
-    Int key;
-    Int mods;
-    Int scancode;
-    String text;
-};
-
-istruct (Rect) {
-    union { struct { F32 x, y; }; Vec2 top_left; };
-    union { struct { F32 w, h; }; F32 size[2]; };
-};
-
-istruct (RectAttributes) {
-    Vec4 color;
-    Vec4 color2; // If x = -1, no gradient.
-    Vec2 top_left;
-    Vec2 bottom_right;
-    Vec4 radius;
-    F32  edge_softness;
-    Vec4 border_color;
-    Vec4 border_widths;
-    Vec4 inset_shadow_color;
-    Vec4 outset_shadow_color;
-    F32  outset_shadow_width;
-    F32  inset_shadow_width;
-    Vec2 shadow_offsets;
-    Vec4 texture_rect;
-    Vec4 text_color;
-    F32 text_is_grayscale;
-};
-
-istruct (Vertex) {
-    Vec2 position;
-    Vec4 color;
-    Vec2 top_left;
-    Vec2 bottom_right;
-    Vec4 radius;
-    F32 edge_softness;
-    Vec4 border_color;
-    Vec4 border_widths;
-    Vec4 inset_shadow_color;
-    Vec4 outset_shadow_color;
-    F32 outset_shadow_width;
-    F32 inset_shadow_width;
-    Vec2 shadow_offsets;
-    Vec2 uv;
-    Vec4 text_color;
-    F32 text_is_grayscale;
-};
-
-array_typedef(Vertex, Vertex);
-array_typedef(Event, Event);
-
-Int win_width  = 800;
-Int win_height = 600;
-
-#define BLUR_SHRINK 4
-U32 blur_shader;
-U32 blur_VBO, blur_VAO;
-U32 blur_buffer1;
-U32 blur_buffer2;
-U32 blur_tex1;
-U32 blur_tex2;
-Array(struct { Vec2 pos; }) blur_vertices;
-
-ArrayVertex vertices;
-ArrayEvent events;
-
-U32 rect_shader;
-U32 VBO, VAO;
-Mat4 projection;
-U32 framebuffer;
-U32 framebuffer_tex;
-
-U32 screen_shader;
-U32 screen_VBO, screen_VAO;
-Array(struct { Vec2 pos; Vec2 tex; }) screen_vertices;
-
-static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h);
-
-static Void set_bool  (U32 p, CString name, Bool v) { glUniform1i(glGetUniformLocation(p, name), cast(Int, v)); }
-static Void set_int   (U32 p, CString name, Int v)  { glUniform1i(glGetUniformLocation(p, name), v); }
-static Void set_float (U32 p, CString name, F32 v)  { glUniform1f(glGetUniformLocation(p, name), v); }
-static Void set_vec2  (U32 p, CString name, Vec2 v) { glUniform2f(glGetUniformLocation(p, name), v.x, v.y); }
-static Void set_vec4  (U32 p, CString name, Vec4 v) { glUniform4f(glGetUniformLocation(p, name), v.x, v.y, v.z, v.w); }
-static Void set_mat4  (U32 p, CString name, Mat4 m) { glUniformMatrix4fv(glGetUniformLocation(p, name), 1, GL_FALSE, cast(F32*, &m)); }
-
-#define ATTR(T, OFFSET, LEN, NAME) ({\
-    glVertexAttribPointer(OFFSET, LEN, GL_FLOAT, GL_FALSE, sizeof(T), cast(Void*, offsetof(T, NAME)));\
-    glEnableVertexAttribArray(OFFSET);\
-})
+#include "window/window.h"
 
 Noreturn static Void error () {
     log_scope_end_all();
@@ -139,498 +23,6 @@ Noreturn Fmt(1, 2) static Void error_fmt (CString fmt, ...) {
     error();
 }
 
-static Void update_projection () {
-    F32 h = cast(F32, win_height);
-    F32 w = cast(F32, win_width);
-    projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
-}
-
-istruct (Image) {
-    U32 texture;
-    F32 width;
-    F32 height;
-};
-
-Image load_image (CString filepath, Bool flip) {
-    U32 id; glGenTextures(1, &id);
-
-    glBindTexture(GL_TEXTURE_2D, id);
-
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    stbi_set_flip_vertically_on_load(flip);
-
-    Int w, h, n; U8 *data = stbi_load(filepath, &w, &h, &n, 0);
-    if (! data) error_fmt("Couldn't load image from file: %s\n", filepath);
-
-    Int fmt = (n == 3) ? GL_RGB : GL_RGBA;
-    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    stbi_image_free(data);
-
-    return (Image){
-        .texture = id,
-        .width   = w,
-        .height  = h,
-    };
-}
-
-static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h) {
-    U32 r;
-    glGenFramebuffers(1, &r);
-    glBindFramebuffer(GL_FRAMEBUFFER, r);
-
-    U32 texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-    if (out_texture) *out_texture = texture;
-
-    if (! only_color_attach) {
-        U32 rbo;
-        glGenRenderbuffers(1, &rbo);
-        glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-    }
-
-    assert_always(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    return r;
-}
-
-static U32 shader_compile (GLenum type, String filepath) {
-    tmem_new(tm);
-
-    String source = fs_read_entire_file(tm, filepath, 0);
-    if (! source.data) error_fmt("Unable to read file: %.*s\n", STR(filepath));
-
-    U32 shader = glCreateShader(type);
-
-    glShaderSource(shader, 1, cast(const GLchar**, &source.data), 0);
-    glCompileShader(shader);
-
-    Int success; glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (! success) {
-        log_msg(msg, LOG_ERROR, "", 1);
-        Int count; glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &count);
-        astr_push_fmt(msg, "Shader compilation error: %.*s\n  ", STR(filepath));
-        U32 offset = msg->count;
-        array_increase_count(msg, cast(U32, count), false);
-        glGetShaderInfoLog(shader, count, 0, msg->data + offset);
-        msg->count--; // Get rid of the NUL byte...
-        error();
-    }
-
-    return shader;
-}
-
-static U32 shader_new (CString vshader_path, CString fshader_path) {
-    U32 id      = glCreateProgram();
-    U32 vshader = shader_compile(GL_VERTEX_SHADER, str(vshader_path));
-    U32 fshader = shader_compile(GL_FRAGMENT_SHADER, str(fshader_path));
-
-    glAttachShader(id, vshader);
-    glAttachShader(id, fshader);
-    glLinkProgram(id);
-
-    Int success; glGetProgramiv(id, GL_LINK_STATUS, &success);
-    if (! success) {
-        log_msg(msg, LOG_ERROR, "", 1);
-        Int count; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &count);
-        astr_push_cstr(msg, "Shader prog link error.\n  ");
-        U32 offset = msg->count;
-        array_increase_count(msg, cast(U32, count), false);
-        glGetProgramInfoLog(id, count, 0, msg->data + offset);
-        msg->count--; // Get rid of the NUL byte...
-        error();
-    }
-
-    glDeleteShader(vshader);
-    glDeleteShader(fshader);
-
-    return id;
-}
-
-static Void flush_vertices () {
-    glBindVertexArray(VAO);
-    glUseProgram(rect_shader);
-    set_mat4(rect_shader, "projection", projection);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-    ATTR(Vertex, 0, 2, position);
-    ATTR(Vertex, 1, 4, color);
-    ATTR(Vertex, 2, 2, top_left);
-    ATTR(Vertex, 3, 2, bottom_right);
-    ATTR(Vertex, 4, 4, radius);
-    ATTR(Vertex, 5, 1, edge_softness);
-    ATTR(Vertex, 6, 4, border_color);
-    ATTR(Vertex, 7, 4, border_widths);
-    ATTR(Vertex, 8, 4, inset_shadow_color);
-    ATTR(Vertex, 9, 4, outset_shadow_color);
-    ATTR(Vertex, 10, 1, outset_shadow_width);
-    ATTR(Vertex, 11, 1, inset_shadow_width);
-    ATTR(Vertex, 12, 2, shadow_offsets);
-    ATTR(Vertex, 13, 2, uv);
-    ATTR(Vertex, 14, 4, text_color);
-    ATTR(Vertex, 15, 1, text_is_grayscale);
-
-    glBufferData(GL_ARRAY_BUFFER, array_size(&vertices), vertices.data, GL_STREAM_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, vertices.count);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    vertices.count = 0;
-}
-
-static Vertex *reserve_vertices (U32 n) {
-    if (vertices.count + n >= VERTEX_MAX_BATCH_SIZE) flush_vertices();
-    SliceVertex slice;
-    array_increase_count_o(&vertices, n, false, &slice);
-    return slice.data;
-}
-
-static Void draw_rect_vertex (Vertex *v, Vec2 pos, Vec2 uv, Vec4 color, RectAttributes *a) {
-    v->position            = pos;
-    v->color               = color;
-    v->top_left            = a->top_left;
-    v->bottom_right        = a->bottom_right;
-    v->radius              = a->radius;
-    v->edge_softness       = a->edge_softness;
-    v->border_color        = a->border_color;
-    v->border_widths       = a->border_widths;
-    v->inset_shadow_color  = a->inset_shadow_color;
-    v->outset_shadow_color = a->outset_shadow_color;
-    v->outset_shadow_width = a->outset_shadow_width;
-    v->inset_shadow_width  = a->inset_shadow_width;
-    v->shadow_offsets      = a->shadow_offsets;
-    v->uv                  = uv;
-    v->text_color          = a->text_color;
-    v->text_is_grayscale   = a->text_is_grayscale;
-}
-
-#define draw_rect(...) draw_rect_fn(&(RectAttributes){__VA_ARGS__})
-
-static SliceVertex draw_rect_fn (RectAttributes *a) {
-    Vertex *p = reserve_vertices(6);
-
-    if (a->color2.x == -1.0) a->color2 = a->color;
-
-    // We make the rect slightly bigger because the fragment
-    // shader will shrink it to make room for the drop shadow.
-    a->top_left.x     -= 2*a->outset_shadow_width + 2*a->edge_softness;
-    a->top_left.y     -= 2*a->outset_shadow_width + 2*a->edge_softness;
-    a->bottom_right.x += 2*a->outset_shadow_width + 2*a->edge_softness;
-    a->bottom_right.y += 2*a->outset_shadow_width + 2*a->edge_softness;
-
-    a->top_left.y = win_height - a->top_left.y;
-    a->bottom_right.y = win_height - a->bottom_right.y;
-
-    Vec2 bottom_left = vec2(a->top_left.x, a->bottom_right.y);
-    Vec2 top_right   = vec2(a->bottom_right.x, a->top_left.y);
-
-    Vec4 tr = a->texture_rect;
-
-    draw_rect_vertex(&p[0], a->top_left, vec2(tr.x, tr.y), a->color, a);
-    draw_rect_vertex(&p[1], bottom_left, vec2(tr.x, tr.y+tr.w), a->color2, a);
-    draw_rect_vertex(&p[2], a->bottom_right, vec2(tr.x+tr.z, tr.y+tr.w), a->color2, a);
-    draw_rect_vertex(&p[3], a->bottom_right, vec2(tr.x+tr.z, tr.y+tr.w), a->color2, a);
-    draw_rect_vertex(&p[4], top_right, vec2(tr.x+tr.z, tr.y), a->color, a);
-    draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
-
-    return (SliceVertex){p,6};
-}
-
-static Void draw_blur (Rect r, F32 strength, Vec4 corner_radius) {
-    flush_vertices();
-    glScissor(0, 0, win_width, win_height);
-
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, blur_buffer1);
-    glBlitFramebuffer(0, 0, win_width, win_height, 0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-    glViewport(0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK);
-
-    blur_vertices.count = 0;
-    array_push_lit(&blur_vertices, -1.0f,  1.0f);
-    array_push_lit(&blur_vertices, -1.0f, -1.0f);
-    array_push_lit(&blur_vertices,  1.0f, -1.0f);
-    array_push_lit(&blur_vertices, -1.0f,  1.0f);
-    array_push_lit(&blur_vertices,  1.0f, -1.0f);
-    array_push_lit(&blur_vertices,  1.0f,  1.0f);
-
-    glBindVertexArray(blur_VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, blur_VBO);
-    ATTR(AElem(&blur_vertices), 0, 2, pos);
-    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
-
-    glUseProgram(blur_shader);
-    set_int(blur_shader, "blur_radius", strength);
-    set_bool(blur_shader, "do_blurring", true);
-    set_mat4(blur_shader, "projection", mat4(1));
-
-    for (U64 i = 0; i < 3; ++i) {
-        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer2);
-        glBindTexture(GL_TEXTURE_2D, blur_tex1);
-        set_bool(blur_shader, "horizontal", true);
-        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer1);
-        glBindTexture(GL_TEXTURE_2D, blur_tex2);
-        set_bool(blur_shader, "horizontal", false);
-        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-    }
-
-    glViewport(0, 0, win_width, win_height);
-    glBindTexture(GL_TEXTURE_2D, blur_tex1);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-    r.y = win_height - r.y;
-    blur_vertices.count = 0;
-    array_push_lit(&blur_vertices, r.x, r.y);
-    array_push_lit(&blur_vertices, r.x+r.w, r.y);
-    array_push_lit(&blur_vertices, r.x, r.y-r.h);
-    array_push_lit(&blur_vertices, r.x, r.y-r.h);
-    array_push_lit(&blur_vertices, r.x+r.w, r.y);
-    array_push_lit(&blur_vertices, r.x+r.w, r.y-r.h);
-
-    set_mat4(blur_shader, "projection", projection);
-    set_bool(blur_shader, "do_blurring", false);
-    set_vec2(blur_shader, "half_size", vec2(r.w/2, r.h/2));
-    set_vec2(blur_shader, "center", vec2(r.x+r.w/2, r.y-r.h/2));
-    set_vec4(blur_shader, "radius", corner_radius);
-    set_float(blur_shader, "blur_shrink", BLUR_SHRINK);
-
-    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-static Void set_clipboard_text (String str) {
-    tmem_new(tm);
-    SDL_SetClipboardText(cstr(tm, str));
-}
-
-static String get_clipboard_text (Mem *mem) {
-    CString txt = SDL_GetClipboardText();
-    String result = str_copy(mem, str(txt));
-    SDL_free(txt);
-    return result;
-}
-
-F64 get_time_sec () {
-    U64 counter = SDL_GetPerformanceCounter();
-    U64 freq    = SDL_GetPerformanceFrequency();
-    return cast(F64, counter) / cast(F64, freq);
-}
-
-static Void process_event (SDL_Event *event, Bool *running) {
-    switch (event->type) {
-    case SDL_EVENT_QUIT: {
-        *running = false;
-    } break;
-
-    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
-        Int width  = event->window.data1;
-        Int height = event->window.data2;
-
-        win_width  = width;
-        win_height = height;
-
-        update_projection();
-        glViewport(0, 0, width, height);
-
-        framebuffer = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
-        blur_buffer1 = framebuffer_new(&blur_tex1, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
-        blur_buffer2 = framebuffer_new(&blur_tex2, 1, floor(win_width  / BLUR_SHRINK), floor(win_height / BLUR_SHRINK));
-
-        glScissor(0, 0, width, height);
-
-        Auto e = array_push_slot(&events);
-        e->tag = EVENT_WINDOW_SIZE;
-    } break;
-
-    case SDL_EVENT_MOUSE_WHEEL: {
-        Auto e = array_push_slot(&events);
-        e->tag = EVENT_SCROLL;
-        e->x = event->wheel.x;
-        e->y = event->wheel.y;
-    } break;
-
-    case SDL_EVENT_MOUSE_MOTION: {
-        Auto e = array_push_slot(&events);
-        e->tag = EVENT_MOUSE_MOVE;
-        e->x = event->motion.x;
-        e->y = event->motion.y;
-    } break;
-
-    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-    case SDL_EVENT_MOUSE_BUTTON_UP: {
-        Auto e  = array_push_slot(&events);
-        e->tag  = (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-        e->key  = event->button.button;
-        e->mods = SDL_GetModState();
-    } break;
-
-    case SDL_EVENT_KEY_DOWN:
-    case SDL_EVENT_KEY_UP: {
-        Auto e = array_push_slot(&events);
-        e->tag = (event->type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
-        e->key = event->key.key;
-        e->scancode = event->key.scancode;
-        e->mods = event->key.mod;
-    } break;
-
-    case SDL_EVENT_TEXT_INPUT: {
-        Auto e = array_push_slot(&events);
-        e->tag = EVENT_TEXT_INPUT;
-        e->text = str(cast(Char*, event->text.text));
-    } break;
-}
-}
-
-Void ui_test () {
-    SDL_Init(SDL_INIT_VIDEO);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_Window *window = SDL_CreateWindow("Mimui", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
-    SDL_GLContext gl_ctx = SDL_GL_CreateContext(window);
-    gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
-    SDL_StartTextInput(window);
-
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-    glEnable(GL_BLEND);
-    glEnable(GL_SCISSOR_TEST);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-
-    framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
-    blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    blur_buffer2  = framebuffer_new(&blur_tex2, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    rect_shader   = shader_new("src/ui/shaders/rect_vs.glsl", "src/ui/shaders/rect_fs.glsl");
-    screen_shader = shader_new("src/ui/shaders/screen_vs.glsl", "src/ui/shaders/screen_fs.glsl");
-    blur_shader   = shader_new("src/ui/shaders/blur_vs.glsl", "src/ui/shaders/blur_fs.glsl");
-
-    { // Screen quad init:
-        array_init(&screen_vertices, mem_root);
-        array_push_lit(&screen_vertices, .pos={-1.0f,  1.0f},  .tex={0.0f, 1.0f});
-        array_push_lit(&screen_vertices, .pos={-1.0f, -1.0f},  .tex={0.0f, 0.0f});
-        array_push_lit(&screen_vertices, .pos={ 1.0f, -1.0f},  .tex={1.0f, 0.0f});
-        array_push_lit(&screen_vertices, .pos={-1.0f,  1.0f},  .tex={0.0f, 1.0f});
-        array_push_lit(&screen_vertices, .pos={ 1.0f, -1.0f},  .tex={1.0f, 0.0f});
-        array_push_lit(&screen_vertices, .pos={ 1.0f,  1.0f},  .tex={1.0f, 1.0f});
-
-        glGenVertexArrays(1, &screen_VAO);
-        glGenBuffers(1, &screen_VBO);
-        glBindVertexArray(screen_VAO);
-        glBindBuffer(GL_ARRAY_BUFFER, screen_VBO);
-        glBufferData(GL_ARRAY_BUFFER, array_size(&screen_vertices), screen_vertices.data, GL_STATIC_DRAW);
-        ATTR(AElem(&screen_vertices), 0, 2, pos);
-        ATTR(AElem(&screen_vertices), 1, 2, tex);
-
-        glUseProgram(screen_shader);
-        set_int(screen_shader, "tex", 0);
-    }
-
-    array_init(&blur_vertices, mem_root);
-    glGenVertexArrays(1, &blur_VAO);
-    glBindVertexArray(blur_VAO);
-    glGenBuffers(1, &blur_VBO);
-    ATTR(AElem(&blur_vertices), 0, 2, pos);
-    glBindVertexArray(0);
-
-    array_init(&vertices, mem_root);
-    array_init(&events, mem_root);
-    update_projection();
-
-    ui_init();
-    app_init();
-
-    F64 dt   = 0;
-    U64 now  = SDL_GetPerformanceCounter();
-    U64 last = 0;
-
-    Bool running = true;
-    Bool poll_events = true;
-
-    while (running) {
-        last = now;
-        now  =  SDL_GetPerformanceCounter();
-        dt   = (now - last) / cast(F64, SDL_GetPerformanceFrequency());
-
-        log_scope(ls, 1);
-
-        #if 0
-            static U64 fps_last_counter = 0;
-            static U64 fps_frame_count  = 0;
-
-            fps_frame_count++;
-            if (fps_last_counter == 0) fps_last_counter = now;
-            F64 elapsed = (now - fps_last_counter) / cast(F64, SDL_GetPerformanceFrequency());
-
-            if (elapsed >= 0.5) {
-                tmem_new(tm);
-                F64 fps = cast(F64, fps_frame_count) / elapsed;
-                SDL_SetWindowTitle(window, astr_fmt(tm, "fps: %.1f%c", fps, 0).data);
-                fps_frame_count  = 0;
-                fps_last_counter = now;
-            }
-        #endif
-
-        SDL_Event event;
-        if (poll_events || ui_is_animating()) {
-            while (SDL_PollEvent(&event)) process_event(&event, &running);
-        } else {
-            SDL_WaitEvent(&event);
-            do process_event(&event, &running); while (SDL_PollEvent(&event));
-            poll_events = false;
-            now = SDL_GetPerformanceCounter();
-        }
-        poll_events = !poll_events;
-
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        glClearColor(0, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        if (events.count == 0) array_push_lit(&events, .tag=EVENT_DUMMY);
-        ui_frame(app_build, dt);
-        events.count = 0;
-        if (vertices.count) flush_vertices();
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(screen_shader);
-        glBindVertexArray(screen_VAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
-        glDrawArrays(GL_TRIANGLES, 0, screen_vertices.count);
-
-        SDL_GL_SwapWindow(window);
-    }
-
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteProgram(rect_shader);
-    glDeleteProgram(screen_shader);
-    SDL_GL_DestroyContext(gl_ctx);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-}
-
-// =============================================================================
-// UI layer:
-// =============================================================================
 typedef U64 UiKey;
 
 ienum (UiSizeTag, U8) {
@@ -1583,7 +975,7 @@ Bool set_font (UiBox *box) {
     U32 size = box->style.font_size;
     if (!font || !size) return false;
     if (ui->font != font || size != ui->font->size) {
-        flush_vertices();
+        dr_flush_vertices();
         ui->font = font_get(ui->font_cache, font->filepath, size, font->is_mono);
     }
     return true;
@@ -1840,15 +1232,17 @@ static Void find_topmost_hovered_box (UiBox *box) {
 }
 
 static Void draw_box (UiBox *box) {
+    F32 win_height = win_get_size().y;
+
     if (!(box->flags & UI_BOX_INVISIBLE) && box->style.blur_radius) {
         F32 blur_radius = max(1, cast(Int, box->style.blur_radius));
-        draw_blur(box->rect, blur_radius, box->style.radius);
+        dr_blur(box->rect, blur_radius, box->style.radius);
         Rect r = array_get_last(&ui->clip_stack);
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
 
     }
 
-    if (! (box->flags & UI_BOX_INVISIBLE)) draw_rect(
+    if (! (box->flags & UI_BOX_INVISIBLE)) dr_rect(
         .top_left            = box->rect.top_left,
         .bottom_right        = vec2(box->rect.x + box->rect.w, box->rect.y + box->rect.h),
         .color               = box->style.bg_color,
@@ -1865,7 +1259,7 @@ static Void draw_box (UiBox *box) {
     );
 
     if (box->flags & UI_BOX_CLIPPING) {
-        flush_vertices();
+        dr_flush_vertices();
         Rect r = ui_push_clip(box, true);
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
@@ -1876,7 +1270,7 @@ static Void draw_box (UiBox *box) {
     array_pop(&ui->box_stack);
 
     if (box->flags & UI_BOX_CLIPPING) {
-        flush_vertices();
+        dr_flush_vertices();
         Rect r = ui_pop_clip();
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
@@ -1924,7 +1318,7 @@ static Void draw_label (UiBox *box) {
         };
         Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
 
-        draw_rect(
+        dr_rect(
             .top_left          = top_left,
             .bottom_right      = bottom_right,
             .texture_rect      = {slot->x, slot->y, slot->width, slot->height},
@@ -2008,9 +1402,9 @@ istruct (UiImage) {
 
 static Void draw_image (UiBox *box) {
     Auto info = cast(UiImage *, box->scratch);
-    flush_vertices();
+    dr_flush_vertices();
     glBindTexture(GL_TEXTURE_2D, info->image->texture);
-    draw_rect(
+    dr_rect(
         .top_left          = box->rect.top_left,
         .bottom_right      = {box->rect.x + box->rect.w, box->rect.y + box->rect.h},
         .radius            = box->style.radius,
@@ -2595,7 +1989,7 @@ static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, Strin
             BufCursor current = buf_cursor_new(info->buf, line_idx, col_idx);
             Bool selected = current.byte_offset >= selection_start && current.byte_offset < selection_end;
 
-            if (selected) draw_rect(
+            if (selected) dr_rect(
                 .color        = ui_config_get_vec4(UI_CONFIG_BG_SELECTION),
                 .color2       = ui_config_get_vec4(UI_CONFIG_BG_SELECTION),
                 .top_left     = {x, y - cell_h - line_spacing},
@@ -2607,7 +2001,7 @@ static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, Strin
             Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
             Vec4 final_text_color = selected ? ui_config_get_vec4(UI_CONFIG_TEXT_SELECTION) : color;
 
-            draw_rect(
+            dr_rect(
                 .top_left     = top_left,
                 .bottom_right = bottom_right,
                 .texture_rect = {slot->x, slot->y, slot->width, slot->height},
@@ -2646,7 +2040,7 @@ static Void text_box_draw (UiBox *box) {
         y += line_height;
     }
 
-    if (box->signals.focused) draw_rect(
+    if (box->signals.focused) dr_rect(
         .color = ui_config_get_vec4(UI_CONFIG_MAGENTA_1),
         .color2 = {-1},
         .top_left = info->cursor_coord,
@@ -2866,7 +2260,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case SDLK_V:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
-                    String text = get_clipboard_text(ui->frame_mem);
+                    String text = win_get_clipboard_text(ui->frame_mem);
                     buf_insert(info->buf, &info->cursor, text);
                 }
                 break;
@@ -2874,7 +2268,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     String text = buf_get_selection(info->buf, &info->cursor);
                     if (text.count) {
-                        set_clipboard_text(text);
+                        win_set_clipboard_text(text);
                         buf_delete(info->buf, &info->cursor);
                     }
                 }
@@ -2882,7 +2276,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             case SDLK_C:
                 if (ui->event->mods & SDL_KMOD_CTRL) {
                     String text = buf_get_selection(info->buf, &info->cursor);
-                    if (text.count) set_clipboard_text(text);
+                    if (text.count) win_set_clipboard_text(text);
                 }
                 break;
             case SDLK_RETURN:
@@ -3218,14 +2612,14 @@ static Void draw_color_sat_val_picker (UiBox *box) {
     Vec4 c = hsva_to_rgba(vec4(info->hue, 1, 1, 1));
     Vec4 lc = c;
 
-    draw_rect(
+    dr_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
         .color        = lc,
         .color2       = {-1},
     );
 
-    SliceVertex v = draw_rect(
+    SliceVertex v = dr_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
         .color        = {1, 1, 1, 0},
@@ -3235,7 +2629,7 @@ static Void draw_color_sat_val_picker (UiBox *box) {
     v.data[1].color = vec4(1, 1, 1, 1);
     v.data[5].color = vec4(1, 1, 1, 1);
 
-    draw_rect(
+    dr_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
         .color        = {0, 0, 0, 0},
@@ -3247,7 +2641,7 @@ static Void draw_color_sat_val_picker (UiBox *box) {
         box->rect.x + (info->sat * box->rect.w),
         box->rect.y + (1 - info->val) * box->rect.h
     };
-    draw_rect(
+    dr_rect(
         .edge_softness = 1,
         .radius        = { half, half, half, half },
         .top_left      = { center.x-half, center.y-half },
@@ -3290,7 +2684,7 @@ static Void draw_color_hue_picker (UiBox *box) {
     for (U64 i = 0; i < 6; ++i) {
         Vec4 col1 = hsva_to_rgba(vec4(cast(F32,i)/6, 1, 1, 1));
         Vec4 col2 = hsva_to_rgba(vec4(cast(F32, i+1)/6, 1, 1, 1));
-        draw_rect(
+        dr_rect(
             .top_left     = r.top_left,
             .bottom_right = {r.x+r.w, r.y+r.h},
             .color        = col1,
@@ -3304,7 +2698,7 @@ static Void draw_color_hue_picker (UiBox *box) {
         box->rect.x + box->rect.w/2,
         box->rect.y + *hue * box->rect.h,
     };
-    draw_rect(
+    dr_rect(
         .edge_softness = 1,
         .radius        = { half, half, half, half },
         .top_left      = { center.x-half, center.y-half },
@@ -3336,7 +2730,7 @@ static Void draw_color_alpha_picker (UiBox *box) {
     F32 *alpha = cast(F32*, box->scratch);
     Rect *r = &box->rect;
 
-    draw_rect(
+    dr_rect(
         .top_left     = r->top_left,
         .bottom_right = {r->x+r->w, r->y+r->h},
         .color        = {1, 1, 1, 1},
@@ -3348,7 +2742,7 @@ static Void draw_color_alpha_picker (UiBox *box) {
         box->rect.x + box->rect.w/2,
         box->rect.y + (1 - *alpha) * box->rect.h,
     };
-    draw_rect(
+    dr_rect(
         .edge_softness = 1,
         .radius        = { half, half, half, half },
         .top_left      = { center.x-half, center.y-half },
@@ -3534,20 +2928,21 @@ static Void find_prev_focus () {
     }
 }
 
-static Bool ui_is_animating () {
+Bool ui_is_animating () {
     return ui->animation_running;
 }
 
-static Void ui_frame (Void(*app_build)(), F64 dt) {
+Void ui_frame (Void(*app_build)(), F64 dt) {
     ui->dt = dt;
     ui->animation_running = false;
 
-    array_iter (event, &events, *) {
+    array_iter (event, win_get_events(), *) {
         update_input_state(event);
 
         Rect *root_clip = array_ref_last(&ui->clip_stack);
-        root_clip->w = win_width;
-        root_clip->h = win_height;
+        Vec2 win = win_get_size();
+        root_clip->w = win.x;
+        root_clip->h = win.y;
 
         if (ui->depth_first.count) {
             if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == SDLK_TAB)) {
@@ -3601,12 +2996,12 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_vec4(UI_CONFIG_HIGHLIGHT, vec4(1, 1, 1, .05));
             ui_config_def_vec4(UI_CONFIG_SLIDER_KNOB, vec4(1, 1, 1, 1));
 
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, win_width, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, win_height, 0});
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, win.x, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, win.y, 0});
             ui_style_vec2(UI_PADDING, vec2(0, 0));
             ui_style_f32(UI_SPACING, 0);
-            ui->root->rect.w = win_width;
-            ui->root->rect.h = win_height;
+            ui->root->rect.w = win.x;
+            ui->root->rect.h = win.y;
 
             app_build();
         }
@@ -3646,7 +3041,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
     arena_pop_all(cast(Arena*, ui->frame_mem));
 }
 
-static Void ui_init () {
+Void ui_init () {
     Arena *perm_arena  = arena_new(mem_root, 1*KB);
     Arena *frame_arena = arena_new(mem_root, 64*KB);
     ui = mem_new(cast(Mem*, perm_arena), Ui);
@@ -3660,8 +3055,9 @@ static Void ui_init () {
     map_init(&ui->box_cache, ui->perm_mem);
     map_init(&ui->pressed_keys, ui->perm_mem);
     map_init(&ui->box_data, ui->perm_mem);
-    array_push_lit(&ui->clip_stack, .w=win_width, .h=win_height);
-    ui->font_cache = font_cache_new(ui->perm_mem, flush_vertices, 64);
+    Vec2 win = win_get_size();
+    array_push_lit(&ui->clip_stack, .w=win.x, .h=win.y);
+    ui->font_cache = font_cache_new(ui->perm_mem, dr_flush_vertices, 64);
 }
 
 // =============================================================================
@@ -3903,7 +3299,7 @@ static Void show_modal () {
     }
 }
 
-static Void app_build () {
+Void app_build () {
     ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_1);
 
     ui_style_rule(".vbox") {
@@ -3980,10 +3376,10 @@ static Void app_build () {
     }
 }
 
-static Void app_init () {
+Void app_init () {
     app = mem_new(ui->perm_mem, App);
     app->view = 3;
-    app->image = load_image("data/images/screenshot.png", false);
+    app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));

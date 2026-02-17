@@ -5,6 +5,8 @@
 #include "os/info.h"
 #include "os/time.h"
 #include "base/log.h"
+#include "ui/ui.h"
+#include "window/window.h"
 
 istruct (CmdLine) {
     U64 cursor;
@@ -52,6 +54,10 @@ static CmdLine cli_parse (Int argc, CString *argv) {
     return cli;
 }
 
+static Void fn (F64 dt) {
+    ui_frame(app_build, dt);
+}
+
 Int main (Int argc, CString *argv) {
     random_setup();
     tmem_setup(mem_root, 1*MB);
@@ -60,9 +66,8 @@ Int main (Int argc, CString *argv) {
  
     // cli_parse(argc, argv);
 
-    Void ui_test();
-    ui_test();
-
-    // Void ui_test2();
-    // ui_test2();
+    win_init();
+    ui_init();
+    app_init();
+    win_run(fn);
 }
