@@ -1,3 +1,5 @@
+#pragma once
+
 #include <hb.h>
 #include <hb-ft.h>
 #include "base/core.h"

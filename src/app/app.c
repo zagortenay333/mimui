@@ -1,5 +1,7 @@
 #include "app/app.h"
+#include <SDL3/SDL.h>
 #include "ui/ui.h"
+#include "ui/ui_widgets.h"
 #include "buffer/buffer.h"
 #include "window/window.h"
 
