@@ -64,11 +64,27 @@ static Void update_projection () {
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
 }
 
-Image dr_image (CString filepath, Bool flip) {
-    U32 id; glGenTextures(1, &id);
-
+U32 dr_2d_texture_alloc (U32 width, U32 height) {
+    U32 id;
+    glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    return id;
+}
 
+Void dr_2d_texture_update (U32 texture, U32 x, U32 y, U32 w, U32 h, U8 *buf) {
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+}
+
+Image dr_image (CString filepath, Bool flip) {
+    U32 id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -486,12 +502,12 @@ static Void process_event (SDL_Event *event, Bool *running) {
 }
 }
 
-Void win_init () {
+Void win_init (CString title) {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    window = SDL_CreateWindow("Mimui", 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    window = SDL_CreateWindow(title, 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
     gl_ctx = SDL_GL_CreateContext(window);
     gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
     SDL_StartTextInput(window);

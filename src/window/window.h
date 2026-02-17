@@ -98,7 +98,7 @@ istruct (Event) {
 
 array_typedef(Event, Event);
 
-Void        win_init               ();
+Void        win_init               (CString);
 Void        win_run                (Void (*)(F64 dt));
 SliceEvent *win_get_events         ();
 Void        win_set_clipboard_text (String);
@@ -159,13 +159,15 @@ istruct (Image) {
 
 array_typedef(Vertex, Vertex);
 
-Image       dr_image            (CString filepath, Bool flip);
-Void        dr_flush_vertices   ();
-Vertex     *dr_reserve_vertices (U32 n);
-SliceVertex dr_rect_fn          (RectAttributes *);
-Void        dr_blur             (Rect, F32 strength, Vec4 corner_radius);
-Void        dr_scissor          (Rect);
-Void        dr_bind_texture     (U32);
+Image       dr_image             (CString filepath, Bool flip);
+Void        dr_flush_vertices    ();
+Vertex     *dr_reserve_vertices  (U32 n);
+SliceVertex dr_rect_fn           (RectAttributes *);
+Void        dr_blur              (Rect, F32 strength, Vec4 corner_radius);
+Void        dr_scissor           (Rect);
+Void        dr_bind_texture      (U32);
+U32         dr_2d_texture_alloc  (U32 w, U32 h);
+Void        dr_2d_texture_update (U32 texture, U32 x, U32 y, U32 w, U32 h, U8 *buf);
 
 #define dr_rect(...)\
     dr_rect_fn(&(RectAttributes){__VA_ARGS__})

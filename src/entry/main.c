@@ -67,7 +67,7 @@ Int main (Int argc, CString *argv) {
  
     // cli_parse(argc, argv);
 
-    win_init();
+    win_init("Mimui");
     ui_init();
     app_init();
     win_run(fn);

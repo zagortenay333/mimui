@@ -1,4 +1,3 @@
-#include "vendor/glad/glad.h"
 #include <freetype/freetype.h>
 #include <freetype/ftmodapi.h>
 #include "vendor/plutosvg/src/plutosvg.h"
@@ -9,6 +8,7 @@
 #include "base/map.h"
 #include "os/fs.h"
 #include "os/time.h"
+#include "window/window.h"
 
 #define LOG_HEADER "FontCache"
 
@@ -109,8 +109,7 @@ AtlasSlot *font_get_atlas_slot (Font *font, GlyphInfo *info) {
         default: badpath;
         }
 
-        glBindTexture(GL_TEXTURE_2D, font->atlas_texture);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, slot->x, slot->y, font->atlas_slot_size, font->atlas_slot_size, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+        dr_2d_texture_update(font->atlas_texture, slot->x, slot->y, font->atlas_slot_size, font->atlas_slot_size, buf);
 
         done:;
     }
@@ -155,13 +154,7 @@ static Font *font_new (FontCache *cache, String filepath, U32 size, Bool is_mono
     I32 hb_font_size = size * 64;
     hb_font_set_scale(font->hb_font, hb_font_size, hb_font_size);
 
-    glGenTextures(1, &font->atlas_texture);
-    glBindTexture(GL_TEXTURE_2D, font->atlas_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cache->atlas_size*font->atlas_slot_size, cache->atlas_size*font->atlas_slot_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    font->atlas_texture = dr_2d_texture_alloc(cache->atlas_size*font->atlas_slot_size, cache->atlas_size*font->atlas_slot_size);
 
     { // Get metrics:
         U32 glyph_index = FT_Get_Char_Index(font->ft_face, 'M');
