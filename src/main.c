@@ -6,6 +6,7 @@
 #include "os/time.h"
 #include "base/log.h"
 #include "ui/ui.h"
+#include "app/app.h"
 #include "window/window.h"
 
 istruct (CmdLine) {
