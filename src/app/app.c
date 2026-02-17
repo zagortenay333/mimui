@@ -158,10 +158,10 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
 
-            ui_icon("icon1", 16, get_icon(ICON_TODO));
-            ui_icon("icon2", 16, get_icon(ICON_FIRE));
-            ui_icon("icon3", 16, get_icon(ICON_EYE));
-            ui_icon("icon4", 16, get_icon(ICON_ALARM));
+            ui_icon("icon1", 16, get_icon(UI_ICON_TODO));
+            ui_icon("icon2", 16, get_icon(UI_ICON_FIRE));
+            ui_icon("icon3", 16, get_icon(UI_ICON_EYE));
+            ui_icon("icon4", 16, get_icon(UI_ICON_ALARM));
         }
 
         ui_box(0, "box2_6") {

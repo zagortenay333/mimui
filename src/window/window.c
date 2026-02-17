@@ -323,6 +323,14 @@ Void dr_blur (Rect r, F32 strength, Vec4 corner_radius) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+Void dr_scissor (Rect r) {
+    glScissor(r.x, r.y, r.w, r.h);
+}
+
+Void dr_bind_texture (U32 texture_id) {
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+}
+
 Vec2 win_get_size () {
     return vec2(win_width, win_height);
 }
@@ -341,6 +349,70 @@ String win_get_clipboard_text (Mem *mem) {
     String result = str_copy(mem, str(txt));
     SDL_free(txt);
     return result;
+}
+
+static KeyMod convert_key_mod (SDL_Keymod sdl_mod) {
+    KeyMod mod = 0;
+    if (sdl_mod & SDL_KMOD_SHIFT) mod |= KEY_MOD_SHIFT;
+    if (sdl_mod & SDL_KMOD_CTRL) mod |= KEY_MOD_CTRL;
+    if (sdl_mod & SDL_KMOD_ALT) mod |= KEY_MOD_ALT;
+    return mod;
+}
+
+static Key convert_scancode (SDL_Scancode scancode) {
+    switch (scancode) {
+    case SDL_SCANCODE_A: return KEY_A;
+    case SDL_SCANCODE_B: return KEY_B;
+    case SDL_SCANCODE_C: return KEY_C;
+    case SDL_SCANCODE_D: return KEY_D;
+    case SDL_SCANCODE_E: return KEY_E;
+    case SDL_SCANCODE_F: return KEY_F;
+    case SDL_SCANCODE_G: return KEY_G;
+    case SDL_SCANCODE_H: return KEY_H;
+    case SDL_SCANCODE_I: return KEY_I;
+    case SDL_SCANCODE_J: return KEY_J;
+    case SDL_SCANCODE_K: return KEY_K;
+    case SDL_SCANCODE_L: return KEY_L;
+    case SDL_SCANCODE_M: return KEY_M;
+    case SDL_SCANCODE_N: return KEY_N;
+    case SDL_SCANCODE_O: return KEY_O;
+    case SDL_SCANCODE_P: return KEY_P;
+    case SDL_SCANCODE_Q: return KEY_Q;
+    case SDL_SCANCODE_R: return KEY_R;
+    case SDL_SCANCODE_S: return KEY_S;
+    case SDL_SCANCODE_T: return KEY_T;
+    case SDL_SCANCODE_U: return KEY_U;
+    case SDL_SCANCODE_V: return KEY_V;
+    case SDL_SCANCODE_W: return KEY_W;
+    case SDL_SCANCODE_X: return KEY_X;
+    case SDL_SCANCODE_Y: return KEY_Y;
+    case SDL_SCANCODE_Z: return KEY_Z;
+
+    case SDL_SCANCODE_0: return KEY_0;
+    case SDL_SCANCODE_1: return KEY_1;
+    case SDL_SCANCODE_2: return KEY_2;
+    case SDL_SCANCODE_3: return KEY_3;
+    case SDL_SCANCODE_4: return KEY_4;
+    case SDL_SCANCODE_5: return KEY_5;
+    case SDL_SCANCODE_6: return KEY_6;
+    case SDL_SCANCODE_7: return KEY_7;
+    case SDL_SCANCODE_8: return KEY_8;
+    case SDL_SCANCODE_9: return KEY_9;
+
+    case SDL_SCANCODE_DELETE: return KEY_DEL;
+    case SDL_SCANCODE_BACKSPACE: return KEY_BACKSPACE;
+    case SDL_SCANCODE_RETURN: return KEY_RETURN;
+    case SDL_SCANCODE_KP_ENTER: return KEY_RETURN;
+    case SDL_SCANCODE_LSHIFT: return KEY_SHIFT;
+    case SDL_SCANCODE_RSHIFT: return KEY_SHIFT;
+
+    case SDL_SCANCODE_LEFT: return KEY_LEFT;
+    case SDL_SCANCODE_RIGHT: return KEY_RIGHT;
+    case SDL_SCANCODE_UP: return KEY_UP;
+    case SDL_SCANCODE_DOWN: return KEY_DOWN;
+
+    default: return KEY_UNKNOWN;
+    }
 }
 
 static Void process_event (SDL_Event *event, Bool *running) {
@@ -387,16 +459,18 @@ static Void process_event (SDL_Event *event, Bool *running) {
     case SDL_EVENT_MOUSE_BUTTON_UP: {
         Auto e  = array_push_slot(&events);
         e->tag  = (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-        e->key  = event->button.button;
-        e->mods = SDL_GetModState();
+        e->key  = SDL_BUTTON_LEFT ? KEY_MOUSE_LEFT :
+                  SDL_BUTTON_MIDDLE ? KEY_MOUSE_MIDDLE :
+                  SDL_BUTTON_RIGHT ? KEY_MOUSE_RIGHT :
+                  KEY_UNKNOWN;
+        e->mods = convert_key_mod(SDL_GetModState());
     } break;
 
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
         Auto e = array_push_slot(&events);
         e->tag = (event->type == SDL_EVENT_KEY_UP) ? EVENT_KEY_RELEASE : EVENT_KEY_PRESS;
-        e->key = event->key.key;
-        e->scancode = event->key.scancode;
+        e->key = convert_scancode(event->key.scancode);
         e->mods = event->key.mod;
     } break;
 
@@ -430,9 +504,9 @@ Void win_init () {
     framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
     blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
     blur_buffer2  = framebuffer_new(&blur_tex2, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));
-    rect_shader   = shader_new("src/ui/shaders/rect_vs.glsl", "src/ui/shaders/rect_fs.glsl");
-    screen_shader = shader_new("src/ui/shaders/screen_vs.glsl", "src/ui/shaders/screen_fs.glsl");
-    blur_shader   = shader_new("src/ui/shaders/blur_vs.glsl", "src/ui/shaders/blur_fs.glsl");
+    rect_shader   = shader_new("src/window/shaders/rect_vs.glsl", "src/window/shaders/rect_fs.glsl");
+    screen_shader = shader_new("src/window/shaders/screen_vs.glsl", "src/window/shaders/screen_fs.glsl");
+    blur_shader   = shader_new("src/window/shaders/blur_vs.glsl", "src/window/shaders/blur_fs.glsl");
 
     { // Screen quad init:
         array_init(&screen_vertices, mem_root);

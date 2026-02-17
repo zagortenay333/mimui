@@ -2,7 +2,7 @@
 
 #include "base/core.h"
 #include "base/math.h"
-#include "ui/font.h"
+#include "font/font.h"
 #include "window/window.h"
 
 typedef U64 UiKey;
@@ -55,58 +55,58 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_HIGHLIGHT          str("ui_config_highlight")
 #define UI_CONFIG_SLIDER_KNOB        str("ui_config_slider_knob")
 
-ienum (Icon, U32) {
-    ICON_CHECK = 0xe900,
-    ICON_WRENCH,
-    ICON_UNDERSCORE,
-    ICON_TRASH,
-    ICON_TRANSLATE,
-    ICON_TODO,
-    ICON_TODO_LOADING,
-    ICON_TIME_TRACKER,
-    ICON_TIMER,
-    ICON_STRIKETHROUGH,
-    ICON_STOPWATCH,
-    ICON_START,
-    ICON_SORT_DESC,
-    ICON_SORT_ASC,
-    ICON_SEARCH,
-    ICON_QUESTION,
-    ICON_POMODORO,
-    ICON_PLUS,
-    ICON_PIN,
-    ICON_PAUSE,
-    ICON_PAN_UP,
-    ICON_PAN_RIGHT,
-    ICON_PAND_DOWN,
-    ICON_MINUS,
-    ICON_MARK,
-    ICON_LINK,
-    ICON_KANBAN,
-    ICON_ITALIC,
-    ICON_ISSUE,
-    ICON_IMPORT_EXPORT,
-    ICON_HOME,
-    ICON_HIDDEN,
-    ICON_HEATMAP,
-    ICON_HEADER,
-    ICON_HAMBURGER,
-    ICON_GRAPH,
-    ICON_GRAPH_INTERVAL,
-    ICON_FULLSCREEN,
-    ICON_FOLDER,
-    ICON_FLASH,
-    ICON_FIRE,
-    ICON_FILTER,
-    ICON_FILE,
-    ICON_EYE,
-    ICON_EYE_CLOSED,
-    ICON_EXAM,
-    ICON_EDIT,
-    ICON_CODE,
-    ICON_CLOSE,
-    ICON_BOLD,
-    ICON_ALARM,
+ienum (UiIcon, U32) {
+    UI_ICON_CHECK = 0xe900,
+    UI_ICON_WRENCH,
+    UI_ICON_UNDERSCORE,
+    UI_ICON_TRASH,
+    UI_ICON_TRANSLATE,
+    UI_ICON_TODO,
+    UI_ICON_TODO_LOADING,
+    UI_ICON_TIME_TRACKER,
+    UI_ICON_TIMER,
+    UI_ICON_STRIKETHROUGH,
+    UI_ICON_STOPWATCH,
+    UI_ICON_START,
+    UI_ICON_SORT_DESC,
+    UI_ICON_SORT_ASC,
+    UI_ICON_SEARCH,
+    UI_ICON_QUESTION,
+    UI_ICON_POMODORO,
+    UI_ICON_PLUS,
+    UI_ICON_PIN,
+    UI_ICON_PAUSE,
+    UI_ICON_PAN_UP,
+    UI_ICON_PAN_RIGHT,
+    UI_ICON_PAND_DOWN,
+    UI_ICON_MINUS,
+    UI_ICON_MARK,
+    UI_ICON_LINK,
+    UI_ICON_KANBAN,
+    UI_ICON_ITALIC,
+    UI_ICON_ISSUE,
+    UI_ICON_IMPORT_EXPORT,
+    UI_ICON_HOME,
+    UI_ICON_HIDDEN,
+    UI_ICON_HEATMAP,
+    UI_ICON_HEADER,
+    UI_ICON_HAMBURGER,
+    UI_ICON_GRAPH,
+    UI_ICON_GRAPH_INTERVAL,
+    UI_ICON_FULLSCREEN,
+    UI_ICON_FOLDER,
+    UI_ICON_FLASH,
+    UI_ICON_FIRE,
+    UI_ICON_FILTER,
+    UI_ICON_FILE,
+    UI_ICON_EYE,
+    UI_ICON_EYE_CLOSED,
+    UI_ICON_EXAM,
+    UI_ICON_EDIT,
+    UI_ICON_CODE,
+    UI_ICON_CLOSE,
+    UI_ICON_BOLD,
+    UI_ICON_ALARM,
 };
 
 #define get_icon(X) X
@@ -360,7 +360,6 @@ istruct (Ui) {
 };
 
 extern Ui *ui;
-extern UiStyle default_box_style;
 
 Void      ui_init                  ();
 Void      ui_frame                 (Void(*)(), F64 dt);

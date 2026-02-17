@@ -1,6 +1,5 @@
-#include "vendor/glad/glad.h"
 #include <SDL3/SDL.h>
-#include "ui/font.h"
+#include "font/font.h"
 #include "base/log.h"
 #include "base/math.h"
 #include "base/string.h"
@@ -18,14 +17,14 @@ Noreturn static Void error () {
     panic();
 }
 
-Noreturn Fmt(1, 2) static Void error_fmt (CString fmt, ...) {
+Noreturn static Void error_fmt Fmt(1, 2) (CString fmt, ...) {
     log_msg(m, LOG_ERROR, "Ui", 1);
     astr_push_fmt_vam(m, fmt);
     astr_push_byte(m, '\n');
     error();
 }
 
-UiStyle default_box_style = {
+static UiStyle default_box_style = {
     .size.width     = {UI_SIZE_CHILDREN_SUM, 0, 0},
     .size.height    = {UI_SIZE_CHILDREN_SUM, 0, 0},
     .bg_color2      = {-1},
@@ -866,7 +865,7 @@ static Void draw_box (UiBox *box) {
         F32 blur_radius = max(1, cast(Int, box->style.blur_radius));
         dr_blur(box->rect, blur_radius, box->style.radius);
         Rect r = array_get_last(&ui->clip_stack);
-        glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
+        dr_scissor((Rect){r.x, win_height - r.y - r.h, r.w, r.h});
 
     }
 
@@ -889,7 +888,7 @@ static Void draw_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) {
         dr_flush_vertices();
         Rect r = ui_push_clip(box, true);
-        glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
+        dr_scissor((Rect){r.x, win_height - r.y - r.h, r.w, r.h});
     }
 
     array_push(&ui->box_stack, box); // For use_style_var_get().
@@ -900,7 +899,7 @@ static Void draw_box (UiBox *box) {
     if (box->flags & UI_BOX_CLIPPING) {
         dr_flush_vertices();
         Rect r = ui_pop_clip();
-        glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
+        dr_scissor((Rect){r.x, win_height - r.y - r.h, r.w, r.h});
     }
 }
 
