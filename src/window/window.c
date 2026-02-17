@@ -64,28 +64,6 @@ static Void update_projection () {
     projection = mat_ortho(0, w, 0, h, -1.f, 1.f);
 }
 
-Texture dr_image (CString filepath, Bool flip) {
-    U32 id;
-    glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_2D, id);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    stbi_set_flip_vertically_on_load(flip);
-
-    Int w, h, n; U8 *data = stbi_load(filepath, &w, &h, &n, 0);
-    if (! data) error_fmt("Couldn't load image from file: %s\n", filepath);
-
-    Int fmt = (n == 3) ? GL_RGB : GL_RGBA;
-    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    stbi_image_free(data);
-    return (Texture){ .id=id, .width=w, .height=h };
-}
-
 static U32 framebuffer_new (U32 *out_texture, Bool only_color_attach, U32 w, U32 h) {
     U32 r;
     glGenFramebuffers(1, &r);
@@ -319,6 +297,28 @@ Void dr_blur (Rect r, F32 strength, Vec4 corner_radius) {
 
 Void dr_scissor (Rect r) {
     glScissor(r.x, r.y, r.w, r.h);
+}
+
+Texture dr_image (CString filepath, Bool flip) {
+    U32 id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_set_flip_vertically_on_load(flip);
+
+    Int w, h, n; U8 *data = stbi_load(filepath, &w, &h, &n, 0);
+    if (! data) error_fmt("Couldn't load image from file: %s\n", filepath);
+
+    Int fmt = (n == 3) ? GL_RGB : GL_RGBA;
+    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(data);
+    return (Texture){ .id=id, .width=w, .height=h };
 }
 
 Void dr_bind_texture (Texture *texture) {
