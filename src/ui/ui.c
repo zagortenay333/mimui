@@ -903,7 +903,6 @@ istruct (UiBoxCallback) {
 istruct (Ui) {
     Mem *perm_mem;
     Mem *frame_mem;
-    Map(UiKey, Void*) box_data;
     U8 gc_flag;
     Event *event;
     Vec2 mouse_dt;
@@ -920,6 +919,7 @@ istruct (Ui) {
     ArrayUiBox free_boxes;
     ArrayUiBox box_stack;
     Map(UiKey, UiBox*) box_cache;
+    Map(UiKey, Void*) box_data;
     Array(UiRect) clip_stack;
     Array(UiBoxCallback) deferred_layout_fns;
     UiStyleRule *current_style_rule;
