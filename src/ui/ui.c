@@ -2004,7 +2004,7 @@ static UiBox *ui_checkbox (CString id, Bool *val) {
 }
 
 istruct (UiImage) {
-    Image image;
+    Image *image;
     Bool blur;
     Vec4 tint;
     F32 pref_width;
@@ -2013,23 +2013,28 @@ istruct (UiImage) {
 static Void draw_image (UiBox *box) {
     Auto info = cast(UiImage *, box->scratch);
     flush_vertices();
-    glBindTexture(GL_TEXTURE_2D, info->image.texture);
+    glBindTexture(GL_TEXTURE_2D, info->image->texture);
     draw_rect(
         .top_left          = box->rect.top_left,
         .bottom_right      = {box->rect.x + box->rect.w, box->rect.y + box->rect.h},
         .radius            = box->style.radius,
-        .texture_rect      = {0, 0, info->image.width, info->image.height},
+        .texture_rect      = {0, 0, info->image->width, info->image->height},
         .text_color        = (info->tint.w > 0) ? info->tint : vec4(1, 1, 1, 1),
         .text_is_grayscale = (info->tint.w > 0) ? 1 : 0,
     );
 }
 
-static UiBox *ui_image (CString id, UiImage *info) {
+static UiBox *ui_image (CString id, Image *image, Bool blur, Vec4 tint, F32 pref_width) {
     UiBox *img = ui_box(UI_BOX_INVISIBLE, id) {
         img->draw_fn = draw_image;
+        UiImage *info = mem_new(ui->frame_mem, UiImage);
+        info->image = image;
+        info->blur = blur;
+        info->tint = tint;
+        info->pref_width = pref_width;
         img->scratch = cast(U64, info);
-        ui_style_size(UI_WIDTH, (UiSize){ UI_SIZE_PIXELS, info->pref_width, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){ UI_SIZE_PIXELS, round(info->image.height * (info->pref_width / info->image.width)), 1});
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, info->pref_width, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, round(image->height * (info->pref_width / image->width)), 1});
         ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_2);
 
         ui_box(0, "overlay") {
@@ -3679,7 +3684,7 @@ istruct (App) {
     Bool toggle;
 
     I64 intval;
-    UiImage image;
+    Image image;
 
     F32 hue;
     F32 sat;
@@ -3855,7 +3860,7 @@ static Void build_misc_view () {
             ui_tag("hbox");
             ui_tag("item");
 
-            UiBox *img = ui_image("image", &app->image);
+            UiBox *img = ui_image("image", &app->image, false, vec4(0,0,0,0), 200);
             UiBox *img_overlay = array_get(&img->children, 0);
             ui_style_box_f32(img_overlay, UI_OUTSET_SHADOW_WIDTH, 2);
             ui_style_box_vec4(img_overlay, UI_OUTSET_SHADOW_COLOR, vec4(0, 0, 0, 1));
@@ -3982,8 +3987,7 @@ static Void app_build () {
 static Void app_init () {
     app = mem_new(ui->perm_mem, App);
     app->view = 3;
-    app->image.image = load_image("data/images/screenshot.png", false);
-    app->image.pref_width = 300;
+    app->image = load_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
