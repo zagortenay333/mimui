@@ -17,7 +17,7 @@ static Void ui_frame (Void(*)(), F64 dt);
 static Bool ui_is_animating ();
 
 // =============================================================================
-// Glfw and opengl layer:
+// Sdl and opengl layer:
 // =============================================================================
 #define VERTEX_MAX_BATCH_SIZE 2400
 
@@ -40,6 +40,11 @@ istruct (Event) {
     Int mods;
     Int scancode;
     String text;
+};
+
+istruct (Rect) {
+    union { struct { F32 x, y; }; Vec2 top_left; };
+    union { struct { F32 w, h; }; F32 size[2]; };
 };
 
 istruct (RectAttributes) {
@@ -347,6 +352,70 @@ static SliceVertex draw_rect_fn (RectAttributes *a) {
     draw_rect_vertex(&p[5], a->top_left, vec2(tr.x, tr.y), a->color, a);
 
     return (SliceVertex){p,6};
+}
+
+static Void draw_blur (Rect r, F32 strength, Vec4 corner_radius) {
+    flush_vertices();
+    glScissor(0, 0, win_width, win_height);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, blur_buffer1);
+    glBlitFramebuffer(0, 0, win_width, win_height, 0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glViewport(0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK);
+
+    blur_vertices.count = 0;
+    array_push_lit(&blur_vertices, -1.0f,  1.0f);
+    array_push_lit(&blur_vertices, -1.0f, -1.0f);
+    array_push_lit(&blur_vertices,  1.0f, -1.0f);
+    array_push_lit(&blur_vertices, -1.0f,  1.0f);
+    array_push_lit(&blur_vertices,  1.0f, -1.0f);
+    array_push_lit(&blur_vertices,  1.0f,  1.0f);
+
+    glBindVertexArray(blur_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, blur_VBO);
+    ATTR(AElem(&blur_vertices), 0, 2, pos);
+    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
+
+    glUseProgram(blur_shader);
+    set_int(blur_shader, "blur_radius", strength);
+    set_bool(blur_shader, "do_blurring", true);
+    set_mat4(blur_shader, "projection", mat4(1));
+
+    for (U64 i = 0; i < 3; ++i) {
+        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer2);
+        glBindTexture(GL_TEXTURE_2D, blur_tex1);
+        set_bool(blur_shader, "horizontal", true);
+        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer1);
+        glBindTexture(GL_TEXTURE_2D, blur_tex2);
+        set_bool(blur_shader, "horizontal", false);
+        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+    }
+
+    glViewport(0, 0, win_width, win_height);
+    glBindTexture(GL_TEXTURE_2D, blur_tex1);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    r.y = win_height - r.y;
+    blur_vertices.count = 0;
+    array_push_lit(&blur_vertices, r.x, r.y);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y);
+    array_push_lit(&blur_vertices, r.x, r.y-r.h);
+    array_push_lit(&blur_vertices, r.x, r.y-r.h);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y);
+    array_push_lit(&blur_vertices, r.x+r.w, r.y-r.h);
+
+    set_mat4(blur_shader, "projection", projection);
+    set_bool(blur_shader, "do_blurring", false);
+    set_vec2(blur_shader, "half_size", vec2(r.w/2, r.h/2));
+    set_vec2(blur_shader, "center", vec2(r.x+r.w/2, r.y-r.h/2));
+    set_vec4(blur_shader, "radius", corner_radius);
+    set_float(blur_shader, "blur_shrink", BLUR_SHRINK);
+
+    glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 static Void set_clipboard_text (String str) {
@@ -854,11 +923,6 @@ istruct (UiSignals) {
     Bool focused;
 };
 
-istruct (UiRect) {
-    union { struct { F32 x, y; }; Vec2 top_left; };
-    union { struct { F32 w, h; }; F32 size[2]; };
-};
-
 fenum (UiBoxFlags, U8) {
     UI_BOX_REACTIVE      = flag(0),
     UI_BOX_CAN_FOCUS     = flag(1),
@@ -885,14 +949,14 @@ istruct (UiBox) {
     UiBoxFlags flags;
     U8 gc_flag;
     U64 scratch;
-    UiRect rect;
+    Rect rect;
     UiBoxDrawFn draw_fn;
     UiBoxSizeFn size_fn;
 
     // The x/y components of this field are set independently
     // by the user build code for the purpose of scrolling the
     // content. The w/h components are set by the layout code.
-    UiRect content;
+    Rect content;
 };
 
 istruct (UiBoxCallback) {
@@ -920,7 +984,7 @@ istruct (Ui) {
     ArrayUiBox box_stack;
     Map(UiKey, UiBox*) box_cache;
     Map(UiKey, Void*) box_data;
-    Array(UiRect) clip_stack;
+    Array(Rect) clip_stack;
     Array(UiBoxCallback) deferred_layout_fns;
     UiStyleRule *current_style_rule;
     FontCache *font_cache;
@@ -976,16 +1040,16 @@ static Bool is_key_pressed (Int key) {
     return pressed;
 }
 
-static Bool within_box (UiRect r, Vec2 p) {
+static Bool within_box (Rect r, Vec2 p) {
     return (p.x > r.x) && (p.x < (r.x + r.w)) && (p.y > r.y) && (p.y < (r.y + r.h));
 }
 
-static UiRect compute_rect_intersect (UiRect r0, UiRect r1) {
+static Rect compute_rect_intersect (Rect r0, Rect r1) {
     F32 x0 = max(r0.x, r1.x);
     F32 y0 = max(r0.y, r1.y);
     F32 x1 = min(r0.x + r0.w, r1.x + r1.w);
     F32 y1 = min(r0.y + r0.h, r1.y + r1.h);
-    return (UiRect){ x0, y0, max(0, x1 - x0), max(0, y1 - y0) };
+    return (Rect){ x0, y0, max(0, x1 - x0), max(0, y1 - y0) };
 }
 
 static Void compute_signals (UiBox *box) {
@@ -1001,7 +1065,7 @@ static Void compute_signals (UiBox *box) {
     sig->hovered = false;
     for (UiBox *b = ui->hovered; b; b = b->parent) {
         if (b == box) {
-            UiRect intersection = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
+            Rect intersection = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
             sig->hovered = within_box(intersection, ui->mouse);
             break;
         }
@@ -1053,8 +1117,8 @@ static UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
         box->style_rules.count = 0;
         box->configs.count = 0;
         box->style = default_box_style;
-        box->rect = (UiRect){};
-        box->content = (UiRect){};
+        box->rect = (Rect){};
+        box->content = (Rect){};
         box->start_frame = ui->frame;
         box->scratch = 0;
         box->draw_fn = 0;
@@ -1103,15 +1167,15 @@ static UiBox *ui_box_push (UiBoxFlags flags, CString label) {
 #define ui_box_str(...) ui_box_push_str(__VA_ARGS__); if (cleanup(ui_pop_parent_) U8 _; 1)
 #define ui_box_fmt(...) ui_box_push_fmt(__VA_ARGS__); if (cleanup(ui_pop_parent_) U8 _; 1)
 
-static UiRect ui_push_clip_rect (UiRect rect) {
-    UiRect intersection = compute_rect_intersect(rect, array_get_last(&ui->clip_stack));
+static Rect ui_push_clip_rect (Rect rect) {
+    Rect intersection = compute_rect_intersect(rect, array_get_last(&ui->clip_stack));
     array_push(&ui->clip_stack, intersection);
     return intersection;
 }
 
-static UiRect ui_push_clip (UiBox *box, Bool is_sub_clip) {
+static Rect ui_push_clip (UiBox *box, Bool is_sub_clip) {
     box->flags |= UI_BOX_CLIPPING;
-    UiRect rect = box->rect;
+    Rect rect = box->rect;
     rect.x += box->style.border_widths.z;
     rect.y += box->style.border_widths.y;
     rect.w -= box->style.border_widths.x + box->style.border_widths.z;
@@ -1121,7 +1185,7 @@ static UiRect ui_push_clip (UiBox *box, Bool is_sub_clip) {
     return rect;
 }
 
-static UiRect ui_pop_clip () {
+static Rect ui_pop_clip () {
     array_pop(&ui->clip_stack);
     return array_get_last(&ui->clip_stack);
 }
@@ -1772,7 +1836,7 @@ static Void compute_layout (UiBox *box) {
 
 static Void find_topmost_hovered_box (UiBox *box) {
     if (! (box->flags & UI_BOX_CLICK_THROUGH)) {
-        UiRect r = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
+        Rect r = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
         if (within_box(r, ui->mouse)) ui->hovered = box;
     }
 
@@ -1783,73 +1847,11 @@ static Void find_topmost_hovered_box (UiBox *box) {
 
 static Void draw_box (UiBox *box) {
     if (!(box->flags & UI_BOX_INVISIBLE) && box->style.blur_radius) {
-        flush_vertices();
-        glScissor(0, 0, win_width, win_height);
-
         F32 blur_radius = max(1, cast(Int, box->style.blur_radius));
-
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, blur_buffer1);
-        glBlitFramebuffer(0, 0, win_width, win_height, 0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-        glViewport(0, 0, win_width/BLUR_SHRINK, win_height/BLUR_SHRINK);
-
-        blur_vertices.count = 0;
-        array_push_lit(&blur_vertices, -1.0f,  1.0f);
-        array_push_lit(&blur_vertices, -1.0f, -1.0f);
-        array_push_lit(&blur_vertices,  1.0f, -1.0f);
-        array_push_lit(&blur_vertices, -1.0f,  1.0f);
-        array_push_lit(&blur_vertices,  1.0f, -1.0f);
-        array_push_lit(&blur_vertices,  1.0f,  1.0f);
-
-        glBindVertexArray(blur_VAO);
-        glBindBuffer(GL_ARRAY_BUFFER, blur_VBO);
-        ATTR(AElem(&blur_vertices), 0, 2, pos);
-        glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
-
-        glUseProgram(blur_shader);
-        set_int(blur_shader, "blur_radius", blur_radius);
-        set_bool(blur_shader, "do_blurring", true);
-        set_mat4(blur_shader, "projection", mat4(1));
-
-        for (U64 i = 0; i < 3; ++i) {
-            glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer2);
-            glBindTexture(GL_TEXTURE_2D, blur_tex1);
-            set_bool(blur_shader, "horizontal", true);
-            glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-
-            glBindFramebuffer(GL_FRAMEBUFFER, blur_buffer1);
-            glBindTexture(GL_TEXTURE_2D, blur_tex2);
-            set_bool(blur_shader, "horizontal", false);
-            glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-        }
-
-        glViewport(0, 0, win_width, win_height);
-        glBindTexture(GL_TEXTURE_2D, blur_tex1);
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-        UiRect r = box->rect;
-        r.y = win_height - r.y;
-        blur_vertices.count = 0;
-        array_push_lit(&blur_vertices, r.x, r.y);
-        array_push_lit(&blur_vertices, r.x+r.w, r.y);
-        array_push_lit(&blur_vertices, r.x, r.y-r.h);
-        array_push_lit(&blur_vertices, r.x, r.y-r.h);
-        array_push_lit(&blur_vertices, r.x+r.w, r.y);
-        array_push_lit(&blur_vertices, r.x+r.w, r.y-r.h);
-
-        set_mat4(blur_shader, "projection", projection);
-        set_bool(blur_shader, "do_blurring", false);
-        set_vec2(blur_shader, "half_size", vec2(r.w/2, r.h/2));
-        set_vec2(blur_shader, "center", vec2(r.x+r.w/2, r.y-r.h/2));
-        set_vec4(blur_shader, "radius", box->style.radius);
-        set_float(blur_shader, "blur_shrink", BLUR_SHRINK);
-
-        glBufferData(GL_ARRAY_BUFFER, array_size(&blur_vertices), blur_vertices.data, GL_STREAM_DRAW);
-        glDrawArrays(GL_TRIANGLES, 0, blur_vertices.count);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        r = array_get_last(&ui->clip_stack);
+        draw_blur(box->rect, blur_radius, box->style.radius);
+        Rect r = array_get_last(&ui->clip_stack);
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
+
     }
 
     if (! (box->flags & UI_BOX_INVISIBLE)) draw_rect(
@@ -1870,7 +1872,7 @@ static Void draw_box (UiBox *box) {
 
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
-        UiRect r = ui_push_clip(box, true);
+        Rect r = ui_push_clip(box, true);
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 
@@ -1881,7 +1883,7 @@ static Void draw_box (UiBox *box) {
 
     if (box->flags & UI_BOX_CLIPPING) {
         flush_vertices();
-        UiRect r = ui_pop_clip();
+        Rect r = ui_pop_clip();
         glScissor(r.x, win_height - r.y - r.h, r.w, r.h);
     }
 }
@@ -2152,7 +2154,7 @@ static UiBox *ui_button (CString id) {
     return ui_button_str(str(id), str(id));
 }
 
-static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
+static UiBox *ui_vscroll_bar (String label, Rect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
         ui_style_f32(UI_FLOAT_X, rect.x);
         ui_style_f32(UI_FLOAT_Y, rect.y);
@@ -2200,7 +2202,7 @@ static UiBox *ui_vscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
     return container;
 }
 
-static UiBox *ui_hscroll_bar (String label, UiRect rect, F32 ratio, F32 *val) {
+static UiBox *ui_hscroll_bar (String label, Rect rect, F32 ratio, F32 *val) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, label) {
         ui_style_f32(UI_FLOAT_X, rect.x);
         ui_style_f32(UI_FLOAT_Y, rect.y);
@@ -2285,7 +2287,7 @@ static Void ui_scroll_box_pop () {
     if (container->rect.w < container->content.w) {
         F32 scroll_val = (fabs(container->content.x) / container->content.w) * container->rect.w;
         F32 ratio = container->rect.w / container->content.w;
-        ui_hscroll_bar(str("scroll_bar_x"), (UiRect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
+        ui_hscroll_bar(str("scroll_bar_x"), (Rect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
         container->content.x = -(scroll_val/container->rect.w*container->content.w);
 
         if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && is_key_pressed(SDLK_LCTRL)) {
@@ -2301,7 +2303,7 @@ static Void ui_scroll_box_pop () {
     if (container->rect.h < container->content.h) {
         F32 scroll_val = (fabs(container->content.y) / container->content.h) * container->rect.h;
         F32 ratio = container->rect.h / container->content.h;
-        ui_vscroll_bar(str("scroll_bar_y"), (UiRect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
+        ui_vscroll_bar(str("scroll_bar_y"), (Rect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
         container->content.y = -(scroll_val/container->rect.h*container->content.h);
 
         if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && !is_key_pressed(SDLK_LCTRL)) {
@@ -2350,8 +2352,8 @@ static Void size_popup (UiBox *popup, U64 axis) {
 
 static Void layout_popup (UiBox *popup) {
     UiPopup *info = cast(UiPopup*, popup->scratch);
-    UiRect anchor = info->anchor->rect;
-    UiRect viewport = ui->root->rect;
+    Rect anchor = info->anchor->rect;
+    Rect viewport = ui->root->rect;
     F32 popup_w = popup->rect.w;
     F32 popup_h = popup->rect.h;
     F32 margin = 6.0f;
@@ -2811,7 +2813,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         if (scroll_y) {
             F32 ratio = visible_h / info->total_height;
-            UiRect rect = { container->rect.w - scrollbar_width, 0, scrollbar_width, container->rect.h };
+            Rect rect = { container->rect.w - scrollbar_width, 0, scrollbar_width, container->rect.h };
             if (scroll_x) rect.h -= scrollbar_width;
 
             F32 max_y_offset = max(0.0f, info->total_height - visible_h);
@@ -2826,7 +2828,7 @@ static UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         if (scroll_x && !info->single_line_mode) {
             F32 ratio = visible_w / info->total_width;
-            UiRect rect = { 0, container->rect.h - scrollbar_width, container->rect.w, scrollbar_width };
+            Rect rect = { 0, container->rect.h - scrollbar_width, container->rect.w, scrollbar_width };
             if (scroll_y) rect.w -= scrollbar_width;
 
             F32 max_x_offset = max(0.0f, info->total_width - visible_w);
@@ -3218,7 +3220,7 @@ istruct (SatValPicker) {
 
 static Void draw_color_sat_val_picker (UiBox *box) {
     SatValPicker *info = cast(SatValPicker*, box->scratch);
-    UiRect *r = &box->rect;
+    Rect *r = &box->rect;
     Vec4 c = hsva_to_rgba(vec4(info->hue, 1, 1, 1));
     Vec4 lc = c;
 
@@ -3288,7 +3290,7 @@ static UiBox *ui_color_sat_val_picker (String id, F32 hue, F32 *sat, F32 *val) {
 static Void draw_color_hue_picker (UiBox *box) {
     F32 *hue = cast(F32*, box->scratch);
     F32 segment = box->rect.h / 6;
-    UiRect r = box->rect;
+    Rect r = box->rect;
     r.h = segment;
 
     for (U64 i = 0; i < 6; ++i) {
@@ -3338,7 +3340,7 @@ static UiBox *ui_color_hue_picker (String id, F32 *hue) {
 
 static Void draw_color_alpha_picker (UiBox *box) {
     F32 *alpha = cast(F32*, box->scratch);
-    UiRect *r = &box->rect;
+    Rect *r = &box->rect;
 
     draw_rect(
         .top_left     = r->top_left,
@@ -3549,7 +3551,7 @@ static Void ui_frame (Void(*app_build)(), F64 dt) {
     array_iter (event, &events, *) {
         update_input_state(event);
 
-        UiRect *root_clip = array_ref_last(&ui->clip_stack);
+        Rect *root_clip = array_ref_last(&ui->clip_stack);
         root_clip->w = win_width;
         root_clip->h = win_height;
 
