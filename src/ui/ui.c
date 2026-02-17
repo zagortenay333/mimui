@@ -1086,7 +1086,6 @@ Void ui_init () {
 // - shortcut picker
 // - dropdown
 // - time picker
-// - refactor ui.c into multiple modules
 // - when no text in single line entry cursor can move down
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
