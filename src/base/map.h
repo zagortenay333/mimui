@@ -150,3 +150,12 @@ inl UMapHash map_hash_cstr (UMapKey *k) { return cstr_hash(*cast(CString*, k)); 
 
 #define map_iter(IT, M)         let2(MAP, MAP_IDX, M, 0u) UMAP_ITER(IT, MapEntry(MAP), sizeof(MapEntry(MAP)), (&MAP->umap))
 #define map_iter_from(IT, M, I) let2(MAP, MAP_IDX, M, I)  UMAP_ITER(IT, MapEntry(MAP), sizeof(MapEntry(MAP)), (&MAP->umap))
+
+// Use this for removing an entry while looping over the table.
+#define map_iter_remove(SLOT, MAP) ({\
+    def2(slot, map, SLOT, MAP);\
+    slot->hash = MAP_HASH_OF_TOMB_ENTRY;\
+    map->umap.count--;\
+    map->umap.tomb_count++;\
+    MAP_IDX--;\
+})

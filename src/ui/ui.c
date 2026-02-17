@@ -1032,18 +1032,12 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
             app_build();
         }
 
-        // Remove unused boxes from the cache.
         map_iter (slot, &ui->box_cache) {
             Auto box = slot->val;
             if (box->gc_flag != ui->gc_flag) {
                 array_push(&ui->free_boxes, box);
                 free_box_data(box);
-
-                // @todo This should be officially supported by the map.
-                slot->hash = MAP_HASH_OF_TOMB_ENTRY;
-                ui->box_cache.umap.count--;
-                ui->box_cache.umap.tomb_count++;
-                MAP_IDX--;
+                map_iter_remove(slot, &ui->box_cache);
             }
         }
 
