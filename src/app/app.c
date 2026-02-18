@@ -92,6 +92,8 @@ static Void build_color_view () {
 }
 
 static Void build_tile_view () {
+    Date date = {};
+    ui_date_picker(str("date_picker"), &date);
 }
 
 static Void build_misc_view () {

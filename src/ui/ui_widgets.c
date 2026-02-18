@@ -1141,3 +1141,13 @@ UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *
 
     return container;
 }
+
+UiBox *ui_date_picker (String id, Date *date) {
+    UiBox *container = ui_box_str(0, id) {
+        ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 0, 1));
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+    }
+
+    return container;
+}

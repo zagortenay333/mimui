@@ -41,6 +41,7 @@ UiBox *ui_popup_push           (String id, Bool *shown, Bool sideways, UiBox *an
 Void   ui_popup_pop            ();
 UiBox *ui_scroll_box_push      (String id);
 Void   ui_scroll_box_pop       ();
+UiBox *ui_date_picker          (String id, Date *);
 
 #define ui_grid(L)             ui_grid_push(str(L));                   if (cleanup(ui_grid_pop_) U8 _; 1)
 #define ui_grid_cell(...)      ui_grid_cell_push(__VA_ARGS__);         if (cleanup(ui_grid_cell_pop_) U8 _; 1)

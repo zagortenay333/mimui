@@ -3,6 +3,15 @@
 #include "base/core.h"
 #include "os/time.h"
 
+U32 days_in_month (U32 year, U32 month) {
+    struct tm t = {0};
+    t.tm_year = year - 1900;
+    t.tm_mon = month;  // next month
+    t.tm_mday = 0;     // day 0 of next month is last day of current month
+    mktime(&t);
+    return t.tm_mday;
+}
+
 Void os_sleep_ms (U64 msec) {
     struct timespec ts_sleep = { msec/1000, (msec % 1000) * 1000000 };
     nanosleep(&ts_sleep, NULL);
