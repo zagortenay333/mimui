@@ -1090,7 +1090,6 @@ Void ui_init () {
 // - when no text in single line entry cursor can move down
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
-// - date picker
 // - scrollbox for large homogenous lists
 // - rich text (markup)
 // - line wrapping in text box
