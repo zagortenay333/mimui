@@ -1018,6 +1018,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_vec4(UI_CONFIG_TEXT_SELECTION, vec4(0, 0, 0, 1));
             ui_config_def_vec4(UI_CONFIG_TEXT_COLOR_1, vec4(1, 1, 1, 1));
             ui_config_def_vec4(UI_CONFIG_TEXT_COLOR_2, vec4(1, 1, 1, .4));
+            ui_config_def_vec4(UI_CONFIG_TEXT_COLOR_3, vec4(1, 1, 1, .2));
             ui_config_def_f32(UI_CONFIG_BLUR, 3);
             ui_config_def_vec4(UI_CONFIG_HIGHLIGHT, vec4(1, 1, 1, .05));
             ui_config_def_vec4(UI_CONFIG_SLIDER_KNOB, vec4(1, 1, 1, 1));

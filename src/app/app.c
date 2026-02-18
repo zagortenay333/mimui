@@ -12,6 +12,8 @@ istruct (App) {
     Bool modal_shown;
     Bool popup_shown;
 
+    Date date;
+
     U32 view;
 
     F32 slider;
@@ -92,8 +94,7 @@ static Void build_color_view () {
 }
 
 static Void build_tile_view () {
-    Date date = {};
-    ui_date_picker(str("date_picker"), &date);
+    ui_date_picker(str("date_picker"), &app->date);
 }
 
 static Void build_misc_view () {
@@ -216,6 +217,14 @@ static Void build_grid_view () {
         ui_grid("test_grid") {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
 
+            ui_style_rule(".grid_cell") {
+                ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+                ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                ui_style_f32(UI_EDGE_SOFTNESS, 0);
+            }
+
             ui_grid_cell(0, 0, 3, 2) { ui_button("1"); }
             ui_grid_cell(3, 0, 5, 2) { ui_button("1"); }
             ui_grid_cell(0, 2, 3, 5) { ui_button("1"); }
@@ -328,4 +337,5 @@ Void app_init () {
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
     app->hue = .3;
+    app->date = os_get_date();
 }

@@ -51,6 +51,7 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_TEXT_SELECTION     str("ui_config_text_selection")
 #define UI_CONFIG_TEXT_COLOR_1       str("ui_config_text_color_1")
 #define UI_CONFIG_TEXT_COLOR_2       str("ui_config_text_color_2")
+#define UI_CONFIG_TEXT_COLOR_3       str("ui_config_text_color_3")
 #define UI_CONFIG_BLUR               str("ui_config_blur")
 #define UI_CONFIG_HIGHLIGHT          str("ui_config_highlight")
 #define UI_CONFIG_SLIDER_KNOB        str("ui_config_slider_knob")

@@ -835,11 +835,12 @@ Void ui_grid_pop () {
 
     F32 cell_width  = floor(grid->rect.w / rows);
     F32 cell_height = floor(grid->rect.h / cols);
+    F32 spacing     = grid->style.spacing;
 
     array_iter (cell, &grid->children) {
         Vec4 coords = *cast(Vec4*, cell->scratch);
-        cell->next_style.floating[0] = coords.x * cell_width;
-        cell->next_style.floating[1] = coords.y * cell_height;
+        cell->next_style.floating[0] = coords.x * (cell_width + spacing);
+        cell->next_style.floating[1] = coords.y * (cell_height + spacing);
         cell->next_style.size.width  = (UiSize){UI_SIZE_PIXELS, coords.z * cell_width, 1};
         cell->next_style.size.height = (UiSize){UI_SIZE_PIXELS, coords.w * cell_height, 1};
     }
@@ -853,13 +854,9 @@ Void ui_grid_pop () {
 // and how many basic cells they cover.
 UiBox *ui_grid_cell_push (F32 x, F32 y, F32 w, F32 h) {
     UiBox *cell = ui_box_push_fmt(0, "grid_cell_%f_%f", x, y);
+    ui_tag("grid_cell");
     ui_style_f32(UI_FLOAT_X, 0);
     ui_style_f32(UI_FLOAT_Y, 0);
-    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
-    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-    ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
     Vec4 *coords = mem_new(ui->frame_mem, Vec4);
     coords->x = x;
@@ -1143,10 +1140,91 @@ UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *
 }
 
 UiBox *ui_date_picker (String id, Date *date) {
+    // os_normalize_date(); @todo
+
     UiBox *container = ui_box_str(0, id) {
-        ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 0, 1));
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 200, 1});
+        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+
+        F32 spacing = 2;
+
+        ui_box(0, "grid") {
+            ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+            ui_style_f32(UI_SPACING, spacing);
+
+            U32 first_weekday = os_first_weekday(date->year, date->month);
+            U32 days_in_this_month = os_days_in_month(date->year, date->month);
+            if (first_weekday == 0) first_weekday = 7;
+
+            U32 prev_month = (date->month == 1) ? 12 : date->month - 1;
+            U32 prev_year  = (date->month == 1) ? date->year - 1 : date->year;
+            U32 days_in_prev_month = os_days_in_month(prev_year, prev_month);
+
+            U32 next_month = (date->month == 12) ? 1 : date->month + 1;
+            U32 next_year  = (date->month == 12) ? date->year + 1 : date->year;
+
+            U32 day = 1;
+            U32 next_day = 1;
+
+            tmem_new(tm);
+            for (U64 week = 0; week < 6; ++week) {
+                ui_box_fmt(0, "row%lu", week) {
+                    ui_style_f32(UI_SPACING, spacing);
+
+                    for (U64 day_of_week = 0; day_of_week < 7; ++day_of_week) {
+                        UiBox *cell = ui_box_fmt(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "cell%lu", day_of_week) {
+                            Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+
+                            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+                            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
+                            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
+                            ui_style_f32(UI_EDGE_SOFTNESS, 1);
+                            F32 r = cell->rect.w/2;
+                            ui_style_vec4(UI_RADIUS, vec4(r, r, r, r));
+
+                            U32 cell_idx = week * 7 + day_of_week;
+                            Date d;
+                            Bool dim = false;
+
+                            if (cell_idx < first_weekday) {
+                                dim = true;
+                                d = (Date){prev_year, prev_month, (days_in_prev_month - first_weekday + 1 + cell_idx)};
+                            } else if (day <= days_in_this_month) {
+                                d = (Date){date->year, date->month, day};
+                                day++;
+                            } else {
+                                dim = true;
+                                d = (Date){next_year, next_month, next_day};
+                                next_day++;
+                            }
+
+                            Bool selected = (d.month == date->month && d.day == date->day);
+
+                            UiBox *label = ui_label("label", astr_fmt(tm, "%02u", d.day));
+                            ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_MONO);
+
+                            if (dim) {
+                                ui_style_box_from_config(label, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_3);
+                            }
+
+                            if (selected) {
+                                ui_style_box_from_config(label, UI_TEXT_COLOR, UI_CONFIG_TEXT_SELECTION);
+                                ui_style_box_from_config(cell, UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
+                            }
+
+                            if (cell->signals.hovered) {
+                                ui_style_box_from_config(label, UI_TEXT_COLOR, UI_CONFIG_TEXT_SELECTION);
+                                ui_style_box_from_config(cell, UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
+                            }
+
+                            if (cell->signals.clicked) {
+                                *date = d;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     return container;

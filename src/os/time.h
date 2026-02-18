@@ -4,9 +4,8 @@
 
 istruct (Date) {
     U32 year;
-    U32 month;
-    U32 day;
-    U32 week;
+    U32 month; // 1-indexed
+    U32 day; // 1-indexed
 };
 
 istruct (Time) {
@@ -16,6 +15,8 @@ istruct (Time) {
     U32 mseconds;
 };
 
+Date os_get_date      ();
+U32  os_first_weekday (U32 year, U32 month);
 U32  os_days_in_month (U32 year, U32 month);
 Time os_get_wall_time ();
 U64  os_get_time_ms   ();
