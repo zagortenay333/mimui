@@ -57,8 +57,7 @@ ienum (UiSizeTag, U8) {
 #define UI_CONFIG_SLIDER_KNOB        str("ui_config_slider_knob")
 
 ienum (UiIcon, U32) {
-    UI_ICON_CHECK = 0xe900,
-    UI_ICON_WRENCH,
+    UI_ICON_WRENCH = 0xe900,
     UI_ICON_UNDERSCORE,
     UI_ICON_TRASH,
     UI_ICON_TRANSLATE,
@@ -79,6 +78,7 @@ ienum (UiIcon, U32) {
     UI_ICON_PAUSE,
     UI_ICON_PAN_UP,
     UI_ICON_PAN_RIGHT,
+    UI_ICON_PAN_LEFT,
     UI_ICON_PAND_DOWN,
     UI_ICON_MINUS,
     UI_ICON_MARK,
@@ -106,11 +106,10 @@ ienum (UiIcon, U32) {
     UI_ICON_EDIT,
     UI_ICON_CODE,
     UI_ICON_CLOSE,
+    UI_ICON_CHECK,
     UI_ICON_BOLD,
     UI_ICON_ALARM,
 };
-
-#define get_icon(X) X
 
 istruct (UiSize) {
     UiSizeTag tag;

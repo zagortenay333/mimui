@@ -12,6 +12,60 @@ UiBox *ui_vspacer () {
     return box;
 }
 
+UiBox *ui_button_str (String id, String label) {
+    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        ui_tag("button");
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_3);
+        ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_4);
+        ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+        ui_style_from_config(UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
+        ui_style_from_config(UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
+        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
+
+        ui_style_rule(".button.focus") {
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
+        }
+
+        ui_style_rule(".button.press") {
+            ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+            ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_3);
+            ui_style_from_config(UI_INSET_SHADOW_WIDTH, UI_CONFIG_IN_SHADOW_1_WIDTH);
+            ui_style_from_config(UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
+        }
+
+        if (button->signals.hovered) {
+            ui_push_clip(button, true);
+            ui_box(UI_BOX_CLICK_THROUGH, "button_highlight") {
+                F32 s = button->rect.h/8;
+                ui_style_f32(UI_EDGE_SOFTNESS, 60);
+                ui_style_vec4(UI_RADIUS, vec4(s, s, s, s));
+                ui_style_f32(UI_FLOAT_X, ui->mouse.x - button->rect.x - s);
+                ui_style_f32(UI_FLOAT_Y, ui->mouse.y - button->rect.y - s);
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_HIGHLIGHT);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
+            }
+            ui_pop_clip();
+        }
+
+        UiBox *label_box = ui_label(UI_BOX_CLICK_THROUGH, "button_label", label);
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+        ui_style_box_font(label_box, UI_FONT, font);
+        ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
+    }
+
+    return button;
+}
+
+UiBox *ui_button (CString id) {
+    return ui_button_str(str(id), str(id));
+}
+
 static Void size_label (UiBox *box, U64 axis) {
     // Sizing done in the draw_label function.
 }
@@ -57,8 +111,8 @@ static Void draw_label (UiBox *box) {
     box->rect.h = ui->font->height + 2*box->style.padding.y;
 }
 
-UiBox *ui_label (CString id, String label) {
-    UiBox *box = ui_box_str(UI_BOX_CLICK_THROUGH, str(id)) {
+UiBox *ui_label (UiBoxFlags flags, CString id, String label) {
+    UiBox *box = ui_box_str(flags, str(id)) {
         Font *font = ui_config_get_font(UI_CONFIG_FONT_NORMAL);
         ui_style_font(UI_FONT, font);
         ui_style_f32(UI_FONT_SIZE, font->size);
@@ -72,11 +126,23 @@ UiBox *ui_label (CString id, String label) {
     return box;
 }
 
-UiBox *ui_icon (CString id, U32 size, U32 icon) {
-    UiBox *label = ui_label(id, str_utf32_to_utf8(ui->frame_mem, icon));
+UiBox *ui_icon (UiBoxFlags flags, CString id, U32 size, U32 icon) {
+    UiBox *label = ui_label(flags, id, str_utf32_to_utf8(ui->frame_mem, icon));
     ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_ICONS);
     ui_style_box_f32(label, UI_FONT_SIZE, size);
     return label;
+}
+
+UiBox *ui_icon_button (UiBoxFlags flags, CString id, U32 size, U32 icon) {
+    UiBox *container = ui_box(flags|UI_BOX_CAN_FOCUS|UI_BOX_REACTIVE, id) {
+        ui_tag("icon_button");
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+
+        ui_icon(UI_BOX_CLICK_THROUGH, "icon", size, icon);
+    }
+
+    return container;
 }
 
 UiBox *ui_checkbox (CString id, Bool *val) {
@@ -103,7 +169,7 @@ UiBox *ui_checkbox (CString id, Bool *val) {
         if (*val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_MAGENTA_1);
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_2_COLOR);
-            ui_icon("mark", 16, get_icon(UI_ICON_CHECK));
+            ui_icon(0, "mark", 16, UI_ICON_CHECK);
         } else {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
         }
@@ -209,60 +275,6 @@ UiBox *ui_toggle (CString id, Bool *val) {
     }
 
     return bg;
-}
-
-UiBox *ui_button_str (String id, String label) {
-    UiBox *button = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
-        ui_tag("button");
-        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_3);
-        ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_4);
-        ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-        ui_style_from_config(UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
-        ui_style_from_config(UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
-        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
-
-        ui_style_rule(".button.focus") {
-            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
-            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
-        }
-
-        ui_style_rule(".button.press") {
-            ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
-            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-            ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_3);
-            ui_style_from_config(UI_INSET_SHADOW_WIDTH, UI_CONFIG_IN_SHADOW_1_WIDTH);
-            ui_style_from_config(UI_INSET_SHADOW_COLOR, UI_CONFIG_IN_SHADOW_1_COLOR);
-        }
-
-        if (button->signals.hovered) {
-            ui_push_clip(button, true);
-            ui_box(UI_BOX_CLICK_THROUGH, "button_highlight") {
-                F32 s = button->rect.h/8;
-                ui_style_f32(UI_EDGE_SOFTNESS, 60);
-                ui_style_vec4(UI_RADIUS, vec4(s, s, s, s));
-                ui_style_f32(UI_FLOAT_X, ui->mouse.x - button->rect.x - s);
-                ui_style_f32(UI_FLOAT_Y, ui->mouse.y - button->rect.y - s);
-                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_HIGHLIGHT);
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 2*s, 1});
-            }
-            ui_pop_clip();
-        }
-
-        UiBox *label_box = ui_label("button_label", label);
-        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
-        ui_style_box_font(label_box, UI_FONT, font);
-        ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
-    }
-
-    return button;
-}
-
-UiBox *ui_button (CString id) {
-    return ui_button_str(str(id), str(id));
 }
 
 UiBox *ui_vscroll_bar (String label, Rect rect, F32 ratio, F32 *val) {
@@ -656,7 +668,7 @@ UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
         ui_style_box_size(text_box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
 
         if (hint.count && buf_get_count(buf) == 0) {
-            UiBox *h = ui_label("hint", hint);
+            UiBox *h = ui_label(0, "hint", hint);
             UiBox *inner_text = array_get(&text_box->children, 0);
             ui_style_box_f32(h, UI_FLOAT_X, inner_text->rect.x - container->rect.x);
             ui_style_box_f32(h, UI_FLOAT_Y, inner_text->rect.y - container->rect.y);
@@ -705,7 +717,7 @@ UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) 
         if (! valid) ui_style_box_from_config(entry, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
 
         if (container->signals.hovered) {
-            ui_tooltip("tooltip") ui_label("label", astr_fmt(ui->frame_mem, "Integer in range [%li, %li].", min, max));
+            ui_tooltip("tooltip") ui_label(0, "label", astr_fmt(ui->frame_mem, "Integer in range [%li, %li].", min, max));
 
             if (valid && (ui->event->tag == EVENT_SCROLL)) {
                 if (ui->event->y > 0) {
@@ -1139,15 +1151,93 @@ UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *
     return container;
 }
 
+static Void size_ym_picker (UiBox *ym_picker, U64 axis) {
+    UiBox *day_titles = cast(UiBox*, ym_picker->scratch);
+    ym_picker->rect.size[axis] = day_titles->rect.size[axis];
+}
+
 UiBox *ui_date_picker (String id, Date *date) {
     // os_normalize_date(); @todo
 
+    tmem_new(tm);
+
     UiBox *container = ui_box_str(0, id) {
         ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
         F32 spacing = 2;
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
 
-        ui_box(0, "grid") {
+        ui_style_rule(".icon_button") {
+            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
+            ui_style_f32(UI_EDGE_SOFTNESS, 1);
+            F32 r = 3*font->size/2;
+            ui_style_vec4(UI_RADIUS, vec4(r, r, r, r));
+        }
+
+        ui_style_rule(".icon_button.hover") ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
+        ui_style_rule(".icon_button.hover *") ui_style_from_config(UI_TEXT_COLOR, UI_CONFIG_TEXT_SELECTION);
+
+        ui_style_rule(".icon_button.focus") {
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
+        }
+
+        UiBox *ym_picker = ui_box(0, "year_and_month_pickers") {
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 0, 1});
+            ym_picker->size_fn = size_ym_picker;
+
+            ui_box(0, "year_picker") {
+                ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
+                ui_style_f32(UI_SPACING, 4);
+
+                UiBox *left_btn  = ui_icon_button(0, "left_btn", 16, UI_ICON_PAN_LEFT);
+                UiBox *label     = ui_label(0, "label", astr_fmt(tm, "%u", date->year));
+                UiBox *right_btn = ui_icon_button(0, "right_btn", 16, UI_ICON_PAN_RIGHT);
+
+                ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_MONO);
+
+                if (left_btn->signals.clicked)  date->year = (date->year == 0) ? 0 : date->year - 1;
+                if (right_btn->signals.clicked) date->year = (date->year == UINT32_MAX) ? UINT32_MAX : date->year + 1;
+            }
+
+            ui_box(0, "month_picker") {
+                ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
+                ui_style_f32(UI_SPACING, 4);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+                UiBox *left_btn  = ui_icon_button(0, "left_btn", 16, UI_ICON_PAN_LEFT);
+                UiBox *label     = ui_label(0, "label", astr_fmt(tm, "%02u", date->month));
+                UiBox *right_btn = ui_icon_button(0, "right_btn", 16, UI_ICON_PAN_RIGHT);
+
+                ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_MONO);
+
+                if (left_btn->signals.clicked)  date->month = (date->month == 1) ? 12 : date->month - 1;
+                if (right_btn->signals.clicked) date->month = (date->month == 12) ? 1 : date->month + 1;
+            }
+        }
+
+        UiBox *day_titles = ui_box(0, "day_titles") {
+            ui_style_f32(UI_SPACING, spacing);
+
+            CString titles[] = {"S", "M", "T", "W", "T", "F", "S"};
+            for (U64 i = 0; i < 7; ++i) {
+                ui_box_fmt(0, "title%lu", i) {
+                    ui_tag("icon_button");
+                    UiBox *label = ui_label(0, "label", str(titles[i]));
+                    ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_MONO);
+                }
+            }
+        }
+
+        ym_picker->scratch = cast(U64, day_titles);
+
+        ui_box(0, "day_picker") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
             ui_style_f32(UI_SPACING, spacing);
 
@@ -1165,22 +1255,13 @@ UiBox *ui_date_picker (String id, Date *date) {
             U32 day = 1;
             U32 next_day = 1;
 
-            tmem_new(tm);
             for (U64 week = 0; week < 6; ++week) {
                 ui_box_fmt(0, "row%lu", week) {
                     ui_style_f32(UI_SPACING, spacing);
 
                     for (U64 day_of_week = 0; day_of_week < 7; ++day_of_week) {
                         UiBox *cell = ui_box_fmt(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, "cell%lu", day_of_week) {
-                            Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
-
-                            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-                            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-                            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
-                            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 3*font->size, 1});
-                            ui_style_f32(UI_EDGE_SOFTNESS, 1);
-                            F32 r = cell->rect.w/2;
-                            ui_style_vec4(UI_RADIUS, vec4(r, r, r, r));
+                            ui_tag("icon_button");
 
                             U32 cell_idx = week * 7 + day_of_week;
                             Date d;
@@ -1200,7 +1281,7 @@ UiBox *ui_date_picker (String id, Date *date) {
 
                             Bool selected = (d.month == date->month && d.day == date->day);
 
-                            UiBox *label = ui_label("label", astr_fmt(tm, "%02u", d.day));
+                            UiBox *label = ui_label(0, "label", astr_fmt(tm, "%02u", d.day));
                             ui_style_box_from_config(label, UI_FONT, UI_CONFIG_FONT_MONO);
 
                             if (dim) {
@@ -1212,14 +1293,7 @@ UiBox *ui_date_picker (String id, Date *date) {
                                 ui_style_box_from_config(cell, UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
                             }
 
-                            if (cell->signals.hovered) {
-                                ui_style_box_from_config(label, UI_TEXT_COLOR, UI_CONFIG_TEXT_SELECTION);
-                                ui_style_box_from_config(cell, UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
-                            }
-
-                            if (cell->signals.clicked) {
-                                *date = d;
-                            }
+                            if (cell->signals.clicked) *date = d;
                         }
                     }
                 }

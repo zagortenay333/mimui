@@ -12,8 +12,8 @@ ienum (UiColorPickerMode, U8) {
 
 UiBox *ui_hspacer              ();
 UiBox *ui_vspacer              ();
-UiBox *ui_label                (CString id, String label);
-UiBox *ui_icon                 (CString id, U32 size, U32 icon);
+UiBox *ui_label                (UiBoxFlags, CString id, String label);
+UiBox *ui_icon                 (UiBoxFlags, CString id, U32 size, U32 icon);
 UiBox *ui_checkbox             (CString id, Bool *val);
 UiBox *ui_image                (CString id, Texture *, Bool blur, Vec4 tint, F32 pref_width);
 UiBox *ui_toggle               (CString id, Bool *val);

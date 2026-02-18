@@ -46,7 +46,7 @@ static Void build_clock_view () {
 
         Time time = os_get_wall_time();
         String time_str = astr_fmt(ui->frame_mem, "%02u:%02u:%02u", time.hours, time.minutes, time.seconds);
-        UiBox *clock = ui_label("clock", time_str);
+        UiBox *clock = ui_label(0, "clock", time_str);
         ui_style_box_vec2(clock, UI_PADDING, vec2(40, 40));
         ui_style_box_from_config(clock, UI_FONT, UI_CONFIG_FONT_MONO);
         ui_style_box_f32(clock, UI_FONT_SIZE, 100.0);
@@ -72,21 +72,21 @@ static Void build_color_view () {
 
         ui_box(0, "hex_picker") {
             ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label("label", str("HEX: "));
+            ui_label(0, "label", str("HEX: "));
             ui_hspacer();
             ui_color_picker(str("picker"), COLOR_PICKER_HEX, &app->hue, &app->sat, &app->val, &app->alpha);
         }
 
         ui_box(0, "rgba_picker") {
             ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label("label", str("RGBA: "));
+            ui_label(0, "label", str("RGBA: "));
             ui_hspacer();
             ui_color_picker(str("picker"), COLOR_PICKER_RGBA, &app->hue, &app->sat, &app->val, &app->alpha);
         }
 
         ui_box(0, "hsva_picker") {
             ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label("label", str("HSVA: "));
+            ui_label(0, "label", str("HSVA: "));
             ui_hspacer();
             ui_color_picker(str("picker"), COLOR_PICKER_HSVA, &app->hue, &app->sat, &app->val, &app->alpha);
         }
@@ -161,10 +161,10 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
 
-            ui_icon("icon1", 16, get_icon(UI_ICON_TODO));
-            ui_icon("icon2", 16, get_icon(UI_ICON_FIRE));
-            ui_icon("icon3", 16, get_icon(UI_ICON_EYE));
-            ui_icon("icon4", 16, get_icon(UI_ICON_ALARM));
+            ui_icon(0, "icon1", 16, UI_ICON_TODO);
+            ui_icon(0, "icon2", 16, UI_ICON_FIRE);
+            ui_icon(0, "icon3", 16, UI_ICON_EYE);
+            ui_icon(0, "icon4", 16, UI_ICON_ALARM);
         }
 
         ui_box(0, "box2_6") {
