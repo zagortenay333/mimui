@@ -1157,8 +1157,6 @@ static Void size_ym_picker (UiBox *ym_picker, U64 axis) {
 }
 
 UiBox *ui_date_picker (String id, Date *date) {
-    // os_normalize_date(); @todo
-
     tmem_new(tm);
 
     UiBox *container = ui_box_str(0, id) {

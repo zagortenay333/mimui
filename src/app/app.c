@@ -94,7 +94,6 @@ static Void build_color_view () {
 }
 
 static Void build_tile_view () {
-    ui_date_picker(str("date_picker"), &app->date);
 }
 
 static Void build_misc_view () {
@@ -191,6 +190,14 @@ static Void build_misc_view () {
 
             ui_int_picker(str("int_picker"), &app->intval, 0, 10, 3);
             ui_int_picker(str("int_picker2"), &app->intval, 0, 10, 3);
+
+            UiBox *popup_button = ui_button("popup_button");
+            if (app->popup_shown || popup_button->signals.clicked) {
+                ui_tag_box(popup_button, "press");
+                ui_popup("popup", &app->popup_shown, false, popup_button) {
+                    ui_date_picker(str("date_picker"), &app->date);
+                }
+            }
         }
 
         ui_box(0, "box2_8") {
