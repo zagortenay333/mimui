@@ -706,13 +706,18 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
         String label;
 
         if (listening) {
-            if (ui->event->tag == EVENT_KEY_PRESS) {
-                if (ui->event->key != KEY_CTRL && ui->event->key != KEY_SHIFT && ui->event->key != KEY_ALT) {
-                    container->scratch = false;
-                    *key = ui->event->key;
-                    *mods = ui->event->mods;
-                    ui_eat_event();
-                }
+            if (ui->event->tag == EVENT_KEY_PRESS && 
+                ui->event->key != KEY_CTRL &&
+                ui->event->key != KEY_SHIFT &&
+                ui->event->key != KEY_ALT && 
+                ui->event->key != KEY_MOUSE_LEFT && 
+                ui->event->key != KEY_MOUSE_MIDDLE && 
+                ui->event->key != KEY_MOUSE_RIGHT 
+            ) {
+                container->scratch = false;
+                *key = ui->event->key;
+                *mods = ui->event->mods;
+                ui_eat_event();
             }
 
             label = str("Type Shortcut...");

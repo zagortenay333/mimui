@@ -576,7 +576,7 @@ Void win_run (Void (*frame)(F64 dt)) {
     U64 last = 0;
 
     Bool running = true;
-    Bool poll_events = true;
+    I32 poll_events = 4;
 
     while (running) {
         last = now;
@@ -603,15 +603,15 @@ Void win_run (Void (*frame)(F64 dt)) {
         #endif
 
         SDL_Event event;
-        if (poll_events || ui_is_animating()) {
+        if (poll_events > 0 || ui_is_animating()) {
             while (SDL_PollEvent(&event)) process_event(&event, &running);
+            poll_events--;
         } else {
             SDL_WaitEvent(&event);
             do process_event(&event, &running); while (SDL_PollEvent(&event));
-            poll_events = false;
+            poll_events = 4;
             now = SDL_GetPerformanceCounter();
         }
-        poll_events = !poll_events;
 
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glClearColor(0, 0, 0, 1);
