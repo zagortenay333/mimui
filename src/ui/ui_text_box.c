@@ -250,7 +250,7 @@ Void cursor_move_right_word (TextBox *info, Cursor *cursor, Bool move_selection)
 }
 
 Void cursor_move_down (TextBox *info, Cursor *cursor, Bool move_selection) {
-    if (cursor->line < info->visual_lines.count - 1) cursor->line++;
+    if (cursor->line < sat_sub64(info->visual_lines.count, 1)) cursor->line++;
 
     tmem_new(tm);
     String line = get_line_text(info, tm, cursor->line);
