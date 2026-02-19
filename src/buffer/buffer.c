@@ -72,6 +72,7 @@ Bool buf_line_iter_next (BufLineIter *it) {
         it->done = true;
     } else {
         it->text = array_get(&it->buf->lines, it->idx);
+        it->offset = it->text.data - it->buf->data.data;
     }
     return it->done;
 }
@@ -116,4 +117,8 @@ Void buf_clear (Buf *buf) {
 
 Buf *buf_copy (Buf *buf, Mem *mem) {
     return buf_new(mem, buf->data.as_slice);
+}
+
+String buf_get_range (Buf *buf, U64 offset, U64 count) {
+    return str_slice(buf->data.as_slice, offset, count);
 }

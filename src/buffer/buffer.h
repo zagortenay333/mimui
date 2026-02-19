@@ -27,6 +27,7 @@ Buf         *buf_new                      (Mem *, String);
 Buf         *buf_new_from_file            (Mem *, String filepath);
 BufLineIter *buf_line_iter_new            (Buf *, Mem *, U32);
 Bool         buf_line_iter_next           (BufLineIter *);
+String       buf_get_range                (Buf *, U64 offset, U64 count); // @todo
 Void         buf_clear                    (Buf *);
 Buf         *buf_copy                     (Buf *, Mem *);
 String       buf_get_line                 (Buf *, Mem *, U32);
