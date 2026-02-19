@@ -106,14 +106,14 @@ static String get_line (TextBox *info, U64 idx) {
     return buf_get_range(info->buf, line->offset, line->count);
 }
 
-U32 cursor_line_col_to_offset (TextBox *info, U32 line_idx, U32 column) {
-    VisualLine *line = array_ref(&info->visual_lines, line_idx);
+U32 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
+    VisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_range(info->buf, line->offset, line->count);
     if (line_text.count == 0) return 0;
     U32 off = 0;
     U32 idx = 0;
     str_utf8_iter (c, line_text) {
-        if (idx == column) break;
+        if (idx == cursor->column) break;
         off += c.decode.inc;
         idx++;
     }
@@ -172,7 +172,7 @@ Cursor cursor_new (TextBox *info, U32 line, U32 column) {
     cursor.line = line;
     cursor.column = column;
     cursor.preferred_column = column;
-    cursor.byte_offset = cursor_line_col_to_offset(info, line, column);
+    cursor.byte_offset = cursor_line_col_to_offset(info, &cursor);
     cursor.selection_offset = cursor.byte_offset;
     return cursor;
 }
@@ -187,7 +187,7 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
     }
 
     cursor->column = cursor->preferred_column;
-    cursor->byte_offset = cursor_line_col_to_offset(info, cursor->line, cursor->column);
+    cursor->byte_offset = cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
@@ -204,7 +204,7 @@ Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
         cursor->preferred_column = 0;
     }
 
-    cursor->byte_offset = cursor_line_col_to_offset(info, cursor->line, cursor->column);
+    cursor->byte_offset = cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
@@ -219,7 +219,7 @@ Void cursor_move_up (TextBox *info, Cursor *cursor, Bool move_selection) {
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = cursor_line_col_to_offset(info, cursor->line, cursor->column);
+    cursor->byte_offset = cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
@@ -285,7 +285,7 @@ Void cursor_move_down (TextBox *info, Cursor *cursor, Bool move_selection) {
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = cursor_line_col_to_offset(info, cursor->line, cursor->column);
+    cursor->byte_offset = cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
