@@ -100,17 +100,17 @@ U32 buf_get_count (Buf *buf) {
     return buf->data.count;
 }
 
-String buf_get_str (Buf *buf, Mem *) {
-    return buf->data.as_slice;
+String buf_get_str (Buf *buf, Mem *mem) {
+    return str_copy(mem, buf->data.as_slice);
+}
+
+String buf_get_slice (Buf *buf, Mem *mem, U64 offset, U64 count) {
+    return str_copy(mem, str_slice(buf->data.as_slice, offset, count));
 }
 
 Void buf_clear (Buf *buf) {
     buf->data.count = 0;
     buf->dirty = true;
-}
-
-String buf_get_slice (Buf *buf, U64 offset, U64 count) {
-    return str_slice(buf->data.as_slice, offset, count);
 }
 
 Bool buf_ends_with_newline (Buf *buf) {

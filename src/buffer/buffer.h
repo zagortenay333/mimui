@@ -23,7 +23,7 @@ Void         buf_insert            (Buf *, U64 offset, String str);
 Void         buf_delete            (Buf *, U64 offset, U64 count);
 U32          buf_get_count         (Buf *);
 String       buf_get_str           (Buf *, Mem *);
-String       buf_get_slice         (Buf *, U64 offset, U64 count);
+String       buf_get_slice         (Buf *, Mem *, U64 offset, U64 count);
 Bool         buf_ends_with_newline (Buf *);
 U64          buf_find_prev_word    (Buf *, U64 from);
 U64          buf_find_next_word    (Buf *, U64 from);

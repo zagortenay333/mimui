@@ -101,14 +101,15 @@ static Void compute_visual_lines (TextBox *info) {
     }
 }
 
-static String get_line_text (TextBox *info, U64 idx) {
+static String get_line_text (TextBox *info, Mem *mem, U64 idx) {
     VisualLine *line = array_ref(&info->visual_lines, idx);
-    return buf_get_slice(info->buf, line->offset, line->count);
+    return buf_get_slice(info->buf, mem, line->offset, line->count);
 }
 
 U32 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
+    tmem_new(tm);
     VisualLine *line = array_ref(&info->visual_lines, cursor->line);
-    String line_text = buf_get_slice(info->buf, line->offset, line->count);
+    String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
     if (line_text.count == 0) return 0;
     U32 off = 0;
     U32 idx = 0;
@@ -134,8 +135,9 @@ Void cursor_offset_to_line_col (TextBox *info, Cursor *cursor) {
         }
     }
 
+    tmem_new(tm);
     VisualLine *line = array_ref(&info->visual_lines, cursor->line);
-    String line_text = buf_get_slice(info->buf, line->offset, line->count);
+    String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
     U64 off = line->offset;
     str_utf8_iter (c, line_text) {
         if (off >= cursor->byte_offset) break;
@@ -182,7 +184,8 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
         cursor->preferred_column--;
     } else if (cursor->line > 0) {
         cursor->line--;
-        String line = get_line_text(info, cursor->line);
+        tmem_new(tm);
+        String line = get_line_text(info, tm, cursor->line);
         cursor->preferred_column = str_codepoint_count(line);
     }
 
@@ -192,7 +195,8 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
 }
 
 Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
-    String line = get_line_text(info, cursor->line);
+    tmem_new(tm);
+    String line = get_line_text(info, tm, cursor->line);
     U32 count = str_codepoint_count(line);
 
     if (cursor->preferred_column < count) {
@@ -211,7 +215,8 @@ Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
 Void cursor_move_up (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (cursor->line > 0) cursor->line--;
 
-    String line = get_line_text(info, cursor->line);
+    tmem_new(tm);
+    String line = get_line_text(info, tm, cursor->line);
     U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
@@ -240,7 +245,8 @@ Void cursor_move_right_word (TextBox *info, Cursor *cursor, Bool move_selection)
 Void cursor_move_down (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (cursor->line < info->visual_lines.count - 1) cursor->line++;
 
-    String line = get_line_text(info, cursor->line);
+    tmem_new(tm);
+    String line = get_line_text(info, tm, cursor->line);
     U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
@@ -273,11 +279,11 @@ Void cursor_clamp (TextBox *info, Cursor *cursor) {
     }
 }
 
-String cursor_get_selection (TextBox *info, Cursor *cursor) {
+String cursor_get_selection (TextBox *info, Mem *mem, Cursor *cursor) {
     U32 start = cursor->byte_offset;
     U32 end = cursor->selection_offset;
     if (start > end) swap(start, end);
-    return buf_get_slice(info->buf, start, end - start);
+    return buf_get_slice(info->buf, mem, start, end - start);
 }
 
 
@@ -285,7 +291,7 @@ static Void draw_line (TextBox *info, UiBox *box, U64 line_idx, VisualLine *line
     tmem_new(tm);
     dr_bind_texture(&ui->font->atlas_texture);
 
-    String line_text = buf_get_slice(info->buf, line->offset, line->count);
+    String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
 
     U32 cell_w = ui->font->width;
     U32 cell_h = ui->font->height;
@@ -433,8 +439,8 @@ static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
 
     U32 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, info->visual_lines.count - 1));
 
-    VisualLine *line = array_ref(&info->visual_lines, line_idx);
-    String line_text = buf_get_slice(info->buf, line->offset, line->count);
+    tmem_new(tm);
+    String line_text = get_line_text(info, tm, line_idx);
 
     U32 max_col = str_codepoint_count(line_text);
     column = clamp(round(coord.x / cell_w), 0u, max_col);
@@ -451,8 +457,8 @@ static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
 
     coord.y = pos->line * line_height + line_spacing/2;
 
-    VisualLine *line = array_ref(&info->visual_lines, pos->line);
-    String line_text = buf_get_slice(info->buf, line->offset, line->count);
+    tmem_new(tm);
+    String line_text = get_line_text(info, tm, pos->line);
 
     U32 i = 0;
     str_utf8_iter (it, line_text) {
@@ -594,7 +600,8 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case KEY_X:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    String text = cursor_get_selection(info, &info->cursor);
+                    tmem_new(tm);
+                    String text = cursor_get_selection(info, tm, &info->cursor);
                     if (text.count) {
                         win_set_clipboard_text(text);
                         cursor_delete(info, &info->cursor);
@@ -603,7 +610,8 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case KEY_C:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    String text = cursor_get_selection(info, &info->cursor);
+                    tmem_new(tm);
+                    String text = cursor_get_selection(info, tm, &info->cursor);
                     if (text.count) win_set_clipboard_text(text);
                 }
                 break;
