@@ -656,7 +656,7 @@ Void ui_tooltip_pop () {
 
 UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
-        UiBox *text_box = ui_text_box(str("text"), buf, true);
+        UiBox *text_box = ui_text_box(str("text"), buf, true, LINE_WRAP_NONE);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
         ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
         ui_style_box_from_config(text_box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);

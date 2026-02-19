@@ -480,7 +480,7 @@ static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
     return coord;
 }
 
-UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
+UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode wrap_mode) {
     UiBox *container = ui_box_str(0, label) {
         TextBox *info = ui_get_box_data(container, sizeof(TextBox), sizeof(TextBox));
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
@@ -490,7 +490,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         info->char_width = font->width;
 
         if (container->start_frame == ui->frame) {
-            info->wrap_mode = LINE_WRAP_CHAR;
+            info->wrap_mode = single_line_mode ? LINE_WRAP_NONE : wrap_mode;
             info->dirty = true;
             array_init(&info->visual_lines, info->mem);
         }

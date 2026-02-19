@@ -11,4 +11,4 @@ ienum (UiTextBoxWrapMode, U8) {
     LINE_WRAP_WORD,
 };
 
-UiBox *ui_text_box (String id, Buf *buf, Bool single_line_mode);
+UiBox *ui_text_box (String id, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode);

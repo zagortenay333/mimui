@@ -32,7 +32,7 @@ istruct (App) {
 App *app;
 
 static Void build_text_view () {
-    UiBox *box = ui_text_box(str("text_box"), app->buf1, false);
+    UiBox *box = ui_text_box(str("text_box"), app->buf1, false, LINE_WRAP_CHAR);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});

@@ -29,6 +29,7 @@ Buf *buf_new_from_file (Mem *mem, String filepath) {
 }
 
 static String get_line (Buf *buf, Char *p) {
+    if (p > buf->data.data + buf->data.count) return (String){p, 0};
     U64 n = (buf->data.data + buf->data.count) - p;
     Char *e = memchr(p, '\n', n);
     return (String){p, e ? cast(U64, e-p) : n};
