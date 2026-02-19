@@ -47,8 +47,6 @@ static Void compute_visual_lines (TextBox *info) {
     info->visual_lines.count = 0;
     info->widest_line = 0;
 
-    array_ensure_capacity(&info->visual_lines, buf_get_count(info->buf) / 80);
-
     U64 viewport_width_in_chars = info->viewport_width / info->char_width;
     if (viewport_width_in_chars == 0) viewport_width_in_chars = 120;
 
@@ -110,12 +108,14 @@ static Void compute_visual_lines (TextBox *info) {
 }
 
 static String get_line_text (TextBox *info, Mem *mem, U64 idx) {
+    if (idx >= info->visual_lines.count) return (String){};
     VisualLine *line = array_ref(&info->visual_lines, idx);
     return buf_get_slice(info->buf, mem, line->offset, line->count);
 }
 
 U64 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
     tmem_new(tm);
+    if (cursor->line >= info->visual_lines.count) return 0;
     VisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
     U64 off = 0;
