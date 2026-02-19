@@ -35,6 +35,7 @@ istruct (TextBox) {
     U64 widest_line;
     U64 viewport_width;
     U64 char_width;
+    U64 tab_width;
 };
 
 static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos);
@@ -488,6 +489,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
         info->buf = buf;
         info->single_line_mode = single_line_mode;
         info->char_width = font->width;
+        info->tab_width = ui_config_get_u32(UI_CONFIG_TAB_WIDTH);
 
         if (container->start_frame == ui->frame) {
             info->wrap_mode = single_line_mode ? LINE_WRAP_NONE : wrap_mode;

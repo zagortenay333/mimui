@@ -981,6 +981,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
         ui->depth_first.count = 0;
 
         ui->root = ui_box(0, "root") {
+            ui_config_def_u32(UI_CONFIG_TAB_WIDTH, 4);
             ui_config_def_font(UI_CONFIG_FONT_NORMAL, font_get(ui->font_cache, str("data/fonts/NotoSans-Regular.ttf"), 12, false));
             ui_config_def_font(UI_CONFIG_FONT_BOLD,   font_get(ui->font_cache, str("data/fonts/NotoSans-Bold.ttf"), 12, false));
             ui_config_def_font(UI_CONFIG_FONT_MONO,   font_get(ui->font_cache, str("data/fonts/FiraMono-Bold Powerline.otf"), 12, true));

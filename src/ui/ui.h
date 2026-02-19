@@ -5,6 +5,7 @@
 #include "font/font.h"
 #include "window/window.h"
 
+#define UI_CONFIG_TAB_WIDTH          str("ui_config_tab_width")
 #define UI_CONFIG_FONT_NORMAL        str("ui_config_font_normal")
 #define UI_CONFIG_FONT_BOLD          str("ui_config_font_bold")
 #define UI_CONFIG_FONT_MONO          str("ui_config_font_mono")
