@@ -601,7 +601,9 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
                 break;
             case KEY_V:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    String text = win_get_clipboard_text(ui->frame_mem);
+                    tmem_new(tm);
+                    String text = win_get_clipboard_text(tm);
+                    array_iter (c, &text, *) if (*c == '\n' || *c == '\r') *c = ' ';
                     cursor_insert(info, &info->cursor, text);
                 }
                 break;
