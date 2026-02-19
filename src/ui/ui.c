@@ -1087,7 +1087,6 @@ Void ui_init () {
 // - shortcut picker
 // - dropdown
 // - time picker
-// - when no text in single line entry cursor can move down
 // - sanitize pasted string for newlines if in single line mode
 // - file picker
 // - scrollbox for large homogenous lists
