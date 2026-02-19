@@ -37,6 +37,7 @@ Void         buf_insert_                  (Buf *, U64 offset, String str);
 Void         buf_delete_                  (Buf *, U64 offset, U64 count);
 U32          buf_get_count                (Buf *);
 String       buf_get_str                  (Buf *, Mem *);
+Bool         buf_ends_with_newline        (Buf *);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
     for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

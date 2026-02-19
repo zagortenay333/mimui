@@ -122,3 +122,7 @@ Buf *buf_copy (Buf *buf, Mem *mem) {
 String buf_get_range (Buf *buf, U64 offset, U64 count) {
     return str_slice(buf->data.as_slice, offset, count);
 }
+
+Bool buf_ends_with_newline (Buf *buf) {
+    return str_ends_with(buf->data.as_slice, str("\n"));
+}
