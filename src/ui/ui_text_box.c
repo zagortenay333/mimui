@@ -151,7 +151,7 @@ Void cursor_swap_offset (TextBox *info, Cursor *cursor) {
 
 Void cursor_delete (TextBox *info, Cursor *cursor) {
     if (cursor->byte_offset > cursor->selection_offset) cursor_swap_offset(info, cursor);
-    buf_delete_(info->buf, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
+    buf_delete(info->buf, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
     info->dirty = true;
     cursor->selection_offset = cursor->byte_offset;
     cursor->preferred_column = cursor->column;
@@ -159,7 +159,7 @@ Void cursor_delete (TextBox *info, Cursor *cursor) {
 
 Void cursor_insert (TextBox *info, Cursor *cursor, String str) {
     if (cursor->byte_offset != cursor->selection_offset) cursor_delete(info, cursor);
-    buf_insert_(info->buf, cursor->byte_offset, str);
+    buf_insert(info->buf, cursor->byte_offset, str);
     info->dirty = true;
     cursor->byte_offset += str.count;
     cursor->selection_offset = cursor->byte_offset;
@@ -411,13 +411,13 @@ static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U
     if (coord.x < box->rect.x + x_padding) {
         text_box_hscroll(info, box, sat_sub32(pos->column, padding), UI_ALIGN_START);
     } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
-        text_box_hscroll(info, box, clamp(sat_add32(pos->column, padding), 0u, buf_get_widest_line(info->buf)), UI_ALIGN_END);
+        text_box_hscroll(info, box, clamp(sat_add32(pos->column, padding), 0u, info->widest_line), UI_ALIGN_END);
     }
 
     if (coord.y < box->rect.y + y_padding) {
         text_box_vscroll(info, box, sat_sub32(pos->line, padding), UI_ALIGN_START);
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, buf_get_line_count(info->buf)-1), UI_ALIGN_END);
+        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, info->visual_lines.count - 1), UI_ALIGN_END);
     }
 }
 
