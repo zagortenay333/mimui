@@ -108,7 +108,7 @@ Void buf_clear (Buf *buf) {
     buf->dirty = true;
 }
 
-String buf_get_range (Buf *buf, U64 offset, U64 count) {
+String buf_get_slice (Buf *buf, U64 offset, U64 count) {
     return str_slice(buf->data.as_slice, offset, count);
 }
 
