@@ -64,16 +64,16 @@ Void buf_delete (Buf *buf, U64 offset, U64 count) {
     array_remove_many(&buf->data, offset, count);
 }
 
-U32 buf_get_count (Buf *buf) {
+U64 buf_get_count (Buf *buf) {
     return buf->data.count;
 }
 
-String buf_get_str (Buf *buf, Mem *mem) {
-    return str_copy(mem, buf->data.as_slice);
+String buf_get_str (Buf *buf, Mem *) {
+    return buf->data.as_slice;
 }
 
-String buf_get_slice (Buf *buf, Mem *mem, U64 offset, U64 count) {
-    return str_copy(mem, str_slice(buf->data.as_slice, offset, count));
+String buf_get_slice (Buf *buf, Mem *, U64 offset, U64 count) {
+    return str_slice(buf->data.as_slice, offset, count);
 }
 
 Void buf_clear (Buf *buf) {

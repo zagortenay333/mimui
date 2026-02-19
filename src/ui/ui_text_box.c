@@ -11,11 +11,11 @@ istruct (VisualLine) {
 };
 
 istruct (Cursor) {
-    U32 byte_offset;
-    U32 selection_offset;
-    U32 line; // Index into visual_lines.
-    U32 column; // 0-indexed and counting codepoints not bytes.
-    U32 preferred_column;
+    U64 byte_offset;
+    U64 selection_offset;
+    U64 line; // Index into visual_lines.
+    U64 column; // 0-indexed and counting codepoints not bytes.
+    U64 preferred_column;
 };
 
 istruct (TextBox) {
@@ -37,8 +37,8 @@ istruct (TextBox) {
     U64 char_width;
 };
 
-static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos);
-static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord);
+static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos);
+static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord);
 
 static Void compute_visual_lines (TextBox *info) {
     if (! info->dirty) return;
@@ -47,8 +47,10 @@ static Void compute_visual_lines (TextBox *info) {
     info->visual_lines.count = 0;
     info->widest_line = 0;
 
+    array_ensure_capacity(&info->visual_lines, buf_get_count(info->buf) / 80);
+
     U64 viewport_width_in_chars = info->viewport_width / info->char_width;
-    if (viewport_width_in_chars == 0) viewport_width_in_chars = 1;
+    if (viewport_width_in_chars == 0) viewport_width_in_chars = 120;
 
     tmem_new(tm);
     buf_iter_lines (line, info->buf, tm) {
@@ -56,7 +58,13 @@ static Void compute_visual_lines (TextBox *info) {
         case LINE_WRAP_NONE: {
             U64 logical_len = str_codepoint_count(line->text);
             if (logical_len > info->widest_line) info->widest_line = logical_len;
-            badpath;
+
+            VisualLine *vline = array_push_slot(&info->visual_lines);
+            vline->logical_line_offset = line->offset;
+            vline->logical_line_count = line->text.count;
+            vline->logical_col = 0;
+            vline->offset = line->offset;
+            vline->count = line->text.count;
         } break;
 
         case LINE_WRAP_WORD: {
@@ -106,13 +114,12 @@ static String get_line_text (TextBox *info, Mem *mem, U64 idx) {
     return buf_get_slice(info->buf, mem, line->offset, line->count);
 }
 
-U32 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
+U64 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
     tmem_new(tm);
     VisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
-    if (line_text.count == 0) return 0;
-    U32 off = 0;
-    U32 idx = 0;
+    U64 off = 0;
+    U64 idx = 0;
     str_utf8_iter (c, line_text) {
         if (idx == cursor->column) break;
         off += c.decode.inc;
@@ -128,7 +135,7 @@ Void cursor_offset_to_line_col (TextBox *info, Cursor *cursor) {
     cursor->column = 0;
 
     array_iter (line, &info->visual_lines, *) {
-        U32 end_of_line = line->offset + line->count;
+        U64 end_of_line = line->offset + line->count;
         if (end_of_line >= cursor->byte_offset) {
             cursor->line = ARRAY_IDX;
             break;
@@ -169,7 +176,7 @@ Void cursor_insert (TextBox *info, Cursor *cursor, String str) {
     cursor->preferred_column = cursor->column;
 }
 
-Cursor cursor_new (TextBox *info, U32 line, U32 column) {
+Cursor cursor_new (TextBox *info, U64 line, U64 column) {
     Cursor cursor = {};
     cursor.line = line;
     cursor.column = column;
@@ -197,7 +204,7 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
 Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
     tmem_new(tm);
     String line = get_line_text(info, tm, cursor->line);
-    U32 count = str_codepoint_count(line);
+    U64 count = str_codepoint_count(line);
 
     if (cursor->preferred_column < count) {
         cursor->preferred_column++;
@@ -217,7 +224,7 @@ Void cursor_move_up (TextBox *info, Cursor *cursor, Bool move_selection) {
 
     tmem_new(tm);
     String line = get_line_text(info, tm, cursor->line);
-    U32 count = str_codepoint_count(line);
+    U64 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
     } else {
@@ -247,7 +254,7 @@ Void cursor_move_down (TextBox *info, Cursor *cursor, Bool move_selection) {
 
     tmem_new(tm);
     String line = get_line_text(info, tm, cursor->line);
-    U32 count = str_codepoint_count(line);
+    U64 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
     } else {
@@ -280,8 +287,8 @@ Void cursor_clamp (TextBox *info, Cursor *cursor) {
 }
 
 String cursor_get_selection (TextBox *info, Mem *mem, Cursor *cursor) {
-    U32 start = cursor->byte_offset;
-    U32 end = cursor->selection_offset;
+    U64 start = cursor->byte_offset;
+    U64 end = cursor->selection_offset;
     if (start > end) swap(start, end);
     return buf_get_slice(info->buf, mem, start, end - start);
 }
@@ -293,8 +300,8 @@ static Void draw_line (TextBox *info, UiBox *box, U64 line_idx, VisualLine *line
 
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
 
-    U32 cell_w = ui->font->width;
-    U32 cell_h = ui->font->height;
+    U64 cell_w = ui->font->width;
+    U64 cell_h = ui->font->height;
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, line_text);
 
     x = floor(x - info->scroll_coord.x);
@@ -303,10 +310,10 @@ static Void draw_line (TextBox *info, UiBox *box, U64 line_idx, VisualLine *line
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
     U64 selection_start = info->cursor.byte_offset;
-    U64 selection_end   =  info->cursor.selection_offset;
+    U64 selection_end   = info->cursor.selection_offset;
     if (selection_end < selection_start) swap(selection_start, selection_end);
 
-    U32 col_idx = 0;
+    U64 col_idx = 0;
     array_iter (glyph_info, &infos, *) {
         if (x > box->rect.x + box->rect.w) break;
 
@@ -348,15 +355,15 @@ static Void draw (UiBox *box) {
 
     if (! ui_set_font(container)) return;
 
-    U32 cell_h = ui->font->height;
-    U32 cell_w = ui->font->width;
+    U64 cell_h = ui->font->height;
+    U64 cell_w = ui->font->width;
 
     F32 line_spacing   = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     info->total_width  = info->widest_line * cell_w;
     info->total_height = info->visual_lines.count * (cell_h + line_spacing);
 
     F32 line_height = cell_h + line_spacing;
-    Cursor pos = text_box_coord_to_cursor(info, box, box->rect.top_left);
+    Cursor pos = coord_to_cursor(info, box, box->rect.top_left);
     F32 y = box->rect.y + line_height;
 
     array_iter_from (line, &info->visual_lines, pos.line, *) {
@@ -373,9 +380,9 @@ static Void draw (UiBox *box) {
     );
 }
 
-static Void text_box_vscroll (TextBox *info, UiBox *box, U32 line, UiAlign align) {
+static Void text_box_vscroll (TextBox *info, UiBox *box, U64 line, UiAlign align) {
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
-    U32 cell_h = ui->font->height;
+    U64 cell_h = ui->font->height;
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + line_spacing);
 
     F32 visible_h = box->rect.h;
@@ -389,8 +396,8 @@ static Void text_box_vscroll (TextBox *info, UiBox *box, U32 line, UiAlign align
     }
 }
 
-static Void text_box_hscroll (TextBox *info, UiBox *box, U32 column, UiAlign align) {
-    U32 cell_w = ui->font->width;
+static Void text_box_hscroll (TextBox *info, UiBox *box, U64 column, UiAlign align) {
+    U64 cell_w = ui->font->width;
     info->scroll_coord_n.x = cast(F32, column) * cell_w;
 
     F32 visible_w = box->rect.w;
@@ -404,15 +411,15 @@ static Void text_box_hscroll (TextBox *info, UiBox *box, U32 column, UiAlign ali
     }
 }
 
-static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U32 padding) {
-    U32 cell_w = ui->font->width;
-    U32 cell_h = ui->font->height;
+static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U64 padding) {
+    U64 cell_w = ui->font->width;
+    U64 cell_h = ui->font->height;
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
-    Vec2 coord = text_box_cursor_to_coord(info, box, pos);
+    Vec2 coord = cursor_to_coord(info, box, pos);
 
-    U32 x_padding = padding * cell_w;
-    U32 y_padding = padding * (cell_h + line_spacing);
+    U64 x_padding = padding * cell_w;
+    U64 y_padding = padding * (cell_h + line_spacing);
 
     if (coord.x < box->rect.x + x_padding) {
         text_box_hscroll(info, box, sat_sub32(pos->column, padding), UI_ALIGN_START);
@@ -427,8 +434,8 @@ static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U
     }
 }
 
-static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
-    U32 column = 0;
+static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
+    U64 column = 0;
 
     F32 cell_w = ui->font->width;
     F32 cell_h = ui->font->height;
@@ -437,18 +444,18 @@ static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
     coord.x = coord.x - box->rect.x + info->scroll_coord.x;
     coord.y = coord.y - box->rect.y + info->scroll_coord.y;
 
-    U32 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, info->visual_lines.count - 1));
+    U64 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, info->visual_lines.count - 1));
 
     tmem_new(tm);
     String line_text = get_line_text(info, tm, line_idx);
 
-    U32 max_col = str_codepoint_count(line_text);
+    U64 max_col = str_codepoint_count(line_text);
     column = clamp(round(coord.x / cell_w), 0u, max_col);
 
     return cursor_new(info, line_idx, column);
 }
 
-static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
+static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
     Vec2 coord = {};
 
     F32 char_width  = ui->font->width;
@@ -460,7 +467,7 @@ static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
     tmem_new(tm);
     String line_text = get_line_text(info, tm, pos->line);
 
-    U32 i = 0;
+    U64 i = 0;
     str_utf8_iter (it, line_text) {
         if (i >= pos->column) break;
         coord.x += char_width;
@@ -497,7 +504,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
 
         if (info->single_line_mode) {
-            U32 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
+            U64 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
         }
 
@@ -516,8 +523,8 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, container->rect.h - container->style.padding.y - (scroll_x ? scrollbar_width : 0), 1});
 
             if (text_box->signals.hovered && ui->event->tag == EVENT_SCROLL) {
-                U32 cell_w = ui->font->width;
-                U32 cell_h = ui->font->height;
+                U64 cell_w = ui->font->width;
+                U64 cell_h = ui->font->height;
 
                 if (scroll_y && !ui_is_key_pressed(KEY_SHIFT)) {
                     info->scroll_coord_n.y -= (cell_h + line_spacing) * ui->event->y;
@@ -667,8 +674,8 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
 
         if (text_box->signals.pressed) {
             ui_grab_focus(text_box);
-            U32 soff = info->cursor.selection_offset;
-            info->cursor = text_box_coord_to_cursor(info, text_box, ui->mouse);
+            U64 soff = info->cursor.selection_offset;
+            info->cursor = coord_to_cursor(info, text_box, ui->mouse);
             info->cursor.selection_offset = soff;
 
             if (info->dragging) {
@@ -686,7 +693,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         }
 
         ui_animate_vec2(&info->scroll_coord, info->scroll_coord_n, ui_config_get_f32(UI_CONFIG_ANIMATION_TIME_1));
-        if (ui->font) info->cursor_coord = text_box_cursor_to_coord(info, text_box, &info->cursor);
+        if (ui->font) info->cursor_coord = cursor_to_coord(info, text_box, &info->cursor);
     }
 
     return container;
