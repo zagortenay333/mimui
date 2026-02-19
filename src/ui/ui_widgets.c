@@ -692,16 +692,22 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
     tmem_new(tm);
 
     UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        ui_tag("shortcut_picker");
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_3);
-        ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_4);
         ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-        ui_style_from_config(UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
-        ui_style_from_config(UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
+        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+        ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+        ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
         ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
         ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
 
+        ui_style_rule(".shortcut_picker.focus") {
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
+        }
+
+        Bool dim = false;
         Bool listening = container->scratch;
         String label;
 
@@ -727,13 +733,22 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
                 container->scratch = true;
             }
 
-            CString c = (*mods & KEY_MOD_CTRL) ? "Ctrl + " : "";
-            CString s = (*mods & KEY_MOD_SHIFT) ? "Shift + " : "";
-            CString a = (*mods & KEY_MOD_ALT) ? "Alt + " : "";
-            label = astr_fmt(tm, "%s%s%s%s",  c, s, a, key_to_str(*key));
+            if (*key == KEY_UNKNOWN && *mods == 0) {
+                dim = true;
+                label = str("Set Shortcut");
+            } else {
+                CString c = (*mods & KEY_MOD_CTRL) ? "Ctrl + " : "";
+                CString s = (*mods & KEY_MOD_SHIFT) ? "Shift + " : "";
+                CString a = (*mods & KEY_MOD_ALT) ? "Alt + " : "";
+                label = astr_fmt(tm, "%s%s%s%s",  c, s, a, key_to_str(*key));
+            }
         }
 
-        ui_label(UI_BOX_CLICK_THROUGH, "label", label);
+        UiBox *label_box = ui_label(UI_BOX_CLICK_THROUGH, "label", label);
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+        ui_style_box_font(label_box, UI_FONT, font);
+        ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
+        if (dim) ui_style_box_from_config(label_box, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_3);
     }
 
     return container;

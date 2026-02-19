@@ -12,6 +12,7 @@
 // Window:
 // =============================================================================
 #define EACH_KEY(X)\
+    X(KEY_UNKNOWN, "Unknown")\
     X(KEY_A, "A")\
     X(KEY_B, "B")\
     X(KEY_C, "C")\
@@ -74,8 +75,7 @@
     X(KEY_DOWN, "Down")\
     X(KEY_MOUSE_LEFT, "MouseLeft")\
     X(KEY_MOUSE_MIDDLE,"MouseMiddle")\
-    X(KEY_MOUSE_RIGHT, "MouseRight")\
-    X(KEY_UNKNOWN, "Unknown")
+    X(KEY_MOUSE_RIGHT, "MouseRight")
 
 ienum (Key, U32) {
     #define X(KEY, ...) KEY,
