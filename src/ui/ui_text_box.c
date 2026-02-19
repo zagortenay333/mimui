@@ -30,7 +30,7 @@ istruct (TextBox) {
     Bool dragging;
     Bool single_line_mode;
     Bool dirty;
-    TextBoxWrapMode wrap_mode;
+    UiTextBoxWrapMode wrap_mode;
     Array(VisualLine) visual_lines;
     U64 widest_line;
     U64 viewport_width;
@@ -52,11 +52,10 @@ static Void compute_visual_lines (TextBox *info) {
 
     tmem_new(tm);
     buf_iter_lines (line, info->buf, tm, 0) {
-        U64 logical_len = str_codepoint_count(line->text);
-        if (logical_len > info->widest_line) info->widest_line = logical_len;
-
         switch (info->wrap_mode) {
         case LINE_WRAP_NONE: {
+            U64 logical_len = str_codepoint_count(line->text);
+            if (logical_len > info->widest_line) info->widest_line = logical_len;
             badpath;
         } break;
 
@@ -143,21 +142,21 @@ Void buf_cursor_swap_offset (Buf *buf, Cursor *cursor) {
     buf_offset_to_line_col(buf, cursor);
 }
 
-Void buf_delete (Buf *buf, Cursor *cursor) {
-    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(buf, cursor);
-    array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
-    buf->dirty = true;
+Void buf_delete (TextBox *info, Cursor *cursor) {
+    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(info->buf, cursor);
+    buf_delete_(info->buf, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
+    info->dirty = true;
     cursor->selection_offset = cursor->byte_offset;
     cursor->preferred_column = cursor->column;
 }
 
-Void buf_insert (Buf *buf, Cursor *cursor, String str) {
-    if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
-    array_insert_many(&buf->data, &str, cursor->byte_offset);
-    buf->dirty = true;
+Void buf_insert (TextBox *info, Cursor *cursor, String str) {
+    if (cursor->byte_offset != cursor->selection_offset) buf_delete(info, cursor);
+    buf_insert_(info->buf, cursor->byte_offset, str);
+    info->dirty = true;
     cursor->byte_offset += str.count;
     cursor->selection_offset = cursor->byte_offset;
-    buf_offset_to_line_col(buf, cursor);
+    buf_offset_to_line_col(info->buf, cursor);
     cursor->preferred_column = cursor->column;
 }
 
@@ -378,15 +377,15 @@ static Void draw (UiBox *box) {
     U32 cell_h = ui->font->height;
     U32 cell_w = ui->font->width;
 
-    F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
+    F32 line_spacing   = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     info->total_width  = info->widest_line * cell_w;
     info->total_height = info->visual_lines.count * (cell_h + line_spacing);
 
     F32 line_height = cell_h + line_spacing;
     Cursor pos = text_box_coord_to_cursor(info, box, box->rect.top_left);
-    F32 y = box->rect.y + line_height - info->scroll_coord.y + (pos.line * line_height);
+    F32 y = box->rect.y + line_height;
 
-    array_iter (line, &info->visual_lines, *) {
+    array_iter_from (line, &info->visual_lines, pos.line, *) {
         if (y - line_height > box->rect.y + box->rect.h) break;
         draw_line(info, box, ARRAY_IDX, line, container->style.text_color, box->rect.x, floor(y));
         y += line_height;
@@ -455,7 +454,6 @@ static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U
 }
 
 static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
-    U32 line = 0;
     U32 column = 0;
 
     F32 cell_w = ui->font->width;
@@ -465,15 +463,15 @@ static Cursor text_box_coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
     coord.x = coord.x - box->rect.x + info->scroll_coord.x;
     coord.y = coord.y - box->rect.y + info->scroll_coord.y;
 
-    line = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, buf_get_line_count(info->buf)-1));
+    U32 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, info->visual_lines.count - 1));
 
-    tmem_new(tm);
-    String line_text = buf_get_line(info->buf, tm, line);
+    VisualLine *line = array_ref(&info->visual_lines, line_idx);
+    String line_text = buf_get_range(info->buf, line->offset, line->count);
 
     U32 max_col = str_codepoint_count(line_text);
     column = clamp(round(coord.x / cell_w), 0u, max_col);
 
-    return buf_cursor_new(info->buf, line, column);
+    return buf_cursor_new(info->buf, line_idx, column);
 }
 
 static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
@@ -485,11 +483,11 @@ static Vec2 text_box_cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
 
     coord.y = pos->line * line_height + line_spacing/2;
 
-    tmem_new(tm);
-    String line_str = buf_get_line(info->buf, tm, pos->line);
+    VisualLine *line = array_ref(&info->visual_lines, pos->line);
+    String line_text = buf_get_range(info->buf, line->offset, line->count);
 
     U32 i = 0;
-    str_utf8_iter (it, line_str) {
+    str_utf8_iter (it, line_text) {
         if (i >= pos->column) break;
         coord.x += char_width;
         i++;
@@ -596,10 +594,10 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             case KEY_DEL:
                 if (ui->event->mods & KEY_MOD_CTRL) {
                     buf_cursor_move_right_word(info->buf, &info->cursor, false);
-                    buf_delete(info->buf, &info->cursor);
+                    buf_delete(info, &info->cursor);
                 } else {
                     buf_cursor_move_right(info->buf, &info->cursor, false);
-                    buf_delete(info->buf, &info->cursor);
+                    buf_delete(info, &info->cursor);
                 }
                 ui_eat_event();
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
@@ -607,7 +605,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             case KEY_W:
                 if (ui->event->mods & KEY_MOD_CTRL) {
                     buf_cursor_move_left_word(info->buf, &info->cursor, false);
-                    buf_delete(info->buf, &info->cursor);
+                    buf_delete(info, &info->cursor);
                     text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
@@ -623,7 +621,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             case KEY_V:
                 if (ui->event->mods & KEY_MOD_CTRL) {
                     String text = win_get_clipboard_text(ui->frame_mem);
-                    buf_insert(info->buf, &info->cursor, text);
+                    buf_insert(info, &info->cursor, text);
                 }
                 break;
             case KEY_X:
@@ -631,7 +629,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                     String text = buf_get_selection(info->buf, &info->cursor);
                     if (text.count) {
                         win_set_clipboard_text(text);
-                        buf_delete(info->buf, &info->cursor);
+                        buf_delete(info, &info->cursor);
                     }
                 }
                 break;
@@ -645,7 +643,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 if (info->single_line_mode) break;
 
                 Bool special_case = buf_cursor_at_end_no_newline(info->buf, &info->cursor);
-                buf_insert(info->buf, &info->cursor, str("\n"));
+                buf_insert(info, &info->cursor, str("\n"));
 
                 if (special_case) {
                     // @todo This is a stupid hack for the case when we insert at the end
@@ -654,7 +652,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                     // state.
                     info->cursor.byte_offset--;
                     info->cursor.selection_offset--;
-                    buf_insert(info->buf, &info->cursor, str("\n"));
+                    buf_insert(info, &info->cursor, str("\n"));
                 }
 
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
@@ -662,7 +660,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case KEY_BACKSPACE:
                 if (info->cursor.byte_offset == info->cursor.selection_offset) buf_cursor_move_left(info->buf, &info->cursor, false);
-                buf_delete(info->buf, &info->cursor);
+                buf_delete(info, &info->cursor);
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
@@ -710,7 +708,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
         }
 
         if (text_box->signals.focused && ui->event->tag == EVENT_TEXT_INPUT) {
-            buf_insert(info->buf, &info->cursor, ui->event->text);
+            buf_insert(info, &info->cursor, ui->event->text);
             text_box_scroll_into_view(info, text_box, &info->cursor, 4);
             ui_eat_event();
         }
