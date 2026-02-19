@@ -58,14 +58,18 @@ Buf *buf_new_from_file (Mem *mem, String filepath) {
     return buf;
 }
 
-BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U32 from) {
-    compute_aux(buf);
+static String get_line (Buf *buf, Char *p) {
+    U64 n = (buf->data.data + buf->data.count) - p;
+    Char *e = memchr(p, '\n', n);
+    return (String){p, e ? cast(U64, e-p) : n};
+}
+
+BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem) {
     Auto it = mem_new(mem, BufLineIter);
     it->buf = buf;
-    if (buf->lines.count) {
-        from = clamp(from, 0u, buf->lines.count-1);
-        it->idx = from;
-        it->text = array_get(&buf->lines, from);
+    if (buf->data.count) {
+        it->idx = 0;
+        it->text = get_line(buf, buf->data.data);
         it->offset = it->text.data - buf->data.data;
     } else {
         it->done = true;
@@ -76,12 +80,9 @@ BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U32 from) {
 Bool buf_line_iter_next (BufLineIter *it) {
     if (it->done) return true;
     it->idx++;
-    if (it->idx >= it->buf->lines.count) {
-        it->done = true;
-    } else {
-        it->text = array_get(&it->buf->lines, it->idx);
-        it->offset = it->text.data - it->buf->data.data;
-    }
+    it->text = get_line(it->buf, it->text.data + it->text.count + 1);
+    it->offset = it->text.data - it->buf->data.data;
+    if (it->text.data >= it->buf->data.data + it->buf->data.count) it->done = true;
     return it->done;
 }
 

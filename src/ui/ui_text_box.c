@@ -51,7 +51,7 @@ static Void compute_visual_lines (TextBox *info) {
     if (viewport_width_in_chars == 0) viewport_width_in_chars = 1;
 
     tmem_new(tm);
-    buf_iter_lines (line, info->buf, tm, 0) {
+    buf_iter_lines (line, info->buf, tm) {
         switch (info->wrap_mode) {
         case LINE_WRAP_NONE: {
             U64 logical_len = str_codepoint_count(line->text);
