@@ -131,7 +131,7 @@ U64 cursor_line_col_to_offset (TextBox *info, Cursor *cursor) {
 Void cursor_offset_to_line_col (TextBox *info, Cursor *cursor) {
     compute_visual_lines(info);
 
-    cursor->line = info->visual_lines.count - 1;
+    cursor->line = sat_sub64(info->visual_lines.count, 1);
     cursor->column = 0;
 
     array_iter (line, &info->visual_lines, *) {
@@ -209,7 +209,7 @@ Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (cursor->preferred_column < count) {
         cursor->preferred_column++;
         cursor->column = cursor->preferred_column;
-    } else if (cursor->line < info->visual_lines.count - 1) {
+    } else if (cursor->line < sat_sub64(info->visual_lines.count, 1)) {
         cursor->line++;
         cursor->column = 0;
         cursor->preferred_column = 0;
@@ -430,7 +430,7 @@ static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U
     if (coord.y < box->rect.y + y_padding) {
         text_box_vscroll(info, box, sat_sub32(pos->line, padding), UI_ALIGN_START);
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, info->visual_lines.count - 1), UI_ALIGN_END);
+        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, sat_sub64(info->visual_lines.count, 1)), UI_ALIGN_END);
     }
 }
 
@@ -444,7 +444,7 @@ static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
     coord.x = coord.x - box->rect.x + info->scroll_coord.x;
     coord.y = coord.y - box->rect.y + info->scroll_coord.y;
 
-    U64 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, info->visual_lines.count - 1));
+    U64 line_idx = clamp(coord.y / (cell_h + line_spacing), cast(F32, 0), cast(F32, sat_sub64(info->visual_lines.count, 1)));
 
     tmem_new(tm);
     String line_text = get_line_text(info, tm, line_idx);
@@ -676,7 +676,6 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
             ui_grab_focus(text_box);
             U64 soff = info->cursor.selection_offset;
             info->cursor = coord_to_cursor(info, text_box, ui->mouse);
-            printf("%lu\n", info->cursor.line);
             info->cursor.selection_offset = soff;
 
             if (info->dragging) {
