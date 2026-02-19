@@ -11,13 +11,13 @@ istruct (UiTextBox) {
     Vec2 scroll_coord_n;
     F32 total_width;
     F32 total_height;
+    UiTextBoxWrapMode wrap_mode;
     Bool dragging;
     Bool single_line_mode;
 };
 
 static Vec2 text_box_cursor_to_coord (UiTextBox *info, UiBox *box, BufCursor *pos);
 static BufCursor text_box_coord_to_cursor (UiTextBox *info, UiBox *box, Vec2 coord);
-Void buf_delete (Buf *buf, BufCursor *cursor);
 
 U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
     String line_text = buf_get_line(buf, 0, line);
@@ -60,6 +60,14 @@ Void buf_cursor_swap_offset (Buf *buf, BufCursor *cursor) {
     buf_offset_to_line_col(buf, cursor);
 }
 
+Void buf_delete (Buf *buf, BufCursor *cursor) {
+    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(buf, cursor);
+    array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
+    buf->dirty = true;
+    cursor->selection_offset = cursor->byte_offset;
+    cursor->preferred_column = cursor->column;
+}
+
 Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
     if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
     array_insert_many(&buf->data, &str, cursor->byte_offset);
@@ -67,14 +75,6 @@ Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
     cursor->byte_offset += str.count;
     cursor->selection_offset = cursor->byte_offset;
     buf_offset_to_line_col(buf, cursor);
-    cursor->preferred_column = cursor->column;
-}
-
-Void buf_delete (Buf *buf, BufCursor *cursor) {
-    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(buf, cursor);
-    array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
-    buf->dirty = true;
-    cursor->selection_offset = cursor->byte_offset;
     cursor->preferred_column = cursor->column;
 }
 
