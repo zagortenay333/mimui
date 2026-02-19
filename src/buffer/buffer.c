@@ -126,3 +126,46 @@ String buf_get_range (Buf *buf, U64 offset, U64 count) {
 Bool buf_ends_with_newline (Buf *buf) {
     return str_ends_with(buf->data.as_slice, str("\n"));
 }
+
+U64 buf_find_prev_word (Buf *buf, U64 from) {
+    Char *start = buf->data.data;
+    Char *p = array_ref(&buf->data, from);
+
+    if (p > start) p--;
+
+    while (p > start) {
+        if (is_whitespace(*p)) p--;
+        else break;
+    }
+
+    if (is_word_char(*p)) {
+        while (p > start) {
+            if (is_word_char(*p)) p--;
+            else break;
+        }
+        if (! is_word_char(*p)) p++;
+    }
+
+    return p - start;
+}
+
+U64 buf_find_next_word (Buf *buf, U64 from) {
+    Char *end = &buf->data.data[buf->data.count - 1];
+    Char *p = array_ref(&buf->data, from);
+
+    while (p < end) {
+        if (is_whitespace(*p)) p++;
+        else break;
+    }
+
+    if (is_word_char(*p)) {
+        while (p < end) {
+            if (is_word_char(*p)) p++;
+            else break;
+        }
+    } else if (p < end) {
+        p++;
+    }
+
+    return p - buf->data.data;
+}

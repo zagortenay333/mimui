@@ -38,6 +38,8 @@ Void         buf_delete_                  (Buf *, U64 offset, U64 count);
 U32          buf_get_count                (Buf *);
 String       buf_get_str                  (Buf *, Mem *);
 Bool         buf_ends_with_newline        (Buf *);
+U64          buf_find_prev_word           (Buf *, U64 from);
+U64          buf_find_next_word           (Buf *, U64 from);
 
 #define buf_iter_lines(IT, BUF, MEM, FROM)\
     for (BufLineIter *IT = buf_line_iter_new(BUF, MEM, FROM); !IT->done; buf_line_iter_next(IT))

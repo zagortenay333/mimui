@@ -223,52 +223,15 @@ Void cursor_move_up (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-// @todo
 Void cursor_move_left_word (TextBox *info, Cursor *cursor, Bool move_selection) {
-    Char *start = info->buf->data.data;
-    Char *p = array_ref(&info->buf->data, cursor->byte_offset);
-
-    if (p > start) p--;
-
-    while (p > start) {
-        if (is_whitespace(*p)) p--;
-        else break;
-    }
-
-    if (is_word_char(*p)) {
-        while (p > start) {
-            if (is_word_char(*p)) p--;
-            else break;
-        }
-        if (! is_word_char(*p)) p++;
-    }
-
-    cursor->byte_offset = p - start;
+    cursor->byte_offset = buf_find_prev_word(info->buf, cursor->byte_offset);
     cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-// @todo
 Void cursor_move_right_word (TextBox *info, Cursor *cursor, Bool move_selection) {
-    Char *end = &info->buf->data.data[info->buf->data.count - 1];
-    Char *p = array_ref(&info->buf->data, cursor->byte_offset);
-
-    while (p < end) {
-        if (is_whitespace(*p)) p++;
-        else break;
-    }
-
-    if (is_word_char(*p)) {
-        while (p < end) {
-            if (is_word_char(*p)) p++;
-            else break;
-        }
-    } else if (p < end) {
-        p++;
-    }
-
-    cursor->byte_offset = p - info->buf->data.data;
+    cursor->byte_offset = buf_find_next_word(info->buf, cursor->byte_offset);
     cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
