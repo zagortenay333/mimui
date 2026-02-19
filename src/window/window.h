@@ -60,22 +60,22 @@
     X(KEY_F10, "F10")\
     X(KEY_F11, "F11")\
     X(KEY_F12, "F12")\
-    X(KEY_DEL, "DEL")\
-    X(KEY_BACKSPACE, "backspace")\
-    X(KEY_RETURN, "return")\
-    X(KEY_SHIFT, "shift")\
-    X(KEY_CTRL, "ctrl")\
-    X(KEY_ALT, "alt")\
-    X(KEY_TAB, "tab")\
-    X(KEY_ESC, "esc")\
-    X(KEY_LEFT, "left")\
-    X(KEY_RIGHT, "right")\
-    X(KEY_UP, "up")\
-    X(KEY_DOWN, "down")\
-    X(KEY_MOUSE_LEFT, "mouse_left")\
-    X(KEY_MOUSE_MIDDLE,"mouse_middle")\
-    X(KEY_MOUSE_RIGHT, "mouse_right")\
-    X(KEY_UNKNOWN, "unknown")
+    X(KEY_DEL, "Del")\
+    X(KEY_BACKSPACE, "Backspace")\
+    X(KEY_RETURN, "Return")\
+    X(KEY_SHIFT, "Shift")\
+    X(KEY_CTRL, "Ctrl")\
+    X(KEY_ALT, "Alt")\
+    X(KEY_TAB, "Tab")\
+    X(KEY_ESC, "Esc")\
+    X(KEY_LEFT, "Left")\
+    X(KEY_RIGHT, "Right")\
+    X(KEY_UP, "Up")\
+    X(KEY_DOWN, "Down")\
+    X(KEY_MOUSE_LEFT, "MouseLeft")\
+    X(KEY_MOUSE_MIDDLE,"MouseMiddle")\
+    X(KEY_MOUSE_RIGHT, "MouseRight")\
+    X(KEY_UNKNOWN, "Unknown")
 
 ienum (Key, U32) {
     #define X(KEY, ...) KEY,

@@ -681,14 +681,16 @@ UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     return container;
 }
 
-CString key_to_str (Key key) {
+static CString key_to_str (Key key) {
     #define X(KEY, STR) if (key == KEY) return STR;
     EACH_KEY(X)
     #undef X
-    return "unkown";
+    return "Unkown";
 }
 
 UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
+    tmem_new(tm);
+
     UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
         ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
@@ -701,6 +703,7 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
         ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
 
         Bool listening = container->scratch;
+        String label;
 
         if (listening) {
             if (ui->event->tag == EVENT_KEY_PRESS) {
@@ -712,20 +715,20 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
                 }
             }
 
-            ui_label(UI_BOX_CLICK_THROUGH, "label", str("Type shortcut..."));
+            label = str("Type Shortcut...");
         } else {
             if (container->signals.clicked) {
                 ui_grab_focus(container);
                 container->scratch = true;
             }
 
-            tmem_new(tm);
-            CString c  = (*mods & KEY_MOD_CTRL) ? "Ctrl + " : "";
-            CString s  = (*mods & KEY_MOD_SHIFT) ? "Shift + " : "";
-            CString a  = (*mods & KEY_MOD_ALT) ? "Alt + " : "";
-            String str = astr_fmt(tm, "%s%s%s%s",  c, s, a, key_to_str(*key));
-            ui_label(UI_BOX_CLICK_THROUGH, "label", str);
+            CString c = (*mods & KEY_MOD_CTRL) ? "Ctrl + " : "";
+            CString s = (*mods & KEY_MOD_SHIFT) ? "Shift + " : "";
+            CString a = (*mods & KEY_MOD_ALT) ? "Alt + " : "";
+            label = astr_fmt(tm, "%s%s%s%s",  c, s, a, key_to_str(*key));
         }
+
+        ui_label(UI_BOX_CLICK_THROUGH, "label", label);
     }
 
     return container;
