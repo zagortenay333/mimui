@@ -101,7 +101,7 @@ static Void compute_visual_lines (TextBox *info) {
     }
 }
 
-static String get_line (TextBox *info, U64 idx) {
+static String get_line_text (TextBox *info, U64 idx) {
     VisualLine *line = array_ref(&info->visual_lines, idx);
     return buf_get_range(info->buf, line->offset, line->count);
 }
@@ -182,7 +182,7 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
         cursor->preferred_column--;
     } else if (cursor->line > 0) {
         cursor->line--;
-        String line = get_line(info, cursor->line);
+        String line = get_line_text(info, cursor->line);
         cursor->preferred_column = str_codepoint_count(line);
     }
 
@@ -192,7 +192,7 @@ Void cursor_move_left (TextBox *info, Cursor *cursor, Bool move_selection) {
 }
 
 Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
-    String line = get_line(info, cursor->line);
+    String line = get_line_text(info, cursor->line);
     U32 count = str_codepoint_count(line);
 
     if (cursor->preferred_column < count) {
@@ -211,7 +211,7 @@ Void cursor_move_right (TextBox *info, Cursor *cursor, Bool move_selection) {
 Void cursor_move_up (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (cursor->line > 0) cursor->line--;
 
-    String line = get_line(info, cursor->line);
+    String line = get_line_text(info, cursor->line);
     U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
@@ -277,7 +277,7 @@ Void cursor_move_right_word (TextBox *info, Cursor *cursor, Bool move_selection)
 Void cursor_move_down (TextBox *info, Cursor *cursor, Bool move_selection) {
     if (cursor->line < info->visual_lines.count - 1) cursor->line++;
 
-    String line = get_line(info, cursor->line);
+    String line = get_line_text(info, cursor->line);
     U32 count = str_codepoint_count(line);
     if (cursor->preferred_column > count) {
         cursor->column = count;
