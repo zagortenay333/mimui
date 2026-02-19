@@ -399,6 +399,19 @@ static Key convert_scancode (SDL_Scancode scancode) {
     case SDL_SCANCODE_Y: return KEY_Y;
     case SDL_SCANCODE_Z: return KEY_Z;
 
+    case SDL_SCANCODE_F1: return KEY_F1;
+    case SDL_SCANCODE_F2: return KEY_F2;
+    case SDL_SCANCODE_F3: return KEY_F3;
+    case SDL_SCANCODE_F4: return KEY_F4;
+    case SDL_SCANCODE_F5: return KEY_F5;
+    case SDL_SCANCODE_F6: return KEY_F6;
+    case SDL_SCANCODE_F7: return KEY_F7;
+    case SDL_SCANCODE_F8: return KEY_F8;
+    case SDL_SCANCODE_F9: return KEY_F9;
+    case SDL_SCANCODE_F10: return KEY_F10;
+    case SDL_SCANCODE_F11: return KEY_F11;
+    case SDL_SCANCODE_F12: return KEY_F12;
+
     case SDL_SCANCODE_0: return KEY_0;
     case SDL_SCANCODE_1: return KEY_1;
     case SDL_SCANCODE_2: return KEY_2;
@@ -418,6 +431,7 @@ static Key convert_scancode (SDL_Scancode scancode) {
     case SDL_SCANCODE_RSHIFT: return KEY_SHIFT;
     case SDL_SCANCODE_LCTRL: return KEY_CTRL;
     case SDL_SCANCODE_RCTRL: return KEY_CTRL;
+    case SDL_SCANCODE_LALT: return KEY_ALT;
     case SDL_SCANCODE_TAB: return KEY_TAB;
     case SDL_SCANCODE_ESCAPE: return KEY_ESC;
 

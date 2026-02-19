@@ -674,7 +674,47 @@ UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
             ui_style_box_f32(h, UI_FLOAT_Y, inner_text->rect.y - container->rect.y);
             ui_style_box_font(h, UI_FONT, text_box->next_style.font);
             ui_style_box_f32(h, UI_FONT_SIZE, text_box->next_style.font_size);
-            ui_style_box_from_config(h, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_2);
+            ui_style_box_from_config(h, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_3);
+        }
+    }
+
+    return container;
+}
+
+CString key_to_str (Key key) {
+    #define X(KEY, STR) if (key == KEY) return STR;
+    EACH_KEY(X)
+    #undef X
+    return "unkown";
+}
+
+UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
+    UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        Bool listening = container->scratch;
+
+        if (listening) {
+            if (ui->event->tag == EVENT_KEY_PRESS) {
+                if (ui->event->key != KEY_CTRL && ui->event->key != KEY_SHIFT && ui->event->key != KEY_ALT) {
+                    container->scratch = false;
+                    *key = ui->event->key;
+                    *mods = ui->event->mods;
+                    ui_eat_event();
+                }
+            }
+
+            ui_label(UI_BOX_CLICK_THROUGH, "label", str("Type shortcut..."));
+        } else {
+            if (container->signals.clicked) {
+                ui_grab_focus(container);
+                container->scratch = true;
+            }
+
+            tmem_new(tm);
+            CString c  = (*mods & KEY_MOD_CTRL) ? "Ctrl + " : "";
+            CString s  = (*mods & KEY_MOD_SHIFT) ? "Shift + " : "";
+            CString a  = (*mods & KEY_MOD_ALT) ? "Alt + " : "";
+            String str = astr_fmt(tm, "%s%s%s%s",  c, s, a, key_to_str(*key));
+            ui_label(UI_BOX_CLICK_THROUGH, "label", str);
         }
     }
 

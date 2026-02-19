@@ -970,13 +970,6 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
         root_clip->w = win.x;
         root_clip->h = win.y;
 
-        if (ui->depth_first.count) {
-            if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == KEY_TAB)) {
-                if (event->mods & KEY_MOD_SHIFT) find_prev_focus();
-                else                             find_next_focus();
-            }
-        }
-
         ui->deferred_layout_fns.count = 0;
         ui->depth_first.count = 0;
 
@@ -1032,6 +1025,13 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
             ui->root->rect.h = win.y;
 
             app_build();
+
+            if (ui->depth_first.count) {
+                if ((ui->event->tag == EVENT_KEY_PRESS) && (event->key == KEY_TAB)) {
+                    if (event->mods & KEY_MOD_SHIFT) find_prev_focus();
+                    else                             find_next_focus();
+                }
+            }
         }
 
         map_iter (slot, &ui->box_cache) {

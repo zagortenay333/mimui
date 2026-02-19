@@ -15,6 +15,11 @@ istruct (App) {
 
     Date date;
 
+    struct {
+        Key key;
+        KeyMod mod;
+    } shortcut;
+
     U32 view;
 
     F32 slider;
@@ -32,7 +37,7 @@ istruct (App) {
 App *app;
 
 static Void build_text_view () {
-    UiBox *box = ui_text_box(str("text_box"), app->buf1, false, LINE_WRAP_CHAR);
+    UiBox *box = ui_text_box(str("text_box"), app->buf1, false, LINE_WRAP_NONE);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
@@ -199,6 +204,8 @@ static Void build_misc_view () {
                     ui_date_picker(str("date_picker"), &app->date);
                 }
             }
+
+            ui_shortcut_picker(str("shortcut_picker"), &app->shortcut.key, &app->shortcut.mod);
         }
 
         ui_box(0, "box2_8") {
@@ -339,11 +346,12 @@ Void app_build () {
 
 Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 2;
+    app->view = 0;
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
     app->hue = .3;
     app->date = os_get_date();
+    app->shortcut.key = KEY_F1;
 }
