@@ -9,16 +9,9 @@ istruct (Buf);
 istruct (BufLineIter) {
     Buf *buf;
     U64 idx;
+    U64 offset;
     String text;
     Bool done;
-};
-
-istruct (BufCursor) {
-    U32 byte_offset;
-    U32 selection_offset;
-    U32 line; // 0-indexed
-    U32 column; // 0-indexed and counting codepoints not bytes.
-    U32 preferred_column;
 };
 
 istruct (Buf) {

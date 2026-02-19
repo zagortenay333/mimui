@@ -2,6 +2,22 @@
 #include "ui/ui_widgets.h"
 #include "base/string.h"
 
+istruct (VisualLine) {
+    U64 logical_line_offset; // Byte offset of containing logical line.
+    U64 logical_line_count; // Byte length of logical line.
+    U64 logical_col; // Column in logical line counting codepoints.
+    U64 offset; // Byte offset of visual line.
+    U64 count; // Byte length of visual line.
+};
+
+istruct (BufCursor) {
+    U32 byte_offset;
+    U32 selection_offset;
+    U32 line; // 0-indexed
+    U32 column; // 0-indexed and counting codepoints not bytes.
+    U32 preferred_column;
+};
+
 istruct (UiTextBox) {
     Mem *mem;
     Buf *buf;
@@ -11,13 +27,65 @@ istruct (UiTextBox) {
     Vec2 scroll_coord_n;
     F32 total_width;
     F32 total_height;
-    UiTextBoxWrapMode wrap_mode;
     Bool dragging;
     Bool single_line_mode;
+    Bool dirty;
+    UiTextBoxWrapMode wrap_mode;
+    Array(VisualLine) visual_lines;
+    U64 widest_line;
+    U64 viewport_width;
+    U64 char_width;
 };
 
 static Vec2 text_box_cursor_to_coord (UiTextBox *info, UiBox *box, BufCursor *pos);
 static BufCursor text_box_coord_to_cursor (UiTextBox *info, UiBox *box, Vec2 coord);
+
+static Void compute_visual_lines (UiTextBox *info) {
+    if (! info->dirty) return;
+    info->dirty = false;
+
+    info->visual_lines.count = 0;
+    info->widest_line = 0;
+
+    U64 viewport_width_in_chars = info->viewport_width / info->char_width;
+
+    tmem_new(tm);
+    buf_iter_lines (line, info->buf, tm, 0) {
+        if (line->text.count > info->widest_line) info->widest_line = line->text.count;
+
+        switch (info->wrap_mode) {
+        case LINE_WRAP_NONE: {
+        } break;
+
+        case LINE_WRAP_WORD: {
+        } break;
+
+        case LINE_WRAP_CHAR: {
+            U64 col = 0;
+            U64 vcount = 0;
+            U64 voffset = line->offset;
+
+            str_utf8_iter (c, line->text) {
+                if (col == viewport_width_in_chars) {
+                    VisualLine *vline = array_push_slot(&info->visual_lines);
+                    vline->logical_line_offset = line->offset;
+                    vline->logical_line_count = line->text.count;
+                    vline->logical_col = col;
+                    vline->offset = voffset;
+                    vline->count = vcount;
+
+                    voffset += vcount + 1;
+                    vcount = 0;
+                    col = 0;
+                }
+
+                col++;
+                vcount += c.decode.inc;
+            }
+        } break;
+        }
+    }
+}
 
 U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
     String line_text = buf_get_line(buf, 0, line);
@@ -231,7 +299,7 @@ String buf_get_selection (Buf *buf, BufCursor *cursor) {
 }
 
 
-static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
+static Void draw_line (UiTextBox *info, UiBox *box, U32 line_idx, String text, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     dr_bind_texture(&ui->font->atlas_texture);
 
@@ -282,7 +350,7 @@ static Void text_box_draw_line (UiTextBox *info, UiBox *box, U32 line_idx, Strin
     }
 }
 
-static Void text_box_draw (UiBox *box) {
+static Void draw (UiBox *box) {
     tmem_new(tm);
 
     UiBox *container = box->parent;
@@ -303,7 +371,7 @@ static Void text_box_draw (UiBox *box) {
 
     buf_iter_lines (line, info->buf, tm, pos.line) {
         if (y - line_height > box->rect.y + box->rect.h) break;
-        text_box_draw_line(info, box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
+        draw_line(info, box, cast(U32, line->idx), line->text, container->style.text_color, box->rect.x, floor(y));
         y += line_height;
     }
 
@@ -419,14 +487,22 @@ static Vec2 text_box_cursor_to_coord (UiTextBox *info, UiBox *box, BufCursor *po
 UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
     UiBox *container = ui_box_str(0, label) {
         UiTextBox *info = ui_get_box_data(container, sizeof(UiTextBox), sizeof(UiTextBox));
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
 
         info->buf = buf;
         info->single_line_mode = single_line_mode;
+        info->char_width = font->width;
+
+        if (container->start_frame == ui->frame) {
+            info->wrap_mode = LINE_WRAP_CHAR;
+            info->dirty = true;
+            array_init(&info->visual_lines, info->mem);
+            compute_visual_lines(info);
+        }
 
         buf_cursor_clamp(info->buf, &info->cursor); // In case the buffer changed.
 
         ui_set_font(container);
-        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
         ui_style_font(UI_FONT, font);
         ui_style_f32(UI_FONT_SIZE, font->size);
 
@@ -463,7 +539,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 }
             }
 
-            text_box->draw_fn = text_box_draw;
+            text_box->draw_fn = draw;
         }
 
         if (scroll_y) {

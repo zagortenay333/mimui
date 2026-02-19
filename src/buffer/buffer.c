@@ -58,6 +58,7 @@ BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U32 from) {
         from = clamp(from, 0u, buf->lines.count-1);
         it->idx = from;
         it->text = array_get(&buf->lines, from);
+        it->offset = it->text.data - buf->data.data;
     } else {
         it->done = true;
     }

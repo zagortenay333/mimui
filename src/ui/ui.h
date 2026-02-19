@@ -5,15 +5,6 @@
 #include "font/font.h"
 #include "window/window.h"
 
-typedef U64 UiKey;
-
-ienum (UiSizeTag, U8) {
-    UI_SIZE_CUSTOM,
-    UI_SIZE_PIXELS,
-    UI_SIZE_PCT_PARENT,
-    UI_SIZE_CHILDREN_SUM,
-};
-
 #define UI_CONFIG_FONT_NORMAL        str("ui_config_font_normal")
 #define UI_CONFIG_FONT_BOLD          str("ui_config_font_bold")
 #define UI_CONFIG_FONT_MONO          str("ui_config_font_mono")
@@ -109,6 +100,15 @@ ienum (UiIcon, U32) {
     UI_ICON_CHECK,
     UI_ICON_BOLD,
     UI_ICON_ALARM,
+};
+
+typedef U64 UiKey;
+
+ienum (UiSizeTag, U8) {
+    UI_SIZE_CUSTOM,
+    UI_SIZE_PIXELS,
+    UI_SIZE_PCT_PARENT,
+    UI_SIZE_CHILDREN_SUM,
 };
 
 istruct (UiSize) {
