@@ -707,6 +707,10 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
         }
 
+        ui_style_rule(".shortcut_picker.hover") {
+            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_2);
+        }
+
         Bool dim = false;
         Bool listening = container->scratch;
         String label;
