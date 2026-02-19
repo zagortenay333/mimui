@@ -299,17 +299,17 @@ Bool buf_cursor_at_end_no_newline (Buf *buf, Cursor *cursor) {
     return (cursor->byte_offset == buf->data.count) && !str_ends_with(buf->data.as_slice, str("\n")) ;
 }
 
-Void buf_cursor_clamp (Buf *buf, Cursor *cursor) {
-    if (cursor->byte_offset > buf->data.count) {
-        buf_cursor_move_to_end(buf, cursor, true);
+Void cursor_clamp (TextBox *info, Cursor *cursor) {
+    if (cursor->byte_offset > buf_get_count(info->buf)) {
+        buf_cursor_move_to_end(info->buf, cursor, true);
     }
 }
 
-String buf_get_selection (Buf *buf, Cursor *cursor) {
+String cursor_get_selection (TextBox *info, Cursor *cursor) {
     U32 start = cursor->byte_offset;
     U32 end = cursor->selection_offset;
     if (start > end) swap(start, end);
-    return str_slice(buf->data.as_slice, start, end - start);
+    return buf_get_range(info->buf, start, end - start);
 }
 
 
@@ -514,7 +514,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
             array_init(&info->visual_lines, info->mem);
         }
 
-        buf_cursor_clamp(info->buf, &info->cursor); // In case the buffer changed.
+        cursor_clamp(info, &info->cursor); // In case the buffer changed.
 
         ui_set_font(container);
         ui_style_font(UI_FONT, font);
@@ -626,7 +626,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case KEY_X:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    String text = buf_get_selection(info->buf, &info->cursor);
+                    String text = cursor_get_selection(info, &info->cursor);
                     if (text.count) {
                         win_set_clipboard_text(text);
                         buf_delete(info, &info->cursor);
@@ -635,7 +635,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode) {
                 break;
             case KEY_C:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    String text = buf_get_selection(info->buf, &info->cursor);
+                    String text = cursor_get_selection(info, &info->cursor);
                     if (text.count) win_set_clipboard_text(text);
                 }
                 break;
