@@ -5,40 +5,12 @@
 istruct (Buf) {
     Mem *mem;
     ArrayChar data;
-    ArrayString lines;
-    U32 widest_line;
-    Bool dirty;
 };
 
-static Void compute_aux (Buf *buf) {
-    if (! buf->dirty) return;
-    buf->dirty = false;
-
-    buf->lines.count = 0;
-    buf->widest_line = 0;
-    U32 prev_pos = 0;
-
-    array_iter (c, &buf->data) {
-        if (c != '\n') continue;
-        String s = str_slice(buf->data.as_slice, prev_pos, ARRAY_IDX - prev_pos);
-        if (s.count > buf->widest_line) buf->widest_line = s.count;
-        array_push(&buf->lines, s);
-        prev_pos = ARRAY_IDX + 1;
-    }
-
-    if (prev_pos < buf->data.count) {
-        String s = str_slice(buf->data.as_slice, prev_pos, buf->data.count - prev_pos);
-        if (s.count > buf->widest_line) buf->widest_line = s.count;
-        array_push(&buf->lines, s);
-    }
-}
-
 Buf *buf_new (Mem *mem, String text) {
-    Auto buf   = mem_new(mem, Buf);
-    buf->mem   = mem;
-    buf->dirty = true;
+    Auto buf = mem_new(mem, Buf);
+    buf->mem = mem;
     array_init(&buf->data, mem);
-    array_init(&buf->lines, mem);
     buf_insert(buf, 0, text);
     return buf;
 }
@@ -46,8 +18,6 @@ Buf *buf_new (Mem *mem, String text) {
 Buf *buf_new_from_file (Mem *mem, String filepath) {
     Auto buf = mem_new(mem, Buf);
     buf->mem = mem;
-    buf->dirty = true;
-    array_init(&buf->lines, mem);
 
     String file = fs_read_entire_file(mem, filepath, 1*KB);
     buf->data.mem = mem;
@@ -88,12 +58,10 @@ Bool buf_line_iter_next (BufLineIter *it) {
 
 Void buf_insert (Buf *buf, U64 offset, String str) {
     array_insert_many(&buf->data, &str, offset);
-    buf->dirty = true;
 }
 
 Void buf_delete (Buf *buf, U64 offset, U64 count) {
     array_remove_many(&buf->data, offset, count);
-    buf->dirty = true;
 }
 
 U32 buf_get_count (Buf *buf) {
@@ -110,7 +78,6 @@ String buf_get_slice (Buf *buf, Mem *mem, U64 offset, U64 count) {
 
 Void buf_clear (Buf *buf) {
     buf->data.count = 0;
-    buf->dirty = true;
 }
 
 Bool buf_ends_with_newline (Buf *buf) {
