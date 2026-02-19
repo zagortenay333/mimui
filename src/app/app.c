@@ -339,7 +339,7 @@ Void app_build () {
 
 Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 3;
+    app->view = 2;
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
