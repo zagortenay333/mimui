@@ -30,11 +30,13 @@ Buf         *buf_copy                     (Buf *, Mem *);
 String       buf_get_line                 (Buf *, Mem *, U32);
 U32          buf_get_widest_line          (Buf *);
 U32          buf_get_line_count           (Buf *);
-Void         buf_insert                   (Buf *, BufCursor *, String str);
-Void         buf_delete                   (Buf *, BufCursor *);
+Void         buf_insert_                  (Buf *, U64 offset, String str);
+Void         buf_delete_                  (Buf *, U64 offset, U64 count);
 U32          buf_get_count                (Buf *);
 String       buf_get_str                  (Buf *, Mem *);
 
+Void         buf_insert                   (Buf *, BufCursor *, String str);
+Void         buf_delete                   (Buf *, BufCursor *);
 U32          buf_line_col_to_offset       (Buf *, U32 line, U32 column);
 Void         buf_offset_to_line_col       (Buf *, BufCursor *);
 BufCursor    buf_cursor_new               (Buf *, U32 line, U32 column);

@@ -135,6 +135,16 @@ Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
     }
 }
 
+Void buf_insert_ (Buf *buf, U64 offset, String str) {
+    array_insert_many(&buf->data, &str, offset);
+    buf->dirty = true;
+}
+
+Void buf_delete_ (Buf *buf, U64 offset, U64 count) {
+    array_remove_many(&buf->data, offset, count);
+    buf->dirty = true;
+}
+
 Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
     if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
     array_insert_many(&buf->data, &str, cursor->byte_offset);
