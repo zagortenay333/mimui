@@ -2,15 +2,7 @@
 #include "os/fs.h"
 #include "os/time.h"
 
-istruct (Buf) {
-    Mem *mem;
-    ArrayChar data;
-    ArrayString lines;
-    U32 widest_line;
-    Bool dirty;
-};
-
-static Void compute_aux (Buf *buf) {
+Void compute_aux (Buf *buf) {
     if (! buf->dirty) return;
     buf->dirty = false;
 
@@ -39,7 +31,7 @@ Buf *buf_new (Mem *mem, String text) {
     buf->dirty = true;
     array_init(&buf->data, mem);
     array_init(&buf->lines, mem);
-    buf_insert(buf, &(BufCursor){}, text);
+    buf_insert_(buf, 0, text);
     return buf;
 }
 
@@ -99,42 +91,6 @@ U32 buf_get_line_count (Buf *buf) {
     return buf->lines.count;
 }
 
-U32 buf_line_col_to_offset (Buf *buf, U32 line, U32 column) {
-    String line_text = buf_get_line(buf, 0, line);
-    if (! line_text.data) return 0;
-    U32 line_off = 0;
-    U32 idx = 0;
-    str_utf8_iter (c, line_text) {
-        if (idx == column) break;
-        line_off += c.decode.inc;
-        idx++;
-    }
-    return (line_text.data - buf->data.data) + line_off;
-}
-
-Void buf_offset_to_line_col (Buf *buf, BufCursor *cursor) {
-    compute_aux(buf);
-
-    cursor->line = buf->lines.count - 1;
-    cursor->column = 0;
-
-    array_iter (line, &buf->lines) {
-        U32 end_of_line = (line.data + line.count) - buf->data.data;
-        if (end_of_line >= cursor->byte_offset) {
-            cursor->line = ARRAY_IDX;
-            break;
-        }
-    }
-
-    String line = buf_get_line(buf, 0, cursor->line);
-    U32 off = line.data - buf->data.data;
-    str_utf8_iter (c, line) {
-        if (off >= cursor->byte_offset) break;
-        off += c.decode.inc;
-        cursor->column++;
-    }
-}
-
 Void buf_insert_ (Buf *buf, U64 offset, String str) {
     array_insert_many(&buf->data, &str, offset);
     buf->dirty = true;
@@ -145,24 +101,6 @@ Void buf_delete_ (Buf *buf, U64 offset, U64 count) {
     buf->dirty = true;
 }
 
-Void buf_insert (Buf *buf, BufCursor *cursor, String str) {
-    if (cursor->byte_offset != cursor->selection_offset) buf_delete(buf, cursor);
-    array_insert_many(&buf->data, &str, cursor->byte_offset);
-    buf->dirty = true;
-    cursor->byte_offset += str.count;
-    cursor->selection_offset = cursor->byte_offset;
-    buf_offset_to_line_col(buf, cursor);
-    cursor->preferred_column = cursor->column;
-}
-
-Void buf_delete (Buf *buf, BufCursor *cursor) {
-    if (cursor->byte_offset > cursor->selection_offset) buf_cursor_swap_offset(buf, cursor);
-    array_remove_many(&buf->data, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
-    buf->dirty = true;
-    cursor->selection_offset = cursor->byte_offset;
-    cursor->preferred_column = cursor->column;
-}
-
 U32 buf_get_count (Buf *buf) {
     return buf->data.count;
 }
@@ -170,164 +108,6 @@ U32 buf_get_count (Buf *buf) {
 String buf_get_str (Buf *buf, Mem *) {
     return buf->data.as_slice;
 }
-
-BufCursor buf_cursor_new (Buf *buf, U32 line, U32 column) {
-    BufCursor cursor = {};
-    cursor.line = line;
-    cursor.column = column;
-    cursor.preferred_column = column;
-    cursor.byte_offset = buf_line_col_to_offset(buf, line, column);
-    cursor.selection_offset = cursor.byte_offset;
-    return cursor;
-}
-
-Void buf_cursor_swap_offset (Buf *buf, BufCursor *cursor) {
-    swap(cursor->byte_offset, cursor->selection_offset);
-    buf_offset_to_line_col(buf, cursor);
-}
-
-Void buf_cursor_move_left (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    if (cursor->column > 0) {
-        cursor->preferred_column--;
-    } else if (cursor->line > 0) {
-        cursor->line--;
-        String line = buf_get_line(buf, 0, cursor->line);
-        cursor->preferred_column = str_codepoint_count(line);
-    }
-
-    cursor->column = cursor->preferred_column;
-    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_right (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    String line = buf_get_line(buf, 0, cursor->line);
-    U32 count = str_codepoint_count(line);
-
-    if (cursor->preferred_column < count) {
-        cursor->preferred_column++;
-        cursor->column = cursor->preferred_column;
-    } else if (cursor->line < buf_get_line_count(buf)-1) {
-        cursor->line++;
-        cursor->column = 0;
-        cursor->preferred_column = 0;
-    }
-
-    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_up (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    if (cursor->line > 0) cursor->line--;
-
-    String line = buf_get_line(buf, 0, cursor->line);
-    U32 count = str_codepoint_count(line);
-    if (cursor->preferred_column > count) {
-        cursor->column = count;
-    } else {
-        cursor->column = cursor->preferred_column;
-    }
-
-    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_left_word (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    Char *start = buf->data.data;
-    Char *p = array_ref(&buf->data, cursor->byte_offset);
-
-    if (p > start) p--;
-
-    while (p > start) {
-        if (is_whitespace(*p)) p--;
-        else break;
-    }
-
-    if (is_word_char(*p)) {
-        while (p > start) {
-            if (is_word_char(*p)) p--;
-            else break;
-        }
-        if (! is_word_char(*p)) p++;
-    }
-
-    cursor->byte_offset = p - start;
-    buf_offset_to_line_col(buf, cursor);
-    cursor->preferred_column = cursor->column;
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_right_word (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    Char *end = &buf->data.data[buf->data.count - 1];
-    Char *p = array_ref(&buf->data, cursor->byte_offset);
-
-    while (p < end) {
-        if (is_whitespace(*p)) p++;
-        else break;
-    }
-
-    if (is_word_char(*p)) {
-        while (p < end) {
-            if (is_word_char(*p)) p++;
-            else break;
-        }
-    } else if (p < end) {
-        p++;
-    }
-
-    cursor->byte_offset = p - buf->data.data;
-    buf_offset_to_line_col(buf, cursor);
-    cursor->preferred_column = cursor->column;
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_down (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    if (cursor->line < buf_get_line_count(buf)-1) cursor->line++;
-
-    String line = buf_get_line(buf, 0, cursor->line);
-    U32 count = str_codepoint_count(line);
-    if (cursor->preferred_column > count) {
-        cursor->column = count;
-    } else {
-        cursor->column = cursor->preferred_column;
-    }
-
-    cursor->byte_offset = buf_line_col_to_offset(buf, cursor->line, cursor->column);
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Void buf_cursor_move_to_start (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    cursor->byte_offset = 0;
-    cursor->line = 0;
-    cursor->column = 0;
-    cursor->preferred_column = 0;
-    if (move_selection) cursor->selection_offset = 0;
-}
-
-Void buf_cursor_move_to_end (Buf *buf, BufCursor *cursor, Bool move_selection) {
-    cursor->byte_offset = buf->data.count;
-    buf_offset_to_line_col(buf, cursor);
-    cursor->preferred_column = cursor->column;
-    if (move_selection) cursor->selection_offset = cursor->byte_offset;
-}
-
-Bool buf_cursor_at_end_no_newline (Buf *buf, BufCursor *cursor) {
-    return (cursor->byte_offset == buf->data.count) && !str_ends_with(buf->data.as_slice, str("\n")) ;
-}
-
-Void buf_cursor_clamp (Buf *buf, BufCursor *cursor) {
-    if (cursor->byte_offset > buf->data.count) {
-        buf_cursor_move_to_end(buf, cursor, true);
-    }
-}
-
-String buf_get_selection (Buf *buf, BufCursor *cursor) {
-    U32 start = cursor->byte_offset;
-    U32 end = cursor->selection_offset;
-    if (start > end) swap(start, end);
-    return str_slice(buf->data.as_slice, start, end - start);
-}
-
 Void buf_clear (Buf *buf) {
     buf->data.count = 0;
     buf->dirty = true;

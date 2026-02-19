@@ -695,7 +695,7 @@ UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) 
         if (container->start_frame == ui->frame || info->val != *val) {
             String str = astr_fmt(ui->frame_mem, "%li", *val);
             buf_clear(info->buf);
-            buf_insert(info->buf, &(BufCursor){}, str);
+            buf_insert_(info->buf, 0, str);
             info->val = *val;
         }
 
@@ -1078,18 +1078,18 @@ UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *
             case COLOR_PICKER_HEX: {
                 Vec4 c = hsva_to_rgba(vec4(*h, *s, *v, *a));
                 String str = astr_fmt(ui->frame_mem, "#%02x%02x%02x%02x", cast(U32, round(c.x*255)), cast(U32, round(c.y*255)), cast(U32, round(c.z*255)), cast(U32, round(c.w*255)));
-                buf_insert(info->buf, &(BufCursor){}, str);
+                buf_insert_(info->buf, 0, str);
             } break;
 
             case COLOR_PICKER_HSVA: {
                 String str = astr_fmt(ui->frame_mem, "%u, %u, %u, %u", cast(U32, round(*h*255)), cast(U32, round(*s*255)), cast(U32, round(*v*255)), cast(U32, round(*a*255)));
-                buf_insert(info->buf, &(BufCursor){}, str);
+                buf_insert_(info->buf, 0, str);
             } break;
 
             case COLOR_PICKER_RGBA: {
                 Vec4 c = hsva_to_rgba(vec4(*h, *s, *v, *a));
                 String str = astr_fmt(ui->frame_mem, "%u, %u, %u, %u", cast(U32, round(c.x*255)), cast(U32, round(c.y*255)), cast(U32, round(c.z*255)), cast(U32, round(c.w*255)));
-                buf_insert(info->buf, &(BufCursor){}, str);
+                buf_insert_(info->buf, 0, str);
             } break;
             }
         }
