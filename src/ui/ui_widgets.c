@@ -690,6 +690,16 @@ CString key_to_str (Key key) {
 
 UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_3);
+        ui_style_from_config(UI_BG_COLOR2, UI_CONFIG_FG_4);
+        ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+        ui_style_from_config(UI_OUTSET_SHADOW_WIDTH, UI_CONFIG_SHADOW_1_WIDTH);
+        ui_style_from_config(UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
+        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
+
         Bool listening = container->scratch;
 
         if (listening) {
