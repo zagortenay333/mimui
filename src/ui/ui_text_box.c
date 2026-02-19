@@ -676,6 +676,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
             ui_grab_focus(text_box);
             U64 soff = info->cursor.selection_offset;
             info->cursor = coord_to_cursor(info, text_box, ui->mouse);
+            printf("%lu\n", info->cursor.line);
             info->cursor.selection_offset = soff;
 
             if (info->dragging) {
