@@ -193,7 +193,7 @@ UiBox *ui_checkbox (CString id, Bool *val) {
         if (*val) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_MAGENTA_1);
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_2_COLOR);
-            ui_icon(0, "mark", 16, UI_ICON_CHECK);
+            ui_icon(UI_BOX_CLICK_THROUGH, "mark", 16, UI_ICON_CHECK);
         } else {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
         }
