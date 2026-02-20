@@ -139,8 +139,10 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
 
-            ui_button_label("Foo8");
-            ui_button_label("Foo9");
+            ui_button_group(str("buttons")) {
+                ui_button_label("Foo8");
+                ui_button_label("Foo9");
+            }
         }
 
         ui_box(0, "box2_3") {

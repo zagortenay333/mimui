@@ -77,6 +77,19 @@ UiBox *ui_button_label (CString id) {
     return ui_button_label_str(str(id), str(id));
 }
 
+UiBox *ui_button_group_push (String id) {
+    UiBox *container = ui_box_push_str(0, id);
+    F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+    ui_style_rule(".button") ui_style_vec4(UI_RADIUS, vec4(0, 0, 0, 0));
+    ui_style_rule(".button:first") ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
+    ui_style_rule(".button:last") ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
+    return container;
+}
+
+Void ui_button_group_pop () {
+    ui_pop_parent();
+}
+
 static Void size_label (UiBox *box, U64 axis) {
     // Sizing done in the draw_label function.
 }
