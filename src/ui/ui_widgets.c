@@ -464,9 +464,16 @@ static Void size_popup (UiBox *popup, U64 axis) {
     F32 size = 0;
     Bool cycle = false;
 
-    array_iter(child, &popup->children) {
-        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
-        size += child->rect.size[axis];
+    if (popup->style.axis == axis) {
+        array_iter(child, &popup->children) {
+            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+            size += child->rect.size[axis];
+        }
+    } else {
+        array_iter(child, &popup->children) {
+            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+            if (child->rect.size[axis] > size) size = child->rect.size[axis];
+        }
     }
 
     if (cycle) {
@@ -759,12 +766,28 @@ UiBox *ui_dropdown (String id, U64 *selection, SliceString options) {
 
         if (opened || container->signals.clicked) {
             ui_popup("popup", &opened, false, container) {
-                ui_style_vec2(UI_PADDING, vec2(0, 0));
-
                 array_iter (option, &options) {
                     tmem_new(tm);
                     String id = astr_fmt(tm, "button%lu", ARRAY_IDX);
-                    ui_button_label_str(id, option);
+
+                    UiBox *button = ui_button(id) {
+                        ui_style_u32(UI_ALIGN_X, UI_ALIGN_START);
+                        ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
+                        ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
+                        ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 200, 1});
+
+                        if (button->signals.hovered) {
+                            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                        }
+
+                        if (button->signals.clicked) {
+                            opened = false;
+                            *selection = ARRAY_IDX;
+                        }
+
+                        ui_label(UI_BOX_CLICK_THROUGH, "label", option);
+                    }
                 }
             }
 
