@@ -675,7 +675,7 @@ Void ui_tooltip_pop () {
 
 UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
-        UiBox *text_box = ui_text_box(str("text"), buf, true, LINE_WRAP_NONE);
+        UiBox *text_box = ui_text_box(str("text_box"), buf, true, LINE_WRAP_NONE);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
         ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
         ui_style_box_from_config(text_box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -815,6 +815,8 @@ istruct (UiIntPicker) {
 
 UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) {
     UiBox *container = ui_box_str(UI_BOX_REACTIVE, id) {
+        ui_tag("int_picker");
+
         UiIntPicker *info = ui_get_box_data(container, sizeof(UiIntPicker), sizeof(UiIntPicker));
         if (! info->buf) info->buf = buf_new(info->mem, str(""));
 
@@ -856,6 +858,32 @@ UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) 
                 ui_eat_event();
             }
         }
+    }
+
+    return container;
+}
+
+UiBox *ui_time_picker (String id, Time *time, UiTimePickerMode mode) {
+    UiBox *container = ui_box_str(0, id) {
+        I64 h = time->hours;
+        I64 m = time->minutes;
+        I64 s = time->seconds;
+        I64 ms = time->mseconds;
+
+        F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_2).x;
+        ui_style_rule(".int_picker #text_box") ui_style_vec4(UI_RADIUS, vec4(0, 0, 0, 0));
+        ui_style_rule(".int_picker:first #text_box") ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
+        ui_style_rule(".int_picker:last #text_box") ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
+
+        ui_int_picker(str("hours"), &h, 0, (mode==TIME_PICKER_ALARM ? 23 : INT64_MAX), (mode==TIME_PICKER_ALARM ? 2 : 4));
+        ui_int_picker(str("minutes"), &m, 0, 59, 2);
+        if (mode == TIME_PICKER_HMS || mode == TIME_PICKER_HMSM) ui_int_picker(str("seconds"), &s, 0, 59, 2);
+        if (mode == TIME_PICKER_HMSM) ui_int_picker(str("mseconds"), &ms, 0, 999, 3);
+
+        time->hours = h;
+        time->minutes = m;
+        time->seconds = s;
+        time->mseconds = ms;
     }
 
     return container;

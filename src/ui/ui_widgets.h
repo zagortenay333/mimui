@@ -10,6 +10,13 @@ ienum (UiColorPickerMode, U8) {
     COLOR_PICKER_HSVA,
 };
 
+ienum (UiTimePickerMode, U8) {
+    TIME_PICKER_ALARM,
+    TIME_PICKER_HM,
+    TIME_PICKER_HMS,
+    TIME_PICKER_HMSM,
+};
+
 UiBox *ui_hspacer              ();
 UiBox *ui_vspacer              ();
 UiBox *ui_label                (UiBoxFlags, CString id, String label);
@@ -26,6 +33,7 @@ UiBox *ui_hscroll_bar          (String id, Rect rect, F32 ratio, F32 *val);
 UiBox *ui_entry                (String id, Buf *buf, F32 width_in_chars, String hint);
 UiBox *ui_shortcut_picker      (String id, Key *, KeyMod *);
 UiBox *ui_int_picker           (String id, I64 *val, I64 min, I64 max, U8 width_in_chars);
+UiBox *ui_time_picker          (String id, Time *, UiTimePickerMode);
 UiBox *ui_dropdown             (String id, U64 *selection, SliceString options);
 UiBox *ui_slider_str           (String id, F32 *val);
 UiBox *ui_slider               (CString id, F32 *val);

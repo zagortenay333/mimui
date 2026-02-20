@@ -14,6 +14,7 @@ istruct (App) {
     Bool calendar_popup_shown;
 
     Date date;
+    Time time;
 
     struct {
         Key key;
@@ -212,6 +213,7 @@ static Void build_misc_view () {
 
             ui_shortcut_picker(str("shortcut_picker"), &app->shortcut.key, &app->shortcut.mod);
             ui_dropdown(str("dropdown"), &app->selections.idx, app->selections.slice);
+            ui_time_picker(str("time_picker"), &app->time, TIME_PICKER_ALARM);
         }
 
         ui_box(0, "box2_8") {
