@@ -113,6 +113,7 @@ static Void draw_label (UiBox *box) {
 
     array_iter (info, &infos, *) {
         AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
+
         Vec2 top_left = {
             ui->font->is_mono ? (x_pos + slot->bearing_x) : (x + info->x + slot->bearing_x),
             y + info->y - descent - slot->bearing_y

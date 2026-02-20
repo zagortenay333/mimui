@@ -106,6 +106,11 @@ static Void build_color_view () {
 }
 
 static Void build_tile_view () {
+    ui_box(0, "asfd") {
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
+        ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 0, 1));
+        ui_label(0, "asdf", str("hello there sailor!"));
+    }
 }
 
 static Void build_misc_view () {
@@ -357,7 +362,7 @@ Void app_build () {
 
 Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 0;
+    app->view = 3;
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
