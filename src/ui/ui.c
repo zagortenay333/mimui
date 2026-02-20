@@ -1085,7 +1085,6 @@ Void ui_init () {
 // @todo
 //
 // - tile widgets with tabs
-// - time picker
 // - file picker
 // - scrollbox for large homogenous lists
 // - rich text (markup)
