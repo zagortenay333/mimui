@@ -142,6 +142,7 @@ static Void build_misc_view () {
             ui_button_group(str("buttons")) {
                 ui_button_label("Foo8");
                 ui_button_label("Foo9");
+                ui_button_label("Foo10");
             }
         }
 
