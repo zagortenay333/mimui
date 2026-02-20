@@ -1087,5 +1087,5 @@ Void ui_init () {
 // - tile widgets with tabs
 // - file picker
 // - scrollbox for large homogenous lists
-// - rich text (markup)
+// - rich text (markup) in labels
 // - support for tabs in text box
