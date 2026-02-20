@@ -1085,7 +1085,6 @@ Void ui_init () {
 // @todo
 //
 // - tile widgets with tabs
-// - shortcut picker
 // - dropdown
 // - time picker
 // - file picker

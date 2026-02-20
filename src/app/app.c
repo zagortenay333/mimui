@@ -353,5 +353,4 @@ Void app_init () {
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
     app->hue = .3;
     app->date = os_get_date();
-    app->shortcut.key = KEY_F1;
 }
