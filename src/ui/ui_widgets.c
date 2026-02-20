@@ -111,8 +111,64 @@ static Void draw_label (UiBox *box) {
     F32 x_pos            = x;
     SliceGlyphInfo infos = font_get_glyph_infos(ui->font, tm, text);
 
+    // Compute available width:
+    UiBox *parent = box->parent;
+    F32 max_width = -1.0;
+    if (parent->style.size.width.tag == UI_SIZE_PCT_PARENT || parent->style.size.width.tag == UI_SIZE_PIXELS) {
+        max_width = parent->rect.w - 2*parent->style.padding.x;
+    }
+
+    // Compute width of ellipsis:
+    SliceGlyphInfo dots_infos = font_get_glyph_infos(ui->font, tm, str("..."));
+    F32 dots_width = 0;
+    {
+        GlyphInfo *last_info = array_ref_last(&dots_infos);
+        AtlasSlot *slot = font_get_atlas_slot(ui->font, last_info);
+        dots_width = ui->font->is_mono ? 3*width : (last_info->x + slot->bearing_x + last_info->x_advance);
+    }
+
+    // Compute line width:
     array_iter (info, &infos, *) {
         AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
+        x_pos += width;
+        if (ARRAY_ITER_DONE) line_width = ui->font->is_mono ? (x_pos - x) : (info->x + slot->bearing_x + info->x_advance);
+    }
+
+    if (max_width > 0 && line_width <= max_width) {
+        max_width = -1.0;
+    }
+
+    x_pos = x;
+    array_iter (info, &infos, *) {
+        AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
+
+        F32 char_right_edge = ui->font->is_mono ? ((ARRAY_IDX + 1) * width) : (info->x + slot->bearing_x + info->x_advance);
+
+        if (max_width > 0 && (char_right_edge + dots_width > max_width)) {
+            F32 dot_base_x = ui->font->is_mono ? x_pos : (x + info->x);
+
+            array_iter (info, &dots_infos, *) {
+                AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
+                Vec2 top_left = {
+                    ui->font->is_mono ? (dot_base_x + slot->bearing_x) : (dot_base_x + info->x + slot->bearing_x),
+                    y + info->y - descent - slot->bearing_y
+                };
+                Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+
+                dr_rect(
+                    .top_left          = top_left,
+                    .bottom_right      = bottom_right,
+                    .texture_rect      = {slot->x, slot->y, slot->width, slot->height},
+                    .text_color        = first_frame ? vec4(0,0,0,0) : box->style.text_color,
+                    .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+                );
+
+                if (ui->font->is_mono) dot_base_x += width;
+            }
+
+            line_width = ui->font->is_mono ? (dot_base_x - x) : (info->x + dots_width);
+            break;
+        }
 
         Vec2 top_left = {
             ui->font->is_mono ? (x_pos + slot->bearing_x) : (x + info->x + slot->bearing_x),
@@ -129,7 +185,6 @@ static Void draw_label (UiBox *box) {
         );
 
         x_pos += width;
-        if (ARRAY_ITER_DONE) line_width = ui->font->is_mono ? (x_pos - x) : (info->x + slot->bearing_x + info->x_advance);
     }
 
     box->rect.w = line_width + 2*box->style.padding.x;

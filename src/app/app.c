@@ -107,7 +107,7 @@ static Void build_color_view () {
 
 static Void build_tile_view () {
     ui_box(0, "asfd") {
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 20, 1});
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 89, 1});
         ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 0, 1));
         ui_label(0, "asdf", str("hello there sailor!"));
     }
