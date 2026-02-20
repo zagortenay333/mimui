@@ -116,16 +116,16 @@ static Void build_misc_view () {
             ui_tag("item");
 
             ui_style_rule("#Foo4") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0}); }
-            ui_button("Foo4");
-            ui_button("Foo5");
+            ui_button_label("Foo4");
+            ui_button_label("Foo5");
         }
 
         ui_box(0, "box2_1") {
             ui_tag("hbox");
             ui_tag("item");
 
-            ui_button("Foo6");
-            ui_button("Foo7");
+            ui_button_label("Foo6");
+            ui_button_label("Foo7");
         }
 
         ui_box(0, "box2_2") {
@@ -133,8 +133,8 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
 
-            ui_button("Foo8");
-            ui_button("Foo9");
+            ui_button_label("Foo8");
+            ui_button_label("Foo9");
         }
 
         ui_box(0, "box2_3") {
@@ -142,8 +142,8 @@ static Void build_misc_view () {
             ui_tag("item");
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_END);
 
-            ui_button("Foo10");
-            ui_button("Foo11");
+            ui_button_label("Foo10");
+            ui_button_label("Foo11");
         }
 
         ui_scroll_box("box2_4") {
@@ -151,7 +151,7 @@ static Void build_misc_view () {
             ui_tag("item");
             for (U64 i = 0; i < cast(U64, 10*app->slider); ++i) {
                 String str = astr_fmt(ui->frame_mem, "Foo_%lu", i);
-                ui_button_str(str, str);
+                ui_button_label_str(str, str);
             }
         }
 
@@ -179,7 +179,7 @@ static Void build_misc_view () {
             ui_toggle("toggle", &app->toggle);
             ui_checkbox("checkbox", &app->toggle);
 
-            UiBox *popup_button = ui_button("colors");
+            UiBox *popup_button = ui_button_label("colors");
             if (app->popup_shown || popup_button->signals.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->popup_shown, false, popup_button) {
@@ -197,7 +197,7 @@ static Void build_misc_view () {
             ui_int_picker(str("int_picker"), &app->intval, 0, 10, 3);
             ui_int_picker(str("int_picker2"), &app->intval, 0, 10, 3);
 
-            UiBox *popup_button = ui_button("calendar");
+            UiBox *popup_button = ui_button_label("calendar");
             if (app->calendar_popup_shown || popup_button->signals.clicked) {
                 ui_tag_box(popup_button, "press");
                 ui_popup("popup", &app->calendar_popup_shown, false, popup_button) {
@@ -240,10 +240,10 @@ static Void build_grid_view () {
                 ui_style_f32(UI_EDGE_SOFTNESS, 0);
             }
 
-            ui_grid_cell(0, 0, 3, 2) { ui_button("1"); }
-            ui_grid_cell(3, 0, 5, 2) { ui_button("1"); }
-            ui_grid_cell(0, 2, 3, 5) { ui_button("1"); }
-            ui_grid_cell(3, 2, 5, 2) { ui_button("1"); }
+            ui_grid_cell(0, 0, 3, 2) { ui_button_label("1"); }
+            ui_grid_cell(3, 0, 5, 2) { ui_button_label("1"); }
+            ui_grid_cell(0, 2, 3, 5) { ui_button_label("1"); }
+            ui_grid_cell(3, 2, 5, 2) { ui_button_label("1"); }
             ui_grid_cell(3, 4, 3, 2) {
                 ui_grid("test_grid") {
                     ui_grid_cell(0, 0, 3, 2);
@@ -255,8 +255,8 @@ static Void build_grid_view () {
                     ui_grid_cell(3, 6, 5, 1);
                 }
             }
-            ui_grid_cell(6, 4, 2, 2) { ui_button("1"); }
-            ui_grid_cell(3, 6, 5, 1) { ui_button("1"); }
+            ui_grid_cell(6, 4, 2, 2) { ui_button_label("1"); }
+            ui_grid_cell(3, 6, 5, 1) { ui_button_label("1"); }
         }
     }
 }
@@ -305,7 +305,7 @@ Void app_build () {
             ui_style_size(UI_WIDTH, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1./4});
             ui_style_size(UI_HEIGHT, (UiSize){.tag=UI_SIZE_PCT_PARENT, .value=1});
 
-            if (ui_button("Foo1")->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) {
+            if (ui_button_label("Foo1")->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) {
                 app->modal_shown = !app->modal_shown;
             }
 
@@ -317,10 +317,10 @@ Void app_build () {
             ui_style_rule("#Foo3") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 0}); }
             ui_style_rule("#Foo4") { ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 0}); }
 
-            UiBox *foo2 = ui_button("Foo2");
-            UiBox *foo3 = ui_button("Foo3");
-            UiBox *foo4 = ui_button("Foo4");
-            UiBox *foo5 = ui_button("Foo5");
+            UiBox *foo2 = ui_button_label("Foo2");
+            UiBox *foo3 = ui_button_label("Foo3");
+            UiBox *foo4 = ui_button_label("Foo4");
+            UiBox *foo5 = ui_button_label("Foo5");
 
             if (foo2->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 0;
             if (foo3->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) app->view = 1;

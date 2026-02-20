@@ -17,8 +17,10 @@ UiBox *ui_icon                 (UiBoxFlags, CString id, U32 size, U32 icon);
 UiBox *ui_checkbox             (CString id, Bool *val);
 UiBox *ui_image                (CString id, Texture *, Bool blur, Vec4 tint, F32 pref_width);
 UiBox *ui_toggle               (CString id, Bool *val);
-UiBox *ui_button_str           (String id, String label);
-UiBox *ui_button               (CString id);
+UiBox *ui_button_push          (String id);
+Void   ui_button_pop           ();
+UiBox *ui_button_label_str     (String id, String label);
+UiBox *ui_button_label         (CString id);
 UiBox *ui_vscroll_bar          (String id, Rect rect, F32 ratio, F32 *val);
 UiBox *ui_hscroll_bar          (String id, Rect rect, F32 ratio, F32 *val);
 UiBox *ui_entry                (String id, Buf *buf, F32 width_in_chars, String hint);
@@ -50,6 +52,7 @@ UiBox *ui_date_picker          (String id, Date *);
 #define ui_modal(LABEL, SHOWN) ui_modal_push(str(LABEL), SHOWN);       if (cleanup(ui_modal_pop_) U8 _; 1)
 #define ui_scroll_box(LABEL)   ui_scroll_box_push(str(LABEL));         if (cleanup(ui_scroll_box_pop_) U8 _; 1)
 #define ui_popup(LABEL, ...)   ui_popup_push(str(LABEL), __VA_ARGS__); if (cleanup(ui_popup_pop_) U8 _; 1)
+#define ui_button(LABEL)       ui_button_push(LABEL);                  if (cleanup(ui_button_pop_) U8 _; 1)
 
 inl Void ui_grid_pop_       (Void *) { ui_grid_pop(); }
 inl Void ui_grid_cell_pop_  (Void *) { ui_grid_cell_pop(); }
@@ -57,3 +60,4 @@ inl Void ui_tooltip_pop_    (Void *) { ui_tooltip_pop(); }
 inl Void ui_modal_pop_      (Void *) { ui_modal_pop(); }
 inl Void ui_popup_pop_      (Void *) { ui_popup_pop(); }
 inl Void ui_scroll_box_pop_ (Void *) { ui_scroll_box_pop(); }
+inl Void ui_button_pop_     (Void *) { ui_button_pop(); }
