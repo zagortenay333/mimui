@@ -786,7 +786,8 @@ UiBox *ui_dropdown (String id, U64 *selection, SliceString options) {
                             *selection = ARRAY_IDX;
                         }
 
-                        ui_label(UI_BOX_CLICK_THROUGH, "label", option);
+                        UiBox *label = ui_label(UI_BOX_CLICK_THROUGH, "label", option);
+                        if (ARRAY_IDX == *selection) ui_style_box_from_config(label, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
                     }
                 }
             }
