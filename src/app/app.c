@@ -200,8 +200,8 @@ static Void build_misc_view () {
             ui_tag("hbox");
             ui_tag("item");
 
-            ui_int_picker(str("int_picker"), &app->intval, 0, 10, 3);
-            ui_int_picker(str("int_picker2"), &app->intval, 0, 10, 3);
+            ui_int_picker(str("int_picker"), &app->intval, 0, 14, 3);
+            ui_int_picker(str("int_picker2"), &app->intval, 0, 14, 3);
 
             UiBox *popup_button = ui_button_label("calendar");
             if (app->calendar_popup_shown || popup_button->signals.clicked) {

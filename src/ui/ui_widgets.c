@@ -824,6 +824,7 @@ UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) 
             String str = astr_fmt(ui->frame_mem, "%li", *val);
             buf_clear(info->buf);
             buf_insert(info->buf, 0, str);
+            if (*val > 10) printf("%.*s\n", STR(buf_get_str(info->buf, 0)));
             info->val = *val;
         }
 
@@ -870,7 +871,7 @@ UiBox *ui_time_picker (String id, Time *time, UiTimePickerMode mode) {
         I64 s = time->seconds;
         I64 ms = time->mseconds;
 
-        F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_2).x;
+        F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
         ui_style_rule(".int_picker #text_box") ui_style_vec4(UI_RADIUS, vec4(0, 0, 0, 0));
         ui_style_rule(".int_picker:first #text_box") ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
         ui_style_rule(".int_picker:last #text_box") ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
