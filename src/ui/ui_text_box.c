@@ -508,6 +508,7 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
         if (info->single_line_mode) {
             U64 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
+            ui_style_box_u32(container, UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         }
 
         F32 visible_w = container->rect.w - 2*container->style.padding.x;
