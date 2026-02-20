@@ -556,6 +556,7 @@ UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *anchor) {
     info->anchor = anchor;
     popup->scratch = cast(U64, info);
     array_push_lit(&ui->deferred_layout_fns, layout_popup, popup);
+    ui_style_box_u32(popup, UI_AXIS, UI_AXIS_VERTICAL);
     ui_style_box_size(popup, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
     ui_style_box_size(popup, UI_HEIGHT, (UiSize){UI_SIZE_CUSTOM, 1, 0});
     ui_style_box_from_config(popup, UI_BG_COLOR, UI_CONFIG_BG_4);
@@ -702,25 +703,8 @@ static CString key_to_str (Key key) {
 UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
     tmem_new(tm);
 
-    UiBox *container = ui_box_str(UI_BOX_REACTIVE|UI_BOX_CAN_FOCUS, id) {
+    UiBox *container = ui_button(id) {
         ui_tag("shortcut_picker");
-        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-        ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
-        ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-        ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-        ui_style_vec2(UI_SHADOW_OFFSETS, vec2(0, -1));
-
-        ui_style_rule(".shortcut_picker.focus") {
-            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
-            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_FOCUS_COLOR);
-        }
-
-        ui_style_rule(".shortcut_picker.hover") {
-            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_2);
-        }
 
         Bool dim = false;
         Bool listening = container->scratch;
@@ -764,6 +748,36 @@ UiBox *ui_shortcut_picker (String id, Key *key, KeyMod *mods) {
         ui_style_box_font(label_box, UI_FONT, font);
         ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
         if (dim) ui_style_box_from_config(label_box, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_3);
+    }
+
+    return container;
+}
+
+UiBox *ui_dropdown (String id, U64 *selection, SliceString options) {
+    UiBox *container = ui_button(id) {
+        Bool opened = container->scratch;
+
+        if (opened || container->signals.clicked) {
+            ui_popup("popup", &opened, false, container) {
+                ui_style_vec2(UI_PADDING, vec2(0, 0));
+
+                array_iter (option, &options) {
+                    tmem_new(tm);
+                    String id = astr_fmt(tm, "button%lu", ARRAY_IDX);
+                    ui_button_label_str(id, option);
+                }
+            }
+
+            ui_tag_box(container, "press");
+            container->scratch = opened;
+        }
+
+        *selection = clamp(*selection, 0u, options.count);
+        String text = array_get(&options, *selection);
+        UiBox *label_box = ui_label(UI_BOX_CLICK_THROUGH, "label", text);
+        Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+        ui_style_box_font(label_box, UI_FONT, font);
+        ui_style_box_f32(label_box, UI_FONT_SIZE, font->size);
     }
 
     return container;

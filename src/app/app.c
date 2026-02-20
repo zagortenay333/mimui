@@ -20,6 +20,11 @@ istruct (App) {
         KeyMod mod;
     } shortcut;
 
+    struct {
+        U64 idx;
+        SliceString slice;
+    } selections;
+
     U32 view;
 
     F32 slider;
@@ -206,6 +211,7 @@ static Void build_misc_view () {
             }
 
             ui_shortcut_picker(str("shortcut_picker"), &app->shortcut.key, &app->shortcut.mod);
+            ui_dropdown(str("dropdown"), &app->selections.idx, app->selections.slice);
         }
 
         ui_box(0, "box2_8") {
@@ -353,4 +359,9 @@ Void app_init () {
     app->buf2 = buf_new(ui->perm_mem, str("asdf"));
     app->hue = .3;
     app->date = os_get_date();
+
+    ArrayString a;
+    array_init(&a, ui->perm_mem);
+    array_push_n(&a, str("Hello"), str("There"), str("Sailor"), str("How"), str("Are"));
+    app->selections.slice = a.as_slice;
 }
