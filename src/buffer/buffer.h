@@ -21,6 +21,7 @@ Bool         buf_line_iter_next    (BufLineIter *);
 Void         buf_clear             (Buf *);
 Void         buf_insert            (Buf *, U64 offset, String str);
 Void         buf_delete            (Buf *, U64 offset, U64 count);
+U64          buf_get_version       (Buf *buf);
 U64          buf_get_count         (Buf *);
 String       buf_get_str           (Buf *, Mem *);
 String       buf_get_slice         (Buf *, Mem *, U64 offset, U64 count);

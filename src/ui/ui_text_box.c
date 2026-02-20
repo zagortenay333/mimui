@@ -21,6 +21,7 @@ istruct (Cursor) {
 istruct (TextBox) {
     Mem *mem;
     Buf *buf;
+    U64 buf_version;
     Cursor cursor;
     Vec2 cursor_coord;
     Vec2 scroll_coord;
@@ -497,6 +498,12 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
             array_init(&info->visual_lines, info->mem);
         }
 
+        U64 v = buf_get_version(info->buf);
+        if (v != info->buf_version) {
+            info->dirty = true;
+            info->buf_version = v;
+        }
+
         cursor_clamp(info, &info->cursor); // In case the buffer changed.
 
         ui_set_font(container);
@@ -508,7 +515,6 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
         if (info->single_line_mode) {
             U64 height = 2*container->style.padding.y + (ui->font ? ui->font->height : 12) + line_spacing;
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
-            ui_style_box_u32(container, UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         }
 
         F32 visible_w = container->rect.w - 2*container->style.padding.x;

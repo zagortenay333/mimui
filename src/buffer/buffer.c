@@ -5,6 +5,7 @@
 istruct (Buf) {
     Mem *mem;
     ArrayChar data;
+    U64 version;
 };
 
 Buf *buf_new (Mem *mem, String text) {
@@ -59,10 +60,12 @@ Bool buf_line_iter_next (BufLineIter *it) {
 
 Void buf_insert (Buf *buf, U64 offset, String str) {
     array_insert_many(&buf->data, &str, offset);
+    buf->version++;
 }
 
 Void buf_delete (Buf *buf, U64 offset, U64 count) {
     array_remove_many(&buf->data, offset, count);
+    buf->version++;
 }
 
 U64 buf_get_count (Buf *buf) {
@@ -83,6 +86,10 @@ Void buf_clear (Buf *buf) {
 
 Bool buf_ends_with_newline (Buf *buf) {
     return str_ends_with(buf->data.as_slice, str("\n"));
+}
+
+U64 buf_get_version (Buf *buf) {
+    return buf->version;
 }
 
 U64 buf_find_prev_word (Buf *buf, U64 from) {
