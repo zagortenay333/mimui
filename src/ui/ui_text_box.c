@@ -64,7 +64,8 @@ static Void compute_visual_lines (TextBox *info) {
     buf_iter_lines (line, info->buf, tm) {
         switch (info->wrap_mode) {
         case LINE_WRAP_NONE: {
-            U64 logical_len = str_codepoint_count(line->text);
+            U64 logical_len = 0;
+            str_utf8_iter (it, line->text) logical_len += get_visual_col_count(info, it.decode.codepoint, logical_len);
             if (logical_len > info->widest_line) info->widest_line = logical_len;
 
             VisualLine *vline = array_push_slot(&info->visual_lines);
@@ -80,13 +81,15 @@ static Void compute_visual_lines (TextBox *info) {
         } break;
 
         case LINE_WRAP_CHAR: {
-            U64 col = 0;
+            U64 vcol = 0;
             U64 total_col = 0;
             U64 vcount = 0;
             U64 voffset = line->offset;
 
-            str_utf8_iter (c, line->text) {
-                if (col == viewport_width_in_chars) {
+            str_utf8_iter (it, line->text) {
+                U32 cols = get_visual_col_count(info, it.decode.codepoint, vcol);
+
+                if (vcol + cols > viewport_width_in_chars) {
                     VisualLine *vline = array_push_slot(&info->visual_lines);
                     vline->logical_line_offset = line->offset;
                     vline->logical_line_count = line->text.count;
@@ -96,12 +99,12 @@ static Void compute_visual_lines (TextBox *info) {
 
                     voffset += vcount;
                     vcount = 0;
-                    col = 0;
+                    vcol = 0;
                 }
 
-                col++;
+                vcol += cols;
                 total_col++;
-                vcount += c.decode.inc;
+                vcount += it.decode.inc;
             }
 
             if (vcount || line->text.count == 0) {
@@ -323,37 +326,42 @@ static Void draw_line (TextBox *info, UiBox *box, U64 line_idx, VisualLine *line
     U64 selection_end   = info->cursor.selection_offset;
     if (selection_end < selection_start) swap(selection_start, selection_end);
 
-    U64 col_idx = 0;
+    U64 vcol = 0;
     array_iter (glyph_info, &infos, *) {
         if (x > box->rect.x + box->rect.w) break;
 
-        if (x + cell_w > box->rect.x) {
-            Cursor current = cursor_new(info, line_idx, col_idx);
+        U32 cols = get_visual_col_count(info, glyph_info->codepoint, vcol);
+        F32 advance = cell_w * cols;
+
+        if (x + advance > box->rect.x) {
+            Cursor current = cursor_new(info, line_idx, ARRAY_IDX);
             Bool selected = current.byte_offset >= selection_start && current.byte_offset < selection_end;
 
             if (selected) dr_rect(
                 .color        = ui_config_get_vec4(UI_CONFIG_BG_SELECTION),
                 .color2       = ui_config_get_vec4(UI_CONFIG_BG_SELECTION),
                 .top_left     = {x, y - cell_h - line_spacing},
-                .bottom_right = {x + cell_w, y},
+                .bottom_right = {x + advance, y},
             );
 
-            AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
-            Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing/2 - slot->bearing_y};
-            Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
-            Vec4 final_text_color = selected ? ui_config_get_vec4(UI_CONFIG_TEXT_SELECTION) : color;
+            if (glyph_info->codepoint != '\t') {
+                AtlasSlot *slot = font_get_atlas_slot(ui->font, glyph_info);
+                Vec2 top_left = {x + slot->bearing_x, y - descent - line_spacing/2 - slot->bearing_y};
+                Vec2 bottom_right = {top_left.x + slot->width, top_left.y + slot->height};
+                Vec4 final_text_color = selected ? ui_config_get_vec4(UI_CONFIG_TEXT_SELECTION) : color;
 
-            dr_rect(
-                .top_left     = top_left,
-                .bottom_right = bottom_right,
-                .texture_rect = {slot->x, slot->y, slot->width, slot->height},
-                .text_color   = final_text_color,
-                .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
-            );
+                dr_rect(
+                    .top_left     = top_left,
+                    .bottom_right = bottom_right,
+                    .texture_rect = {slot->x, slot->y, slot->width, slot->height},
+                    .text_color   = final_text_color,
+                    .text_is_grayscale = (slot->pixel_mode == FT_PIXEL_MODE_GRAY),
+                );
+            }
         }
 
-        x += cell_w;
-        col_idx++;
+        x += advance;
+        vcol += cols;
     }
 }
 
@@ -390,7 +398,7 @@ static Void draw (UiBox *box) {
     );
 }
 
-static Void text_box_vscroll (TextBox *info, UiBox *box, U64 line, UiAlign align) {
+static Void vscroll (TextBox *info, UiBox *box, U64 line, UiAlign align) {
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     U64 cell_h = ui->font->height;
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + line_spacing);
@@ -406,9 +414,22 @@ static Void text_box_vscroll (TextBox *info, UiBox *box, U64 line, UiAlign align
     }
 }
 
-static Void text_box_hscroll (TextBox *info, UiBox *box, U64 column, UiAlign align) {
+static Void hscroll (TextBox *info, UiBox *box, U64 line, U64 column, UiAlign align) {
+    tmem_new(tm);
+    String line_text = get_line_text(info, tm, line);
+
     U64 cell_w = ui->font->width;
-    info->scroll_coord_n.x = cast(F32, column) * cell_w;
+    U64 vcol = 0;
+    U64 col = 0;
+
+    info->scroll_coord_n.x = 0;
+    str_utf8_iter (it, line_text) {
+        if (col >= column) break;
+        vcol += get_visual_col_count(info, it.decode.codepoint, vcol);
+        col++;
+    }
+
+    info->scroll_coord_n.x = cast(F32, vcol) * cell_w;
 
     F32 visible_w = box->rect.w;
 
@@ -432,21 +453,19 @@ static Void text_box_scroll_into_view (TextBox *info, UiBox *box, Cursor *pos, U
     U64 y_padding = padding * (cell_h + line_spacing);
 
     if (coord.x < box->rect.x + x_padding) {
-        text_box_hscroll(info, box, sat_sub32(pos->column, padding), UI_ALIGN_START);
+        hscroll(info, box, pos->line, sat_sub32(pos->column, padding), UI_ALIGN_START);
     } else if (coord.x > box->rect.x + box->rect.w - x_padding) {
-        text_box_hscroll(info, box, clamp(sat_add32(pos->column, padding), 0u, info->widest_line), UI_ALIGN_END);
+        hscroll(info, box, pos->line, clamp(sat_add32(pos->column, padding), 0u, info->widest_line), UI_ALIGN_END);
     }
 
     if (coord.y < box->rect.y + y_padding) {
-        text_box_vscroll(info, box, sat_sub32(pos->line, padding), UI_ALIGN_START);
+        vscroll(info, box, sat_sub32(pos->line, padding), UI_ALIGN_START);
     } else if (coord.y + cell_h > box->rect.y + box->rect.h - y_padding) {
-        text_box_vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, sat_sub64(info->visual_lines.count, 1)), UI_ALIGN_END);
+        vscroll(info, box, clamp(sat_add32(pos->line, padding), 0u, sat_sub64(info->visual_lines.count, 1)), UI_ALIGN_END);
     }
 }
 
 static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
-    U64 column = 0;
-
     F32 cell_w = ui->font->width;
     F32 cell_h = ui->font->height;
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
@@ -459,10 +478,19 @@ static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord) {
     tmem_new(tm);
     String line_text = get_line_text(info, tm, line_idx);
 
-    U64 max_col = str_codepoint_count(line_text);
-    column = clamp(round(coord.x / cell_w), 0u, max_col);
+    F32 x = 0;
+    U64 col = 0;
+    U64 vcol = 0;
+    str_utf8_iter (it, line_text) {
+        U32 cols = get_visual_col_count(info, it.decode.codepoint, vcol);;
+        U32 advance = cols * cell_w;
+        if (x + (advance * 0.5) > coord.x) break;
+        col++;
+        vcol += cols;
+        x += advance;
+    }
 
-    return cursor_new(info, line_idx, column);
+    return cursor_new(info, line_idx, col);
 }
 
 static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
@@ -478,9 +506,12 @@ static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos) {
     String line_text = get_line_text(info, tm, pos->line);
 
     U64 i = 0;
+    U64 vcol = 0;
     str_utf8_iter (it, line_text) {
         if (i >= pos->column) break;
-        coord.x += char_width;
+        U32 cols = get_visual_col_count(info, it.decode.codepoint, vcol);
+        coord.x += cols * char_width;
+        vcol += cols;
         i++;
     }
 

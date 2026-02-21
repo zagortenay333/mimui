@@ -43,7 +43,7 @@ istruct (App) {
 App *app;
 
 static Void build_text_view () {
-    UiBox *box = ui_text_box(str("text_box"), app->buf1, false, LINE_WRAP_NONE);
+    UiBox *box = ui_text_box(str("text_box"), app->buf1, false, LINE_WRAP_CHAR);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});
@@ -313,7 +313,7 @@ Void app_build () {
 
 Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 0;
+    app->view = 2;
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
