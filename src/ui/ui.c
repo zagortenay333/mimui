@@ -1088,4 +1088,3 @@ Void ui_init () {
 // - file picker
 // - scrollbox for large homogenous lists
 // - rich text (markup) in labels
-// - support for tabs in text box
