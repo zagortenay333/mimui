@@ -29,13 +29,6 @@ Buf *buf_new_from_file (Mem *mem, String filepath) {
     return buf;
 }
 
-static String get_line (Buf *buf, Char *p, U8 byte) {
-    if (p > buf->data.data + buf->data.count) return (String){p, 0};
-    U64 n = (buf->data.data + buf->data.count) - p;
-    Char *e = memchr(p, byte, n);
-    return (String){p, e ? cast(U64, e-p) : n};
-}
-
 static String get_segment (BufLineIter *it, Char *p) {
     Char *end = it->buf->data.data + it->buf->data.count;
 
@@ -135,6 +128,8 @@ U64 buf_get_version (Buf *buf) {
 
 U64 buf_find_prev_word (Buf *buf, U64 from) {
     Char *start = buf->data.data;
+    if (from >= buf->data.count) return 0;
+
     Char *p = array_ref(&buf->data, from);
 
     if (p > start) p--;
@@ -157,6 +152,8 @@ U64 buf_find_prev_word (Buf *buf, U64 from) {
 
 U64 buf_find_next_word (Buf *buf, U64 from) {
     Char *end = &buf->data.data[buf->data.count - 1];
+    if (from >= buf->data.count) return buf->data.count - 1;
+
     Char *p = array_ref(&buf->data, from);
 
     while (p < end) {

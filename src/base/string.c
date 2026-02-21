@@ -195,7 +195,7 @@ Void str_split (String str, String separators, Bool keep_separators, Bool keep_e
 // text were found, whether letters appear at word beginnings, number
 // of gaps between letters, ...
 I64 str_fuzzy_search (String needle, String haystack, ArrayString *tokens) {
-    if (needle.count == 0) return INT64_MIN;
+    if (needle.count == 0) return 0;
     if (needle.count > haystack.count) return INT64_MIN;
 
     U64 needle_cursor = 0;

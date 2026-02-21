@@ -759,10 +759,10 @@ UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
         ui_style_box_size(text_box, UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
 
         if (hint.count && buf_get_count(buf) == 0) {
-            UiBox *h = ui_label(0, "hint", hint);
+            UiBox *h = ui_label(UI_BOX_CLICK_THROUGH, "hint", hint);
             UiBox *inner_text = array_get(&text_box->children, 0);
             ui_style_box_f32(h, UI_FLOAT_X, inner_text->rect.x - container->rect.x);
-            ui_style_box_f32(h, UI_FLOAT_Y, inner_text->rect.y - container->rect.y);
+            ui_style_box_f32(h, UI_FLOAT_Y, inner_text->rect.y - container->rect.y + 1);
             ui_style_box_font(h, UI_FONT, text_box->next_style.font);
             ui_style_box_f32(h, UI_FONT_SIZE, text_box->next_style.font_size);
             ui_style_box_from_config(h, UI_TEXT_COLOR, UI_CONFIG_TEXT_COLOR_3);
@@ -1586,6 +1586,94 @@ UiBox *ui_date_picker (String id, Date *date) {
                     }
                 }
             }
+        }
+    }
+
+    return container;
+}
+
+istruct (FilePicker) {
+    Mem *mem;
+    Buf *search;
+};
+
+istruct (FilePickerSearchResult) {
+    I64 score;
+    String text;
+};
+
+static Int cmp_file_picker_results (Void *A, Void *B) {
+    FilePickerSearchResult *a = A;
+    FilePickerSearchResult *b = B;
+    return (a->score < b->score) ? -1 : (a->score == b->score) ? 0 : 1;
+}
+
+UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
+    UiBox *container = ui_box_str(0, id) {
+        FilePicker *info = ui_get_box_data(container, sizeof(FilePicker), 1*KB);
+        if (! info->search) {
+            info->search = buf_new(info->mem, str("/"));
+        }
+
+        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+
+        ui_box(0, "header") {
+            ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
+
+            UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
+            UiBox *inner = array_get(&entry->children, 0);
+            inner = array_get(&inner->children, 0);
+            ui_grab_focus(inner);
+
+            ui_button_label_str(str("ok_button"), str("Ok"));
+        }
+
+        ui_scroll_box("results") {
+            ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+
+            tmem_new(tm);
+            String search = buf_get_str(info->search, tm);
+            String prefix = str_prefix_to_last(search, '/');
+            String suffix = str_suffix_from_last(search, '/');
+
+            FsIter *it = fs_iter_new(tm, prefix, false, false);
+
+            Array(FilePickerSearchResult) results;
+            array_init(&results, tm);
+
+            while (fs_iter_next(it)) {
+                I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
+                if (score != INT64_MIN) {
+                    array_push_lit(&results, .score=score, .text=str_copy(tm, it->current_file_name));
+                }
+            }
+            fs_iter_destroy(it);
+
+            array_sort_cmp(&results, cmp_file_picker_results);
+
+            array_iter (r, &results, *) {
+                CString id = astr_fmt(tm, "%lu%c", ARRAY_IDX, 0).data;
+                ui_label(0, id, r->text);
+            }
+        }
+    }
+
+    return container;
+}
+
+UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) {
+    UiBox *container = ui_box_str(0, id) {
+        ui_entry(str("entry"), buf, 25, str("Select files..."));
+        UiBox *button = ui_button(str("button")) ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_SEARCH);
+
+        F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+        ui_style_box_vec4(button, UI_RADIUS, vec4(r, 0, r, 0));
+        ui_style_rule("#entry #text_box") ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
+
+        Bool shown = button->scratch;
+        if (shown || button->signals.clicked) {
+            ui_modal("modal", &shown) ui_file_picker(str("file_picker"), buf, multiple, dir_only);
+            button->scratch = shown;
         }
     }
 

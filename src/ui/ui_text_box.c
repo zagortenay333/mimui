@@ -155,6 +155,8 @@ Void cursor_offset_to_line_col (TextBox *info, Cursor *cursor) {
         }
     }
 
+    if (cursor->line >= info->visual_lines.count) return;
+
     tmem_new(tm);
     VisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);

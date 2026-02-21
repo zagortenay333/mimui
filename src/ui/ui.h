@@ -15,6 +15,7 @@
 #define UI_CONFIG_ANIMATION_TIME_3   str("ui_config_animation_time_3")
 #define UI_CONFIG_LINE_SPACING       str("ui_config_line_spacing")
 #define UI_CONFIG_SCROLLBAR_WIDTH    str("ui_config_scrollbar_width")
+#define UI_CONFIG_SPACING_1          str("ui_config_spacing_1")
 #define UI_CONFIG_PADDING_1          str("ui_config_padding_1")
 #define UI_CONFIG_RADIUS_1           str("ui_config_radius_1")
 #define UI_CONFIG_RADIUS_2           str("ui_config_radius_2")

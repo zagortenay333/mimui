@@ -984,6 +984,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_f32(UI_CONFIG_ANIMATION_TIME_3, 2);
             ui_config_def_f32(UI_CONFIG_LINE_SPACING, 2);
             ui_config_def_f32(UI_CONFIG_SCROLLBAR_WIDTH, 10);
+            ui_config_def_f32(UI_CONFIG_SPACING_1, 8);
             ui_config_def_vec2(UI_CONFIG_PADDING_1, vec2(8, 8));
             ui_config_def_vec4(UI_CONFIG_RADIUS_1, vec4(4, 4, 4, 4));
             ui_config_def_vec4(UI_CONFIG_RADIUS_2, vec4(8, 8, 8, 8));

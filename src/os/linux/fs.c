@@ -151,6 +151,7 @@ istruct (FsIterLinux) {
 
 FsIter *fs_iter_new (Mem *mem, String path, Bool skip_dirs, Bool skip_files) {
     tmem_new(tm);
+    if (path.count == 0) path = str("/");
     Auto it = mem_new(mem, FsIterLinux);
     it->base.skip_directories = skip_dirs;
     it->base.skip_files = skip_files;

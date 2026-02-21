@@ -153,7 +153,7 @@ static Void build_misc_view () {
             ui_toggle("toggle", &app->toggle);
             ui_checkbox("checkbox", &app->toggle);
             ui_color_picker_button(str("color_picker"), &app->hue, &app->sat, &app->val, &app->alpha);
-            ui_entry(str("entry"), app->buf2, 30, str("Type something..."));
+            ui_file_picker_entry(str("file_picker"), app->buf2, true, false);
         }
 
         ui_box(0, "box2_7") {
@@ -317,7 +317,7 @@ Void app_init () {
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
-    app->buf2 = buf_new(ui->perm_mem, str("asdf"));
+    app->buf2 = buf_new(ui->perm_mem, str(""));
     app->hue = .3;
     app->val = .3;
     app->sat = .3;
