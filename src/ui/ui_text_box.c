@@ -42,6 +42,15 @@ istruct (TextBox) {
 static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos);
 static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord);
 
+static U32 measure_char_width (TextBox *info, U32 ch, U32 column) {
+    if (ch != '\t') {
+        return info->char_width;
+    } else {
+        U32 spaces = info->tab_width - (column % info->tab_width);
+        return info->char_width * spaces;
+    }
+}
+
 static Void compute_visual_lines (TextBox *info) {
     if (! info->dirty) return;
     info->dirty = false;
