@@ -29,19 +29,60 @@ Buf *buf_new_from_file (Mem *mem, String filepath) {
     return buf;
 }
 
-static String get_line (Buf *buf, Char *p) {
+static String get_line (Buf *buf, Char *p, U8 byte) {
     if (p > buf->data.data + buf->data.count) return (String){p, 0};
     U64 n = (buf->data.data + buf->data.count) - p;
-    Char *e = memchr(p, '\n', n);
+    Char *e = memchr(p, byte, n);
     return (String){p, e ? cast(U64, e-p) : n};
 }
 
-BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem) {
+static String get_segment (BufLineIter *it, Char *p) {
+    Char *end = it->buf->data.data + it->buf->data.count;
+
+    if (p >= end) {
+        it->delimiter_len = 0;
+        return (String){p, 0};
+    }
+
+    if (it->delimiter == 0) {
+        Char *cursor = p;
+        while (cursor < end) {
+            if (*cursor == '\n') {
+                it->delimiter_len = 1;
+                return (String){p, cursor - p};
+            }
+
+            if (*cursor == '\r') {
+                if (cursor + 1 < end && cursor[1] == '\n') {
+                    it->delimiter_len = 2;
+                } else {
+                    it->delimiter_len = 1;
+                }
+
+                return (String){p, cursor - p};
+            }
+
+            cursor++;
+        }
+    } else {
+        Char *e = memchr(p, it->delimiter, end - p);
+        if (e) {
+            it->delimiter_len = 1;
+            return (String){p, e - p};
+        }
+    }
+
+    it->delimiter_len = 0;
+    return (String){p, end - p};
+}
+
+BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem, U8 delimiter) {
     Auto it = mem_new(mem, BufLineIter);
+    it->delimiter = delimiter;
     it->buf = buf;
     if (buf->data.count) {
         it->idx = 0;
-        it->text = get_line(buf, buf->data.data);
+        it->text = get_segment(it, buf->data.data);
         it->offset = it->text.data - buf->data.data;
     } else {
         it->done = true;
@@ -52,7 +93,7 @@ BufLineIter *buf_line_iter_new (Buf *buf, Mem *mem) {
 Bool buf_line_iter_next (BufLineIter *it) {
     if (it->done) return true;
     it->idx++;
-    it->text = get_line(it->buf, it->text.data + it->text.count + 1);
+    it->text = get_segment(it, it->text.data + it->text.count + it->delimiter_len);
     it->offset = it->text.data - it->buf->data.data;
     if (it->text.data >= it->buf->data.data + it->buf->data.count) it->done = true;
     return it->done;
