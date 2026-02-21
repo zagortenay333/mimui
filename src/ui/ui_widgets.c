@@ -1377,6 +1377,70 @@ UiBox *ui_color_picker (String id, UiColorPickerMode mode, F32 *h, F32 *s, F32 *
     return container;
 }
 
+UiBox *ui_color_picker_button (String id, F32 *h, F32 *s, F32 *v, F32 *a) {
+    UiBox *button = ui_button(id) {
+        Bool popup_shown = button->scratch;
+
+        if (popup_shown || button->signals.clicked) {
+            ui_tag_box(button, "press");
+
+            ui_popup("popup", &popup_shown, false, button) {
+                ui_box(0, "color_view") {
+                    ui_style_vec2(UI_PADDING, vec2(16.0, 16));
+                    ui_style_f32(UI_SPACING, 10.0);
+                    ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 250, 1});
+                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 350, 1});
+
+                    ui_box(0, "graphical_pickers") {
+                        ui_style_f32(UI_SPACING, 8.0);
+                        ui_color_sat_val_picker(str("sat_val"), *h, s, v);
+                        ui_color_hue_picker(str("hue"), h);
+                        ui_color_alpha_picker(str("alpha"), a);
+                    }
+
+                    ui_box(UI_BOX_INVISIBLE, "spacer") ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 10, 1});
+
+                    ui_box(0, "hex_picker") {
+                        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                        ui_label(0, "label", str("HEX: "));
+                        ui_hspacer();
+                        ui_color_picker(str("picker"), COLOR_PICKER_HEX, h, s, v, a);
+                    }
+
+                    ui_box(0, "rgba_picker") {
+                        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                        ui_label(0, "label", str("RGBA: "));
+                        ui_hspacer();
+                        ui_color_picker(str("picker"), COLOR_PICKER_RGBA, h, s, v, a);
+                    }
+
+                    ui_box(0, "hsva_picker") {
+                        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                        ui_label(0, "label", str("HSVA: "));
+                        ui_hspacer();
+                        ui_color_picker(str("picker"), COLOR_PICKER_HSVA, h, s, v, a);
+                    }
+                }
+            }
+
+            button->scratch = popup_shown;
+        }
+
+        ui_box(UI_BOX_CLICK_THROUGH, "color") {
+            ui_style_vec4(UI_BG_COLOR, hsva_to_rgba(vec4(*h, *s, *v, *a)));
+            Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 3*font->width, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, font->height, 1});
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+            ui_style_f32(UI_EDGE_SOFTNESS, 0);
+        }
+    }
+
+    return button;
+}
+
 static Void size_ym_picker (UiBox *ym_picker, U64 axis) {
     UiBox *day_titles = cast(UiBox*, ym_picker->scratch);
     ym_picker->rect.size[axis] = day_titles->rect.size[axis];
