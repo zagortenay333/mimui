@@ -153,7 +153,7 @@ U64 buf_find_prev_word (Buf *buf, U64 from) {
 U64 buf_find_next_word (Buf *buf, U64 from) {
     if (buf->data.count == 0) return 0;
 
-    Char *end = &buf->data.data[buf->data.count - 1];
+    Char *end = &buf->data.data[buf->data.count];
     Char *p = &buf->data.data[from];
 
     while (p < end) {
