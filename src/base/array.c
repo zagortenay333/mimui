@@ -121,7 +121,7 @@ Void uarray_sort (UArray *array, U64 esize, Int(*cmp)(Void*, Void*)) {
 }
 
 U64 uarray_bsearch (UArray *array, U64 esize, Void *elem, Int(*cmp)(Void*, Void*)) {
-    if (! array->data) return;
+    if (! array->data) return ARRAY_NIL_IDX;
     Auto p = bsearch(elem, array->data, array->count, esize, cast(Cmp, cmp));
     return p ? (cast(U8*, p) - array->data) / esize : ARRAY_NIL_IDX;
 }
