@@ -44,10 +44,9 @@ static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord);
 
 static U32 measure_char_width (TextBox *info, U32 ch, U32 column) {
     if (ch != '\t') {
-        return info->char_width;
+        return 1;
     } else {
-        U32 spaces = info->tab_width - (column % info->tab_width);
-        return info->char_width * spaces;
+        return info->tab_width - (column % info->tab_width);
     }
 }
 
@@ -375,7 +374,7 @@ static Void draw (UiBox *box) {
 
     F32 line_height = cell_h + line_spacing;
     Cursor pos = coord_to_cursor(info, box, box->rect.top_left);
-    F32 y = box->rect.y + line_height;
+    F32 y = box->rect.y + (pos.line+1) * line_height - info->scroll_coord.y;
 
     array_iter_from (line, &info->visual_lines, pos.line, *) {
         if (y - line_height > box->rect.y + box->rect.h) break;
@@ -526,13 +525,13 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
             ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, height, 1});
         }
 
-        F32 visible_w = container->rect.w - 2*container->style.padding.x;
-        F32 visible_h = container->rect.h - 2*container->style.padding.y;
-        Bool scroll_y = info->total_height > visible_h && visible_h > 0;
-        Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
-        F32 scrollbar_width = ui_config_get_f32(UI_CONFIG_SCROLLBAR_WIDTH);
-
         UiBox *text_box = ui_box(UI_BOX_CAN_FOCUS|UI_BOX_REACTIVE|UI_BOX_CLIPPING, "text") {
+            F32 visible_w = text_box->rect.w;
+            F32 visible_h = text_box->rect.h;
+            Bool scroll_y = info->total_height > visible_h && visible_h > 0;
+            Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
+            F32 scrollbar_width = ui_config_get_f32(UI_CONFIG_SCROLLBAR_WIDTH);
+
             if (info->viewport_width != text_box->rect.w) info->dirty = true;
             info->viewport_width = text_box->rect.w;
 
@@ -557,6 +556,12 @@ UiBox *ui_text_box (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrap
 
             text_box->draw_fn = draw;
         }
+
+        F32 visible_w = text_box->rect.w;
+        F32 visible_h = text_box->rect.h;
+        Bool scroll_y = info->total_height > visible_h && visible_h > 0;
+        Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
+        F32 scrollbar_width = ui_config_get_f32(UI_CONFIG_SCROLLBAR_WIDTH);
 
         if (scroll_y) {
             F32 ratio = visible_h / info->total_height;
