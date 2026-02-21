@@ -1675,6 +1675,7 @@ UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) 
             ui_modal("modal", &shown) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, .8, 1});
+                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                 ui_file_picker(str("file_picker"), buf, multiple, dir_only);
             }
 
