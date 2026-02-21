@@ -128,9 +128,7 @@ U64 buf_get_version (Buf *buf) {
 
 U64 buf_find_prev_word (Buf *buf, U64 from) {
     Char *start = buf->data.data;
-    if (from >= buf->data.count) return 0;
-
-    Char *p = array_ref(&buf->data, from);
+    Char *p = &buf->data.data[from];
 
     if (p > start) p--;
 
@@ -152,9 +150,7 @@ U64 buf_find_prev_word (Buf *buf, U64 from) {
 
 U64 buf_find_next_word (Buf *buf, U64 from) {
     Char *end = &buf->data.data[buf->data.count - 1];
-    if (from >= buf->data.count) return buf->data.count - 1;
-
-    Char *p = array_ref(&buf->data, from);
+    Char *p = &buf->data.data[from];
 
     while (p < end) {
         if (is_whitespace(*p)) p++;
