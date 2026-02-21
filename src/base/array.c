@@ -116,10 +116,12 @@ Void uarray_insert_many (UArray *array, USlice *elems, U64 esize, U64 idx) {
 typedef Int(*Cmp)(const Void*, const Void*);
 
 Void uarray_sort (UArray *array, U64 esize, Int(*cmp)(Void*, Void*)) {
+    if (! array->data) return;
     qsort(array->data, array->count, esize, cast(Cmp, cmp));
 }
 
 U64 uarray_bsearch (UArray *array, U64 esize, Void *elem, Int(*cmp)(Void*, Void*)) {
+    if (! array->data) return;
     Auto p = bsearch(elem, array->data, array->count, esize, cast(Cmp, cmp));
     return p ? (cast(U8*, p) - array->data) / esize : ARRAY_NIL_IDX;
 }
