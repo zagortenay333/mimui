@@ -663,9 +663,16 @@ static Void size_modal (UiBox *modal, U64 axis) {
     F32 size = 0;
     Bool cycle = false;
 
-    array_iter(child, &modal->children) {
-        if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
-        size += child->rect.size[axis];
+    if (modal->style.axis == axis) {
+        array_iter(child, &modal->children) {
+            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+            size += child->rect.size[axis];
+        }
+    } else {
+        array_iter(child, &modal->children) {
+            if (child->style.size.v[axis].tag == UI_SIZE_PCT_PARENT) cycle = true;
+            if (child->rect.size[axis] > size) size = child->rect.size[axis];
+        }
     }
 
     if (cycle) {
@@ -1622,8 +1629,9 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
 
             UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
             UiBox *inner = array_get(&entry->children, 0);
-            inner = array_get(&inner->children, 0);
-            ui_grab_focus(inner);
+            UiBox *inner2 = array_get(&inner->children, 0);
+            ui_grab_focus(inner2);
+            ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
             ui_button_label_str(str("ok_button"), str("Ok"));
         }
@@ -1673,7 +1681,7 @@ UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) 
         Bool shown = button->scratch;
         if (shown || button->signals.clicked) {
             ui_modal("modal", &shown) {
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, .5, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, .8, 1});
                 ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                 ui_file_picker(str("file_picker"), buf, multiple, dir_only);
