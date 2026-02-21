@@ -65,46 +65,6 @@ static Void build_clock_view () {
     }
 }
 
-static Void build_color_view () {
-    ui_box(0, "color_view") {
-        ui_style_vec2(UI_PADDING, vec2(16.0, 16));
-        ui_style_f32(UI_SPACING, 10.0);
-        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 250, 1});
-        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 350, 1});
-
-        ui_box(0, "graphical_pickers"){
-            ui_style_f32(UI_SPACING, 8.0);
-            ui_color_sat_val_picker(str("sat_val"), app->hue, &app->sat, &app->val);
-            ui_color_hue_picker(str("hue"), &app->hue);
-            ui_color_alpha_picker(str("alpha"), &app->alpha);
-        }
-
-        ui_box(UI_BOX_INVISIBLE, "spacer") ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 10, 1});
-
-        ui_box(0, "hex_picker") {
-            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label(0, "label", str("HEX: "));
-            ui_hspacer();
-            ui_color_picker(str("picker"), COLOR_PICKER_HEX, &app->hue, &app->sat, &app->val, &app->alpha);
-        }
-
-        ui_box(0, "rgba_picker") {
-            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label(0, "label", str("RGBA: "));
-            ui_hspacer();
-            ui_color_picker(str("picker"), COLOR_PICKER_RGBA, &app->hue, &app->sat, &app->val, &app->alpha);
-        }
-
-        ui_box(0, "hsva_picker") {
-            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_label(0, "label", str("HSVA: "));
-            ui_hspacer();
-            ui_color_picker(str("picker"), COLOR_PICKER_HSVA, &app->hue, &app->sat, &app->val, &app->alpha);
-        }
-    }
-}
-
 static Void build_tile_view () {
     ui_box(0, "asfd") {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 89, 1});
@@ -271,7 +231,6 @@ static Void build_grid_view () {
 
 static Void show_modal () {
     ui_modal("modal", &app->modal_shown) {
-        build_color_view();
     }
 }
 
