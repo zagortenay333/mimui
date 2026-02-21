@@ -113,9 +113,9 @@ static Void draw_label (UiBox *box) {
 
     // Compute available width:
     UiBox *parent = box->parent;
-    F32 max_width = -1.0;
+    F32 available_width = -1.0;
     if (parent->style.size.width.tag == UI_SIZE_PCT_PARENT || parent->style.size.width.tag == UI_SIZE_PIXELS) {
-        max_width = parent->rect.w - 2*parent->style.padding.x;
+        available_width = parent->rect.w - 2*parent->style.padding.x;
     }
 
     // Compute width of ellipsis:
@@ -134,17 +134,20 @@ static Void draw_label (UiBox *box) {
         if (ARRAY_ITER_DONE) line_width = ui->font->is_mono ? (x_pos - x) : (info->x + slot->bearing_x + info->x_advance);
     }
 
-    if (max_width > 0 && line_width <= max_width) {
-        max_width = -1.0;
+    // Don't draw ellipsis if we fit in available with:
+    if (available_width > 0 && line_width <= available_width) {
+        available_width = -1.0;
     }
 
+    // Draw text:
     x_pos = x;
     array_iter (info, &infos, *) {
         AtlasSlot *slot = font_get_atlas_slot(ui->font, info);
 
         F32 char_right_edge = ui->font->is_mono ? ((ARRAY_IDX + 1) * width) : (info->x + slot->bearing_x + info->x_advance);
 
-        if (max_width > 0 && (char_right_edge + dots_width > max_width)) {
+        // Draw ellipsis:
+        if (available_width > 0 && (char_right_edge + dots_width > available_width)) {
             F32 dot_base_x = ui->font->is_mono ? x_pos : (x + info->x);
 
             array_iter (info, &dots_infos, *) {
