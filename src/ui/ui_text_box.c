@@ -42,7 +42,7 @@ istruct (TextBox) {
 static Vec2 cursor_to_coord (TextBox *info, UiBox *box, Cursor *pos);
 static Cursor coord_to_cursor (TextBox *info, UiBox *box, Vec2 coord);
 
-static U32 measure_char_width (TextBox *info, U32 ch, U32 column) {
+static U32 get_visual_col_count (TextBox *info, U32 ch, U32 column) {
     if (ch != '\t') {
         return 1;
     } else {
