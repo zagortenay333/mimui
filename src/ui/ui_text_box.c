@@ -559,7 +559,7 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
         Bool scroll_x = info->total_width  > visible_w && visible_w > 0;
         F32 scrollbar_width = ui_config_get_f32(UI_CONFIG_SCROLLBAR_WIDTH);
 
-        if (scroll_y) {
+        if (scroll_y && !info->single_line_mode) {
             F32 ratio = visible_h / info->total_height;
             Rect rect = { container->rect.w - scrollbar_width, 0, scrollbar_width, container->rect.h };
             if (scroll_x) rect.h -= scrollbar_width;

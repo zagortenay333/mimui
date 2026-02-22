@@ -1089,3 +1089,4 @@ Void ui_init () {
 // - file picker
 // - scrollbox for large homogenous lists
 // - rich text (markup) in labels
+// - tab focus changing should be constrained to an overlay if there is one

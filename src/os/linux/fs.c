@@ -191,6 +191,7 @@ Bool fs_iter_next (FsIter *iter) {
 }
 
 Void fs_iter_destroy (FsIter *iter) {
+    if (! cast(FsIterLinux*, iter)->dir) return;
     closedir(cast(FsIterLinux*, iter)->dir);
     mem_free(iter->mem, .old_ptr=iter, .old_size=sizeof(FsIterLinux));
 }

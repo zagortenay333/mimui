@@ -24,6 +24,7 @@ UiBox *ui_button_push (String id) {
     ui_style_box_from_config(container, UI_OUTSET_SHADOW_COLOR, UI_CONFIG_SHADOW_1_COLOR);
     ui_style_box_from_config(container, UI_PADDING, UI_CONFIG_PADDING_1);
     ui_style_box_vec2(container, UI_SHADOW_OFFSETS, vec2(0, -1));
+    ui_style_box_size(container, UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
 
     ui_style_rule(".button.focus") {
         ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_FOCUS_WIDTH);
@@ -701,7 +702,7 @@ UiBox *ui_modal_push (String id, Bool *shown) {
     if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_ESC)) *shown = false;
     if (overlay->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) *shown = false;
 
-    UiBox *modal = ui_scroll_box_push(str("modal"));
+    UiBox *modal = ui_box_push(0, "modal");
     modal->size_fn = size_modal;
     array_push_lit(&ui->deferred_layout_fns, layout_modal, modal);
     ui_style_box_size(modal, UI_WIDTH, (UiSize){UI_SIZE_CUSTOM, 1, 0});
@@ -719,7 +720,7 @@ UiBox *ui_modal_push (String id, Bool *shown) {
 }
 
 Void ui_modal_pop () {
-    ui_scroll_box_pop();
+    ui_pop_parent();
     ui_pop_parent();
     ui_pop_clip();
     ui_pop_parent();
@@ -1606,16 +1607,19 @@ istruct (FilePicker) {
 
 istruct (FilePickerSearchResult) {
     I64 score;
+    Bool is_dir;
     String text;
 };
 
 static Int cmp_file_picker_results (Void *A, Void *B) {
     FilePickerSearchResult *a = A;
     FilePickerSearchResult *b = B;
-    return (a->score < b->score) ? -1 : (a->score == b->score) ? 0 : 1;
+    return (a->score < b->score) ? 1 : (a->score == b->score) ? 0 : -1;
 }
 
 UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
+    tmem_new(tm);
+
     UiBox *container = ui_box_str(0, id) {
         FilePicker *info = ui_get_box_data(container, sizeof(FilePicker), 1*KB);
         if (! info->search) {
@@ -1623,15 +1627,19 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
         }
 
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+        ui_style_f32(UI_SPACING, 20);
 
         ui_box(0, "header") {
             ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
             UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
             UiBox *inner = array_get(&entry->children, 0);
-            UiBox *inner2 = array_get(&inner->children, 0);
-            ui_grab_focus(inner2);
             ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+            if (entry->start_frame == ui->frame) {
+                UiBox *inner2 = array_get(&inner->children, 0);
+                ui_grab_focus(inner2);
+            }
 
             UiTextBoxInfo *info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
             ui_tbox_cursor_move_to_end(info, &info->cursor, true);
@@ -1639,33 +1647,46 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             ui_button_label_str(str("ok_button"), str("Ok"));
         }
 
+        // Gather and sort results:
+        String search = buf_get_str(info->search, tm);
+        String prefix = str_prefix_to_last(search, '/');
+        String suffix = str_suffix_from_last(search, '/');
+        FsIter *it = fs_iter_new(tm, prefix, false, false);
+        Array(FilePickerSearchResult) results;
+        array_init(&results, tm);
+        while (fs_iter_next(it)) {
+            I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
+            if (score != INT64_MIN) array_push_lit(&results, .score=score, .text=str_copy(tm, it->current_file_name), .is_dir=it->is_directory);
+        }
+        fs_iter_destroy(it);
+        array_sort_cmp(&results, cmp_file_picker_results);
+
         ui_scroll_box("results") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
-            tmem_new(tm);
-            String search = buf_get_str(info->search, tm);
-            String prefix = str_prefix_to_last(search, '/');
-            String suffix = str_suffix_from_last(search, '/');
+            array_iter (r, &results, *) {
+                String id = astr_fmt(tm, "%lu", ARRAY_IDX);
 
-            FsIter *it = fs_iter_new(tm, prefix, false, false);
+                UiBox *button = ui_button(id) {
+                    ui_style_u32(UI_ALIGN_X, UI_ALIGN_START);
+                    ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
+                    ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
+                    ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+                    if (button->signals.hovered) ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
 
-            Array(FilePickerSearchResult) results;
-            array_init(&results, tm);
-
-            while (fs_iter_next(it)) {
-                I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
-                if (score != INT64_MIN) {
-                    array_push_lit(&results, .score=score, .text=str_copy(tm, it->current_file_name));
+                    UiBox *label = ui_label(UI_BOX_CLICK_THROUGH, "label", r->text);
                 }
             }
-            fs_iter_destroy(it);
+        }
 
-            array_sort_cmp(&results, cmp_file_picker_results);
-
-            array_iter (r, &results, *) {
-                CString id = astr_fmt(tm, "%lu%c", ARRAY_IDX, 0).data;
-                ui_label(0, id, r->text);
-            }
+        // Autocompletion with tab:
+        if (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
+            FilePickerSearchResult r = array_get(&results, 0);
+            String new_str = astr_fmt(tm, "%.*s/%.*s%s", STR(prefix), STR(r.text), r.is_dir ? "/" : "");
+            buf_clear(info->search);
+            buf_insert(info->search, 0, new_str);
+            ui_eat_event();
         }
     }
 
@@ -1686,7 +1707,8 @@ UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) 
             ui_modal("modal", &shown) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, .5, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, .8, 1});
-                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+                ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
+                ui_style_from_config(UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_3);
                 ui_file_picker(str("file_picker"), buf, multiple, dir_only);
             }
 
