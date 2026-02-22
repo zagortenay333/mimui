@@ -470,7 +470,7 @@ Void ui_scroll_box_pop () {
     UiBox *container = array_get_last(&ui->box_stack);
 
     Bool contains_focused = (ui->focus_idx >= container->scratch);
-    if (contains_focused && ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
+    if (contains_focused) {
         F32 fx1 = ui->focused->rect.x + ui->focused->rect.w;
         F32 cx1 = container->rect.x + container->rect.w;
         if (fx1 > cx1) {
