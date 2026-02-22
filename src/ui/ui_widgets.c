@@ -755,6 +755,8 @@ Void ui_tooltip_pop () {
 
 UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
+
         UiBox *text_box = ui_tbox(str("text_box"), buf, true, LINE_WRAP_NONE);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
         ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
@@ -1603,13 +1605,15 @@ UiBox *ui_date_picker (String id, Date *date) {
 istruct (FilePickerSearchResult) {
     I64 score;
     Bool is_dir;
-    String text;
+    String name;
+    String full_path;
 };
 
 istruct (FilePicker) {
     Mem *mem;
     Buf *search;
     U64 search_version;
+    ArrayString selections;
     Array(FilePickerSearchResult) search_results;
 };
 
@@ -1627,18 +1631,19 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
         if (! info->search) {
             info->search = buf_new(info->mem, str("/"));
             array_init(&info->search_results, info->mem);
+            array_init(&info->selections, info->mem);
         }
 
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-        ui_style_f32(UI_SPACING, 20);
+        ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
+        // Search entry:
         UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
         UiBox *inner = array_get(&entry->children, 0);
-        UiBox *inner2 = array_get(&inner->children, 0);
         ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         UiTextBoxInfo *search_text_box_info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
         if (entry->start_frame == ui->frame) {
-            ui_grab_focus(inner2);
+            ui_grab_focus(array_get(&inner->children, 0));
             ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
         }
 
@@ -1651,7 +1656,13 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             info->search_results.count = 0;
             while (fs_iter_next(it)) {
                 I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
-                if (score != INT64_MIN) array_push_lit(&info->search_results, .score=score, .text=str_copy(info->mem, it->current_file_name), .is_dir=it->is_directory);
+                if (score != INT64_MIN) array_push_lit(
+                    &info->search_results,
+                    .score=score,
+                    .full_path=str_copy(info->mem, it->current_full_path.as_slice),
+                    .name=str_copy(info->mem, it->current_file_name),
+                    .is_dir=it->is_directory
+                );
             }
             fs_iter_destroy(it);
             array_sort_cmp(&info->search_results, cmp_file_picker_results);
@@ -1662,9 +1673,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
             array_iter (r, &info->search_results, *) {
-                String id = astr_fmt(tm, "%lu", ARRAY_IDX);
-
-                UiBox *button = ui_button(id) {
+                UiBox *button = ui_button(astr_fmt(tm, "%lu", ARRAY_IDX)) {
                     ui_style_u32(UI_ALIGN_X, UI_ALIGN_START);
                     ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
                     ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
@@ -1672,7 +1681,26 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
                     if (button->signals.hovered) ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
 
-                    UiBox *label = ui_label(UI_BOX_CLICK_THROUGH, "label", r->text);
+                    U64 selected = array_find(&info->selections, str_match(IT, r->full_path));
+                    if (selected != ARRAY_NIL_IDX) ui_tag_box(button, "press");
+
+                    if (button->signals.clicked) {
+                        if (selected != ARRAY_NIL_IDX) {
+                            array_remove_fast(&info->selections, selected);
+                        } else if (r->is_dir && !dir_only) {
+                            ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
+                            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, r->name);
+                            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, str("/"));
+                        } else {
+                            array_push(&info->selections, r->full_path);
+                        }
+                    }
+
+                    ui_box(0, "content") {
+                        ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
+                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, r->is_dir ? UI_ICON_FOLDER : UI_ICON_FILE);
+                        ui_label(UI_BOX_CLICK_THROUGH, "label", r->name);
+                    }
                 }
             }
         }
@@ -1682,7 +1710,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             FilePickerSearchResult r = array_get(&info->search_results, 0);
             String search = buf_get_str(info->search, tm);
             String prefix = str_prefix_to_last(search, '/');
-            String new_str = astr_fmt(tm, "%.*s/%.*s%s", STR(prefix), STR(r.text), r.is_dir ? "/" : "");
+            String new_str = astr_fmt(tm, "%.*s/%.*s%s", STR(prefix), STR(r.name), r.is_dir ? "/" : "");
             buf_clear(info->search);
             ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, new_str);
             ui_eat_event();
