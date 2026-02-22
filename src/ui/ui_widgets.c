@@ -469,7 +469,7 @@ UiBox *ui_scroll_box_push (String label) {
 Void ui_scroll_box_pop () {
     UiBox *container = array_get_last(&ui->box_stack);
 
-    Bool contains_focused = (ui->focus_idx >= container->scratch);
+    Bool contains_focused = ui->focused && ui_is_descendant(container, ui->focused);
     if (contains_focused) {
         F32 fx1 = ui->focused->rect.x + ui->focused->rect.w;
         F32 cx1 = container->rect.x + container->rect.w;
@@ -618,7 +618,7 @@ UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *anchor) {
     ui_push_parent(ui->root);
     ui_push_clip(ui->root, false);
 
-    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE, id);
+    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE|UI_BOX_IS_FOCUS_TRAP, id);
     ui_style_box_f32(overlay, UI_FLOAT_X, 0);
     ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
     ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
@@ -692,7 +692,7 @@ UiBox *ui_modal_push (String id, Bool *shown) {
     ui_push_parent(ui->root);
     ui_push_clip(ui->root, false);
 
-    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE, id);
+    UiBox *overlay = ui_box_push_str(UI_BOX_REACTIVE|UI_BOX_IS_FOCUS_TRAP, id);
     ui_style_box_f32(overlay, UI_FLOAT_X, 0);
     ui_style_box_f32(overlay, UI_FLOAT_Y, 0);
     ui_style_box_size(overlay, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});

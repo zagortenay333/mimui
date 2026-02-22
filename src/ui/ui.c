@@ -164,6 +164,7 @@ UiBox *ui_box_push_str (UiBoxFlags flags, String label) {
     box->key = key;
     box->gc_flag = ui->gc_flag;
     box->flags = flags;
+    if (flags & UI_BOX_IS_FOCUS_TRAP) ui->focus_trap = box;
     Auto parent = array_try_get_last(&ui->box_stack);
     if (parent) array_push(&parent->children, box);
     box->parent = parent;
@@ -926,6 +927,14 @@ static Void update_input_state (Event *event) {
     }
 }
 
+Bool ui_is_descendant (UiBox *ancestor, UiBox *child) {
+    for (UiBox *box = child; box; box = box->parent) {
+        if (box == ancestor) return true;
+    }
+
+    return false;
+}
+
 Void ui_grab_focus (UiBox *box) {
     U64 idx = array_find(&ui->depth_first, IT == box);
     assert_dbg(idx != ARRAY_NIL_IDX);
@@ -935,22 +944,35 @@ Void ui_grab_focus (UiBox *box) {
 
 static Void find_next_focus () {
     U64 start = ui->focus_idx;
+    U64 candidate_idx = start;
     while (true) {
-        ui->focus_idx = (ui->focus_idx + 1) % ui->depth_first.count;
-        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
-        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
-        if (ui->focus_idx == start) break;
+        candidate_idx = (candidate_idx + 1) % ui->depth_first.count;
+        UiBox *candidate = array_get(&ui->depth_first, candidate_idx);
+        Bool valid = candidate->flags & UI_BOX_CAN_FOCUS;
+        if (valid && ui->focus_trap) valid = ui_is_descendant(ui->focus_trap, candidate);
+        if (valid) {
+            ui->focus_idx = candidate_idx;
+            ui->focused = candidate;
+            break;
+        }
+        if (candidate_idx == start) break;
     }
 }
 
 static Void find_prev_focus () {
     U64 start = ui->focus_idx;
+    U64 candidate_idx = start;
     while (true) {
-        ui->focus_idx = (ui->focus_idx - 1);
-        if (ui->focus_idx == UINT64_MAX) ui->focus_idx = ui->depth_first.count - 1;
-        ui->focused = array_get(&ui->depth_first, ui->focus_idx);
-        if (ui->focused->flags & UI_BOX_CAN_FOCUS) break;
-        if (ui->focus_idx == start) break;
+        candidate_idx = (candidate_idx == 0) ? (ui->depth_first.count - 1) : (candidate_idx - 1);
+        UiBox *candidate = array_get(&ui->depth_first, candidate_idx);
+        Bool valid = candidate->flags & UI_BOX_CAN_FOCUS;
+        if (valid && ui->focus_trap) valid = ui_is_descendant(ui->focus_trap, candidate);
+        if (valid) {
+            ui->focus_idx = candidate_idx;
+            ui->focused = candidate;
+            break;
+        }
+        if (candidate_idx == start) break;
     }
 }
 
@@ -972,6 +994,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
 
         ui->deferred_layout_fns.count = 0;
         ui->depth_first.count = 0;
+        ui->focus_trap = 0;
 
         ui->root = ui_box(0, "root") {
             ui_config_def_u32(UI_CONFIG_TAB_WIDTH, 4);
@@ -1086,4 +1109,3 @@ Void ui_init () {
 // - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - rich text (markup) in labels
-// - tab focus changing should be constrained to an overlay if there is one

@@ -299,6 +299,7 @@ fenum (UiBoxFlags, U8) {
     UI_BOX_INVISIBLE     = flag(2),
     UI_BOX_CLIPPING      = flag(3),
     UI_BOX_CLICK_THROUGH = flag(4),
+    UI_BOX_IS_FOCUS_TRAP = flag(5),
 };
 
 typedef Void (*UiBoxDrawFn)(UiBox*);
@@ -348,6 +349,7 @@ istruct (Ui) {
     UiBox *root;
     UiBox *hovered;
     UiBox *focused;
+    UiBox *focus_trap;
     U64 focus_idx;
     ArrayUiBox depth_first;
     ArrayUiBox free_boxes;
@@ -366,6 +368,7 @@ extern Ui *ui;
 Void      ui_init                  ();
 Void      ui_frame                 (Void(*)(), F64 dt);
 Bool      ui_is_animating          ();
+Bool      ui_is_descendant         (UiBox *ancestor, UiBox *child);
 Void      ui_eat_event             ();
 Void      ui_grab_focus            (UiBox *);
 Void      ui_push_parent           (UiBox *);
