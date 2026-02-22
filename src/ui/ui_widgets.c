@@ -1623,7 +1623,7 @@ static Int cmp_file_picker_results (Void *A, Void *B) {
     return (a->score < b->score) ? 1 : (a->score == b->score) ? 0 : -1;
 }
 
-UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
+UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir_only) {
     tmem_new(tm);
 
     UiBox *container = ui_box_str(0, id) {
@@ -1705,10 +1705,6 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             }
         }
 
-        if (!multiple && info->selections.count) {
-            printf("------\n");
-        }
-
         // Autocompletion with tab:
         if (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
             FilePickerSearchResult r = array_get(&info->search_results, 0);
@@ -1718,6 +1714,18 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             buf_clear(info->search);
             ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, new_str);
             ui_eat_event();
+        }
+
+        // Commit selections:
+        if ((!multiple && info->selections.count) ||
+            (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_RETURN)
+        ) {
+            *shown = false;
+            array_iter (sel, &info->selections) {
+                buf_clear(buf);
+                buf_insert(buf, 0, sel);
+                if (! ARRAY_ITER_DONE) buf_insert(buf, sel.count, str(" |"));
+            }
         }
     }
 
@@ -1740,7 +1748,7 @@ UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) 
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, .8, 1});
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);
                 ui_style_from_config(UI_ANIMATION_TIME, UI_CONFIG_ANIMATION_TIME_3);
-                ui_file_picker(str("file_picker"), buf, multiple, dir_only);
+                ui_file_picker(str("file_picker"), buf, &shown, multiple, dir_only);
             }
 
             button->scratch = shown;
