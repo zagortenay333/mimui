@@ -153,7 +153,7 @@ static Void build_misc_view () {
             ui_toggle("toggle", &app->toggle);
             ui_checkbox("checkbox", &app->toggle);
             ui_color_picker_button(str("color_picker"), &app->hue, &app->sat, &app->val, &app->alpha);
-            ui_file_picker_entry(str("file_picker"), app->buf2, true, false);
+            ui_file_picker_entry(str("file_picker"), app->buf2, false, true);
         }
 
         ui_box(0, "box2_7") {

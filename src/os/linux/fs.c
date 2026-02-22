@@ -170,7 +170,7 @@ Bool fs_iter_next (FsIter *iter) {
         if (! entry) return false;
 
         iter->current_full_path.count = 0;
-        astr_push_fmt(&iter->current_full_path, "%.*s/%s", STR(iter->directory_path), entry->d_name);
+        astr_push_fmt(&iter->current_full_path, "%.*s%s%s", STR(iter->directory_path), str_ends_with(iter->directory_path, str("/")) ? "" : "/", entry->d_name);
         iter->current_file_name = str(entry->d_name);
 
         struct stat st = {};
