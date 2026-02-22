@@ -22,7 +22,7 @@ istruct (UiTextBoxVisualLine) {
 istruct (UiTextBoxCursor) {
     U64 byte_offset;
     U64 selection_offset;
-    U64 line; // Index of a visual line.
+    U64 line; // Index of a visual line, 0-indexed.
     U64 column; // Index into a visual line, 0-indexed, and counting codepoints.
     U64 preferred_column;
 };
