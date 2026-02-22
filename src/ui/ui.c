@@ -1058,9 +1058,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
 
     find_topmost_hovered_box(ui->root);
     draw_box(ui->root);
-
     ui->frame++;
-
     arena_pop_all(cast(Arena*, ui->frame_mem));
 }
 
