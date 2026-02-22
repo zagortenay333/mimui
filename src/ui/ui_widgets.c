@@ -1722,9 +1722,16 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
         ) {
             *shown = false;
             buf_clear(buf);
-            array_iter (sel, &info->selections) {
-                buf_insert(buf, buf_get_count(buf), sel);
-                if (! ARRAY_ITER_DONE) buf_insert(buf, buf_get_count(buf), str(" | "));
+            if (info->selections.count) {
+                array_iter (sel, &info->selections) {
+                    buf_insert(buf, buf_get_count(buf), sel);
+                    if (! ARRAY_ITER_DONE) buf_insert(buf, buf_get_count(buf), str(" | "));
+                }
+            } else if (info->search_results.count) {
+                FilePickerSearchResult r = array_get(&info->search_results, 0);
+                buf_insert(buf, 0, r.full_path);
+            } else {
+                buf_insert(buf, 0, buf_get_str(info->search, tm));
             }
         }
     }
