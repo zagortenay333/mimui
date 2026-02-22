@@ -754,7 +754,7 @@ Void ui_tooltip_pop () {
 
 UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
-        UiBox *text_box = ui_text_box(str("text_box"), buf, true, LINE_WRAP_NONE);
+        UiBox *text_box = ui_tbox(str("text_box"), buf, true, LINE_WRAP_NONE);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
         ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
         ui_style_box_from_config(text_box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -1632,6 +1632,9 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             UiBox *inner2 = array_get(&inner->children, 0);
             ui_grab_focus(inner2);
             ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+            UiTextBoxInfo *info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
+            ui_tbox_cursor_move_to_end(info, &info->cursor, true);
 
             ui_button_label_str(str("ok_button"), str("Ok"));
         }
