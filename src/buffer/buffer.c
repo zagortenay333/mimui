@@ -19,6 +19,7 @@ Buf *buf_new (Mem *mem, String text) {
 Buf *buf_new_from_file (Mem *mem, String filepath) {
     Auto buf = mem_new(mem, Buf);
     buf->mem = mem;
+    buf->version = 1;
 
     String file = fs_read_entire_file(mem, filepath, 1*KB);
     buf->data.mem = mem;

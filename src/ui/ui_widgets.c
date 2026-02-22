@@ -1600,15 +1600,17 @@ UiBox *ui_date_picker (String id, Date *date) {
     return container;
 }
 
-istruct (FilePicker) {
-    Mem *mem;
-    Buf *search;
-};
-
 istruct (FilePickerSearchResult) {
     I64 score;
     Bool is_dir;
     String text;
+};
+
+istruct (FilePicker) {
+    Mem *mem;
+    Buf *search;
+    U64 search_version;
+    Array(FilePickerSearchResult) search_results;
 };
 
 static Int cmp_file_picker_results (Void *A, Void *B) {
@@ -1624,47 +1626,42 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
         FilePicker *info = ui_get_box_data(container, sizeof(FilePicker), 1*KB);
         if (! info->search) {
             info->search = buf_new(info->mem, str("/"));
+            array_init(&info->search_results, info->mem);
         }
 
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
         ui_style_f32(UI_SPACING, 20);
 
-        ui_box(0, "header") {
-            ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
-
-            UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
-            UiBox *inner = array_get(&entry->children, 0);
-            ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-
-            if (entry->start_frame == ui->frame) {
-                UiBox *inner2 = array_get(&inner->children, 0);
-                ui_grab_focus(inner2);
-            }
-
-            UiTextBoxInfo *info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
-            ui_tbox_cursor_move_to_end(info, &info->cursor, true);
-
-            ui_button_label_str(str("ok_button"), str("Ok"));
+        UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
+        UiBox *inner = array_get(&entry->children, 0);
+        UiBox *inner2 = array_get(&inner->children, 0);
+        ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        UiTextBoxInfo *search_text_box_info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
+        if (entry->start_frame == ui->frame) {
+            ui_grab_focus(inner2);
+            ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
         }
 
         // Gather and sort results:
-        String search = buf_get_str(info->search, tm);
-        String prefix = str_prefix_to_last(search, '/');
-        String suffix = str_suffix_from_last(search, '/');
-        FsIter *it = fs_iter_new(tm, prefix, false, false);
-        Array(FilePickerSearchResult) results;
-        array_init(&results, tm);
-        while (fs_iter_next(it)) {
-            I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
-            if (score != INT64_MIN) array_push_lit(&results, .score=score, .text=str_copy(tm, it->current_file_name), .is_dir=it->is_directory);
+        if (info->search_version != buf_get_version(info->search)) {
+            String search = buf_get_str(info->search, tm);
+            String prefix = str_prefix_to_last(search, '/');
+            String suffix = str_suffix_from_last(search, '/');
+            FsIter *it = fs_iter_new(tm, prefix, false, false);
+            info->search_results.count = 0;
+            while (fs_iter_next(it)) {
+                I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
+                if (score != INT64_MIN) array_push_lit(&info->search_results, .score=score, .text=str_copy(info->mem, it->current_file_name), .is_dir=it->is_directory);
+            }
+            fs_iter_destroy(it);
+            array_sort_cmp(&info->search_results, cmp_file_picker_results);
+            info->search_version = buf_get_version(info->search);
         }
-        fs_iter_destroy(it);
-        array_sort_cmp(&results, cmp_file_picker_results);
 
         ui_scroll_box("results") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
-            array_iter (r, &results, *) {
+            array_iter (r, &info->search_results, *) {
                 String id = astr_fmt(tm, "%lu", ARRAY_IDX);
 
                 UiBox *button = ui_button(id) {
@@ -1682,10 +1679,12 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
 
         // Autocompletion with tab:
         if (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
-            FilePickerSearchResult r = array_get(&results, 0);
+            FilePickerSearchResult r = array_get(&info->search_results, 0);
+            String search = buf_get_str(info->search, tm);
+            String prefix = str_prefix_to_last(search, '/');
             String new_str = astr_fmt(tm, "%.*s/%.*s%s", STR(prefix), STR(r.text), r.is_dir ? "/" : "");
             buf_clear(info->search);
-            buf_insert(info->search, 0, new_str);
+            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, new_str);
             ui_eat_event();
         }
     }
