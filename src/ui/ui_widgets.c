@@ -1721,10 +1721,10 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
             (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_RETURN)
         ) {
             *shown = false;
+            buf_clear(buf);
             array_iter (sel, &info->selections) {
-                buf_clear(buf);
-                buf_insert(buf, 0, sel);
-                if (! ARRAY_ITER_DONE) buf_insert(buf, sel.count, str(" |"));
+                buf_insert(buf, buf_get_count(buf), sel);
+                if (! ARRAY_ITER_DONE) buf_insert(buf, buf_get_count(buf), str(" | "));
             }
         }
     }
