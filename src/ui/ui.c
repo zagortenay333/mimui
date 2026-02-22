@@ -1065,7 +1065,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
 }
 
 Void ui_init () {
-    Arena *perm_arena  = arena_new(mem_root, 1*KB);
+    Arena *perm_arena = arena_new(mem_root, 1*KB);
     Arena *frame_arena = arena_new(mem_root, 64*KB);
     ui = mem_new(cast(Mem*, perm_arena), Ui);
     ui->perm_mem = cast(Mem*, perm_arena);

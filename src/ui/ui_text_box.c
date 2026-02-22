@@ -465,7 +465,7 @@ static Vec2 cursor_to_coord (UiTextBoxInfo *info, UiBox *box, UiTextBoxCursor *p
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     F32 line_height = ui->font->height + line_spacing;
 
-    coord.y = pos->line * line_height + line_spacing/2;
+    coord.y = pos->line * line_height;
 
     tmem_new(tm);
     String line_text = get_line_text(info, tm, pos->line);
