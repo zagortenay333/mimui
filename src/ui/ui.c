@@ -1086,7 +1086,6 @@ Void ui_init () {
 // @todo
 //
 // - tile widgets with tabs
-// - file picker
 // - scrollbox for large homogenous lists
 // - rich text (markup) in labels
 // - tab focus changing should be constrained to an overlay if there is one
