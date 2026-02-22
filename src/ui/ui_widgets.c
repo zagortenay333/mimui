@@ -1705,6 +1705,10 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool multiple, Bool dir_only) {
             }
         }
 
+        if (!multiple && info->selections.count) {
+            printf("------\n");
+        }
+
         // Autocompletion with tab:
         if (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_TAB) {
             FilePickerSearchResult r = array_get(&info->search_results, 0);
