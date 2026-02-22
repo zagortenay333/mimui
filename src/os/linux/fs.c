@@ -93,9 +93,9 @@ Bool fs_copy (String oldpath, String newpath) {
     return result;
 }
 
-String fs_current_working_dir (Mem *mem) {
+String fs_get_current_working_dir (Mem *mem) {
     Auto buf = getcwd(0, 0);
-    Auto result = str_copy(mem, str(buf));
+    Auto result = astr_fmt(mem, "%s/", buf);
     free(buf);
     return result;
 }

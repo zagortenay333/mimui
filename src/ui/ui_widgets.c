@@ -1629,7 +1629,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
     UiBox *container = ui_box_str(0, id) {
         FilePicker *info = ui_get_box_data(container, sizeof(FilePicker), 1*KB);
         if (! info->search) {
-            info->search = buf_new(info->mem, str("/"));
+            info->search = buf_new(info->mem, fs_get_current_working_dir(tm));
             array_init(&info->search_results, info->mem);
             array_init(&info->selections, info->mem);
         }
@@ -1637,14 +1637,23 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
         ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
-        // Search entry:
-        UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
-        UiBox *inner = array_get(&entry->children, 0);
-        ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        UiTextBoxInfo *search_text_box_info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
-        if (entry->start_frame == ui->frame) {
-            ui_grab_focus(array_get(&inner->children, 0));
-            ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
+        UiBox *ok_button;
+        UiTextBoxInfo *search_text_box_info;
+
+        ui_box(0, "header") {
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
+            ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
+
+            UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
+            UiBox *inner = array_get(&entry->children, 0);
+            ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            search_text_box_info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
+            if (entry->start_frame == ui->frame) {
+                ui_grab_focus(array_get(&inner->children, 0));
+                ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
+            }
+
+            ok_button = ui_button_label_str(str("ok_button"), str("Ok"));
         }
 
         // Gather and sort results:
@@ -1652,7 +1661,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
             String search = buf_get_str(info->search, tm);
             String prefix = str_prefix_to_last(search, '/');
             String suffix = str_suffix_from_last(search, '/');
-            FsIter *it = fs_iter_new(tm, prefix, false, false);
+            FsIter *it = fs_iter_new(tm, prefix, false, dir_only);
             info->search_results.count = 0;
             while (fs_iter_next(it)) {
                 I64 score = str_fuzzy_search(suffix, it->current_file_name, 0);
@@ -1717,9 +1726,11 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
         }
 
         // Commit selections:
-        if ((!multiple && info->selections.count) ||
+        if (ok_button->signals.clicked ||
+            (!multiple && info->selections.count) ||
             (ui->event->tag == EVENT_KEY_PRESS && ui->event->key == KEY_RETURN)
         ) {
+            ui_eat_event();
             *shown = false;
             buf_clear(buf);
             if (info->selections.count) {
@@ -1727,9 +1738,6 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
                     buf_insert(buf, buf_get_count(buf), sel);
                     if (! ARRAY_ITER_DONE) buf_insert(buf, buf_get_count(buf), str(" | "));
                 }
-            } else if (info->search_results.count) {
-                FilePickerSearchResult r = array_get(&info->search_results, 0);
-                buf_insert(buf, 0, r.full_path);
             } else {
                 buf_insert(buf, 0, buf_get_str(info->search, tm));
             }
