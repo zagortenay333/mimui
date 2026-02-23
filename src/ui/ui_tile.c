@@ -7,7 +7,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     if (node->split != UI_TILE_SPLIT_NONE) {
         ui_style_u32(UI_AXIS, node->split == UI_TILE_SPLIT_HORI ? UI_AXIS_HORIZONTAL : UI_AXIS_VERTICAL);
 
-        ui_box(0, "left") {
+        ui_box(0, "first") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
@@ -24,7 +24,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
             build_node(node->child[0], out_leafs);
         }
 
-        ui_box(0, "right") {
+        ui_box(0, "second") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
 
             if (node->split == UI_TILE_SPLIT_HORI) {
@@ -53,6 +53,9 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
 
                 array_iter (id, &node->tab_ids) {
                     ui_box_fmt (0, "tab%lu", ARRAY_IDX) {
+                        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_4);
+
                         ui_label(0, "label", astr_fmt(tm, "%lu", id));
                     }
                 }
