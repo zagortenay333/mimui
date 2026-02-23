@@ -992,6 +992,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
         root_clip->w = win.x;
         root_clip->h = win.y;
 
+        ui->requested_cursor = MOUSE_CURSOR_DEFAULT;
         ui->deferred_layout_fns.count = 0;
         ui->depth_first.count = 0;
         ui->focus_trap = 0;
@@ -1057,6 +1058,8 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
                 }
             }
         }
+
+        win_set_cursor(ui->requested_cursor);
 
         map_iter (slot, &ui->box_cache) {
             Auto box = slot->val;

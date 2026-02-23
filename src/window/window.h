@@ -111,12 +111,36 @@ istruct (Event) {
 
 array_typedef(Event, Event);
 
+ienum (MouseCursor, U32) {
+    MOUSE_CURSOR_DEFAULT,
+    MOUSE_CURSOR_TEXT,
+    MOUSE_CURSOR_WAIT,
+    MOUSE_CURSOR_CROSSHAIR,
+    MOUSE_CURSOR_PROGRESS,
+    MOUSE_CURSOR_NWSE_RESIZE,
+    MOUSE_CURSOR_NESW_RESIZE,
+    MOUSE_CURSOR_EW_RESIZE,
+    MOUSE_CURSOR_NS_RESIZE,
+    MOUSE_CURSOR_MOVE,
+    MOUSE_CURSOR_NOT_ALLOWED,
+    MOUSE_CURSOR_POINTER,
+    MOUSE_CURSOR_NW_RESIZE,
+    MOUSE_CURSOR_N_RESIZE,
+    MOUSE_CURSOR_NE_RESIZE,
+    MOUSE_CURSOR_E_RESIZE,
+    MOUSE_CURSOR_SE_RESIZE,
+    MOUSE_CURSOR_S_RESIZE,
+    MOUSE_CURSOR_SW_RESIZE,
+    MOUSE_CURSOR_W_RESIZE,
+};
+
 Void        win_init               (CString);
 Void        win_run                (Void (*)(F64 dt));
 SliceEvent *win_get_events         ();
 Void        win_set_clipboard_text (String);
 String      win_get_clipboard_text (Mem *);
 Vec2        win_get_size           ();
+Void        win_set_cursor         (MouseCursor);
 
 // =============================================================================
 // Drawing:

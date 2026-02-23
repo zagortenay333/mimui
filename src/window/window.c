@@ -13,6 +13,8 @@ ArrayEvent events;
 Int win_width  = 800;
 Int win_height = 600;
 
+SDL_Cursor *cursors[SDL_SYSTEM_CURSOR_COUNT];
+
 #define BLUR_SHRINK 4
 U32 blur_shader;
 U32 blur_VBO, blur_VAO;
@@ -342,6 +344,31 @@ Void dr_2d_texture_update (Texture *texture, U32 x, U32 y, U32 w, U32 h, U8 *buf
     glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
 }
 
+Void win_set_cursor (MouseCursor cursor) {
+    switch (cursor) {
+    case MOUSE_CURSOR_DEFAULT:     SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_DEFAULT]); break;
+    case MOUSE_CURSOR_TEXT:        SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_TEXT]); break;
+    case MOUSE_CURSOR_WAIT:        SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_WAIT]); break;
+    case MOUSE_CURSOR_CROSSHAIR:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_CROSSHAIR]); break;
+    case MOUSE_CURSOR_PROGRESS:    SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_PROGRESS]); break;
+    case MOUSE_CURSOR_NWSE_RESIZE: SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NWSE_RESIZE]); break;
+    case MOUSE_CURSOR_NESW_RESIZE: SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NESW_RESIZE]); break;
+    case MOUSE_CURSOR_EW_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_EW_RESIZE]); break;
+    case MOUSE_CURSOR_NS_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NS_RESIZE]); break;
+    case MOUSE_CURSOR_MOVE:        SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_MOVE]); break;
+    case MOUSE_CURSOR_NOT_ALLOWED: SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NOT_ALLOWED]); break;
+    case MOUSE_CURSOR_POINTER:     SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_POINTER]); break;
+    case MOUSE_CURSOR_NW_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NW_RESIZE]); break;
+    case MOUSE_CURSOR_N_RESIZE:    SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_N_RESIZE]); break;
+    case MOUSE_CURSOR_NE_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_NE_RESIZE]); break;
+    case MOUSE_CURSOR_E_RESIZE:    SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_E_RESIZE]); break;
+    case MOUSE_CURSOR_SE_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_SE_RESIZE]); break;
+    case MOUSE_CURSOR_S_RESIZE:    SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_S_RESIZE]); break;
+    case MOUSE_CURSOR_SW_RESIZE:   SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_SW_RESIZE]); break;
+    case MOUSE_CURSOR_W_RESIZE:    SDL_SetCursor(cursors[SDL_SYSTEM_CURSOR_W_RESIZE]); break;
+    }
+}
+
 Vec2 win_get_size () {
     return vec2(win_width, win_height);
 }
@@ -529,6 +556,10 @@ Void win_init (CString title) {
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
+
+    for (U32 c = SDL_SYSTEM_CURSOR_DEFAULT; c < SDL_SYSTEM_CURSOR_COUNT; ++c) {
+        cursors[c] = SDL_CreateSystemCursor(c);
+    }
 
     framebuffer   = framebuffer_new(&framebuffer_tex, 1, win_width, win_height);
     blur_buffer1  = framebuffer_new(&blur_tex1, 1, floor(win_width/BLUR_SHRINK), floor(win_height/BLUR_SHRINK));

@@ -1,13 +1,15 @@
 #include "ui/ui_tile.h"
 #include "ui/ui_widgets.h"
+#include "window/window.h"
 
 static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
+    U32 splitter_width = 8;
 
     if (node->split != UI_TILE_SPLIT_NONE) {
         ui_style_u32(UI_AXIS, node->split == UI_TILE_SPLIT_HORI ? UI_AXIS_HORIZONTAL : UI_AXIS_VERTICAL);
 
-        ui_box(0, "first") {
+        UiBox *first = ui_box(UI_BOX_CLICK_THROUGH, "first") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
             ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
@@ -24,7 +26,32 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
             build_node(node->child[0], out_leafs);
         }
 
-        ui_box(0, "second") {
+        UiBox *splitter = ui_box(UI_BOX_REACTIVE, "splitter") {
+            if (node->split == UI_TILE_SPLIT_HORI) {
+                ui_style_f32(UI_FLOAT_X, first->rect.w - splitter_width);
+                ui_style_f32(UI_FLOAT_Y, 0);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, splitter_width, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+                if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+                    node->ratio = (ui->mouse.x - splitter->parent->rect.x) / splitter->parent->rect.w;
+                }
+                if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_EW_RESIZE;
+            } else {
+                ui_style_f32(UI_FLOAT_X, 0);
+                ui_style_f32(UI_FLOAT_Y, first->rect.h - splitter_width);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, splitter_width, 1});
+                if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+                    F32 parent_h = splitter->parent->rect.h;
+                    if (parent_h > 0) node->ratio += ui->mouse_dt.y / parent_h;
+                }
+                if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_NS_RESIZE;
+            }
+
+            node->ratio = clamp(node->ratio, 0.1f, 0.9f);
+        }
+
+        ui_box(UI_BOX_CLICK_THROUGH, "second") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
 
             if (node->split == UI_TILE_SPLIT_HORI) {
@@ -103,6 +130,8 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
 
 UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
     UiBox *container = ui_box_str(0, id) {
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
         build_node(tree, out_leafs);
     }
 

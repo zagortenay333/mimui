@@ -343,6 +343,7 @@ istruct (Ui) {
     Vec2 mouse_dt;
     Vec2 mouse;
     Bool animation_running;
+    MouseCursor requested_cursor;
     Map(U32, U8) pressed_keys;
     U64 frame;
     F64 dt;
