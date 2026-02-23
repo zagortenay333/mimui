@@ -1028,7 +1028,7 @@ Void ui_frame (Void(*app_build)(), F64 dt) {
             ui_config_def_vec4(UI_CONFIG_BG_2, vec4(.2, .2, .2, 1));
             ui_config_def_vec4(UI_CONFIG_BG_3, vec4(0, 0, 0, .4));
             ui_config_def_vec4(UI_CONFIG_BG_4, vec4(0, 0, 0, .6));
-            ui_config_def_vec4(UI_CONFIG_BG_SELECTION, vec4(0, 1, 1, 1));
+            ui_config_def_vec4(UI_CONFIG_BG_SELECTION, vec4(.4, .2, .2, 1));
             ui_config_def_vec4(UI_CONFIG_FG_1, vec4(1, 1, 1, .8));
             ui_config_def_vec4(UI_CONFIG_FG_2, vec4(1, 1, 1, .5));
             ui_config_def_vec4(UI_CONFIG_FG_3, vec4(.3, .3, .3, .8));

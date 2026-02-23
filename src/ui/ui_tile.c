@@ -62,15 +62,32 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
 
                     array_iter (id, &node->tab_ids) {
                         ui_box_fmt (0, "tab%lu", ARRAY_IDX) {
-                            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-                            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+                            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
                             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                             F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
-                            F32 w = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
                             ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
-                            ui_style_vec4(UI_BORDER_WIDTHS, vec4(w, w, w, 0));
+                            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
 
-                            ui_label(0, "label", astr_fmt(tm, "%lu", id));
+                            if (ARRAY_IDX == node->active_tab_idx) {
+                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_SELECTION);
+                                ui_style_from_config(UI_TEXT_COLOR, UI_CONFIG_TEXT_SELECTION);
+                            } else {
+                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+                            }
+
+                            ui_box (0, "label_box") {
+                                ui_style_vec2(UI_PADDING, vec2(6, 4));
+                                ui_label(0, "label", astr_fmt(tm, "%lu", id));
+                            }
+
+                            ui_button(str("close_button")) {
+                                ui_style_vec2(UI_PADDING, vec2(2, 2));
+                                ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
+                                ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
+                                ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
+                                ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+                                ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_CLOSE);
+                            }
                         }
                     }
                 }
