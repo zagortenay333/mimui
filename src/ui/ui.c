@@ -63,7 +63,7 @@ Bool ui_is_key_pressed (Int key) {
     return pressed;
 }
 
-static Bool within_box (Rect r, Vec2 p) {
+Bool ui_within_box (Rect r, Vec2 p) {
     return (p.x > r.x) && (p.x < (r.x + r.w)) && (p.y > r.y) && (p.y < (r.y + r.h));
 }
 
@@ -89,7 +89,7 @@ static Void compute_signals (UiBox *box) {
     for (UiBox *b = ui->hovered; b; b = b->parent) {
         if (b == box) {
             Rect intersection = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
-            sig->hovered = within_box(intersection, ui->mouse);
+            sig->hovered = ui_within_box(intersection, ui->mouse);
             break;
         }
     }
@@ -850,7 +850,7 @@ static Void compute_layout (UiBox *box) {
 static Void find_topmost_hovered_box (UiBox *box) {
     if (! (box->flags & UI_BOX_CLICK_THROUGH)) {
         Rect r = compute_rect_intersect(box->rect, array_get_last(&ui->clip_stack));
-        if (within_box(r, ui->mouse)) ui->hovered = box;
+        if (ui_within_box(r, ui->mouse)) ui->hovered = box;
     }
 
     if (box->flags & UI_BOX_CLIPPING) ui_push_clip(box, true);

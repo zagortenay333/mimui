@@ -372,6 +372,7 @@ Bool      ui_is_animating          ();
 Bool      ui_is_descendant         (UiBox *ancestor, UiBox *child);
 Void      ui_eat_event             ();
 Void      ui_grab_focus            (UiBox *);
+Bool      ui_within_box            (Rect r, Vec2 p);
 Void      ui_push_parent           (UiBox *);
 UiBox    *ui_pop_parent            ();
 UiBox    *ui_box_push_str          (UiBoxFlags, String);
