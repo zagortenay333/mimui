@@ -457,11 +457,11 @@ UiBox *ui_hscroll_bar (String label, Rect rect, F32 ratio, F32 *val) {
     return container;
 }
 
-UiBox *ui_scroll_box_push (String label) {
+UiBox *ui_scroll_box_push (String label, Bool show_scrollbars) {
     UiBox *container = ui_box_push_str(UI_BOX_REACTIVE, label);
     ui_style_box_u32(container, UI_OVERFLOW_X, true);
     ui_style_box_u32(container, UI_OVERFLOW_Y, true);
-    container->scratch = ui->depth_first.count-1;
+    container->scratch = show_scrollbars;
     ui_push_clip(container, true);
     return container;
 }
@@ -490,16 +490,21 @@ Void ui_scroll_box_pop () {
 
     F32 speed = 25;
     F32 bar_width = 8;
+    Bool show_scrollbars = container->scratch;
 
     if (container->rect.w < container->content.w) {
-        F32 scroll_val = (fabs(container->content.x) / container->content.w) * container->rect.w;
-        F32 ratio = container->rect.w / container->content.w;
-        ui_hscroll_bar(str("scroll_bar_x"), (Rect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
-        container->content.x = -(scroll_val/container->rect.w*container->content.w);
+        if (show_scrollbars) {
+            F32 scroll_val = (fabs(container->content.x) / container->content.w) * container->rect.w;
+            F32 ratio = container->rect.w / container->content.w;
+            ui_hscroll_bar(str("scroll_bar_x"), (Rect){0, container->rect.h - bar_width, container->rect.w, bar_width}, ratio, &scroll_val);
+            container->content.x = -(scroll_val / container->rect.w * container->content.w);
+        }
 
-        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && ui_is_key_pressed(KEY_CTRL)) {
-            container->content.x += speed * ui->event->y;
-            ui_eat_event();
+        if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL)) {
+            if (container->rect.h >= container->content.h || ui_is_key_pressed(KEY_CTRL)) {
+                container->content.x += speed * ui->event->y;
+                ui_eat_event();
+            }
         }
 
         container->content.x = clamp(container->content.x, -(container->content.w - container->rect.w), 0);
@@ -508,10 +513,12 @@ Void ui_scroll_box_pop () {
     }
 
     if (container->rect.h < container->content.h) {
-        F32 scroll_val = (fabs(container->content.y) / container->content.h) * container->rect.h;
-        F32 ratio = container->rect.h / container->content.h;
-        ui_vscroll_bar(str("scroll_bar_y"), (Rect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
-        container->content.y = -(scroll_val/container->rect.h*container->content.h);
+        if (show_scrollbars) {
+            F32 scroll_val = (fabs(container->content.y) / container->content.h) * container->rect.h;
+            F32 ratio = container->rect.h / container->content.h;
+            ui_vscroll_bar(str("scroll_bar_y"), (Rect){container->rect.w - bar_width, 0, bar_width, container->rect.h}, ratio, &scroll_val);
+            container->content.y = -(scroll_val / container->rect.h * container->content.h);
+        }
 
         if (container->signals.hovered && (ui->event->tag == EVENT_SCROLL) && !ui_is_key_pressed(KEY_CTRL)) {
             container->content.y += speed * ui->event->y;
@@ -628,7 +635,7 @@ UiBox *ui_popup_push (String id, Bool *shown, Bool sideways, UiBox *anchor) {
     if ((ui->event->tag == EVENT_KEY_PRESS) && (ui->event->key == KEY_ESC)) *shown = false;
     if (overlay->signals.clicked && ui->event->key == KEY_MOUSE_LEFT) *shown = false;
 
-    UiBox *popup = ui_scroll_box_push(str("popup"));
+    UiBox *popup = ui_scroll_box_push(str("popup"), true);
     popup->size_fn = size_popup;
     UiPopup *info = mem_new(ui->frame_mem, UiPopup);
     info->sideways = sideways;
@@ -847,11 +854,10 @@ UiBox *ui_dropdown (String id, U64 *selection, SliceString options) {
         Bool opened = container->scratch;
 
         if (opened || container->signals.clicked) {
-            ui_popup("popup", &opened, false, container) {
+            ui_popup(str("popup"), &opened, false, container) {
                 array_iter (option, &options) {
                     tmem_new(tm);
                     String id = astr_fmt(tm, "button%lu", ARRAY_IDX);
-
                     UiBox *button = ui_button(id) {
                         ui_style_u32(UI_ALIGN_X, UI_ALIGN_START);
                         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
@@ -927,7 +933,7 @@ UiBox *ui_int_picker (String id, I64 *val, I64 min, I64 max, U8 width_in_chars) 
         if (! valid) ui_style_box_from_config(entry, UI_TEXT_COLOR, UI_CONFIG_RED_TEXT);
 
         if (container->signals.hovered) {
-            ui_tooltip("tooltip") ui_label(0, "label", astr_fmt(ui->frame_mem, "Integer in range [%li, %li].", min, max));
+            ui_tooltip(str("tooltip")) ui_label(0, "label", astr_fmt(ui->frame_mem, "Integer in range [%li, %li].", min, max));
 
             if (valid && (ui->event->tag == EVENT_SCROLL)) {
                 if (ui->event->y > 0) {
@@ -1394,7 +1400,7 @@ UiBox *ui_color_picker_button (String id, F32 *h, F32 *s, F32 *v, F32 *a) {
         if (popup_shown || button->signals.clicked) {
             ui_tag_box(button, "press");
 
-            ui_popup("popup", &popup_shown, false, button) {
+            ui_popup(str("popup"), &popup_shown, false, button) {
                 ui_box(0, "color_view") {
                     ui_style_vec2(UI_PADDING, vec2(16.0, 16));
                     ui_style_f32(UI_SPACING, 10.0);
@@ -1678,7 +1684,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
             info->search_version = buf_get_version(info->search);
         }
 
-        ui_scroll_box("results") {
+        ui_scroll_box(str("results"), true) {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
             array_iter (r, &info->search_results, *) {
@@ -1758,7 +1764,7 @@ UiBox *ui_file_picker_entry (String id, Buf *buf, Bool multiple, Bool dir_only) 
 
         Bool shown = button->scratch;
         if (shown || button->signals.clicked) {
-            ui_modal("modal", &shown) {
+            ui_modal(str("modal"), &shown) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, .5, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, .8, 1});
                 ui_style_u32(UI_ANIMATION, UI_MASK_BG_COLOR);

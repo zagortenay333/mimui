@@ -56,18 +56,18 @@ UiBox *ui_modal_push           (String id, Bool *shown);
 Void   ui_modal_pop            ();
 UiBox *ui_popup_push           (String id, Bool *shown, Bool sideways, UiBox *anchor);
 Void   ui_popup_pop            ();
-UiBox *ui_scroll_box_push      (String id);
+UiBox *ui_scroll_box_push      (String id, Bool show_scrollbars);
 Void   ui_scroll_box_pop       ();
 UiBox *ui_date_picker          (String id, Date *);
 
-#define ui_grid(L)             ui_grid_push(str(L));                   if (cleanup(ui_grid_pop_) U8 _; 1)
-#define ui_grid_cell(...)      ui_grid_cell_push(__VA_ARGS__);         if (cleanup(ui_grid_cell_pop_) U8 _; 1)
-#define ui_tooltip(LABEL)      ui_tooltip_push(str(LABEL));            if (cleanup(ui_tooltip_pop_) U8 _; 1)
-#define ui_modal(LABEL, SHOWN) ui_modal_push(str(LABEL), SHOWN);       if (cleanup(ui_modal_pop_) U8 _; 1)
-#define ui_scroll_box(LABEL)   ui_scroll_box_push(str(LABEL));         if (cleanup(ui_scroll_box_pop_) U8 _; 1)
-#define ui_popup(LABEL, ...)   ui_popup_push(str(LABEL), __VA_ARGS__); if (cleanup(ui_popup_pop_) U8 _; 1)
-#define ui_button(LABEL)       ui_button_push(LABEL);                  if (cleanup(ui_button_pop_) U8 _; 1)
-#define ui_button_group(LABEL) ui_button_group_push(LABEL);            if (cleanup(ui_button_group_pop_) U8 _; 1)
+#define ui_grid(...)         ui_grid_push(__VA_ARGS__);         if (cleanup(ui_grid_pop_) U8 _; 1)
+#define ui_modal(...)        ui_modal_push(__VA_ARGS__);        if (cleanup(ui_modal_pop_) U8 _; 1)
+#define ui_popup(...)        ui_popup_push(__VA_ARGS__);        if (cleanup(ui_popup_pop_) U8 _; 1)
+#define ui_button(...)       ui_button_push(__VA_ARGS__);       if (cleanup(ui_button_pop_) U8 _; 1)
+#define ui_tooltip(...)      ui_tooltip_push(__VA_ARGS__);      if (cleanup(ui_tooltip_pop_) U8 _; 1)
+#define ui_grid_cell(...)    ui_grid_cell_push(__VA_ARGS__);    if (cleanup(ui_grid_cell_pop_) U8 _; 1)
+#define ui_scroll_box(...)   ui_scroll_box_push(__VA_ARGS__);   if (cleanup(ui_scroll_box_pop_) U8 _; 1)
+#define ui_button_group(...) ui_button_group_push(__VA_ARGS__); if (cleanup(ui_button_group_pop_) U8 _; 1)
 
 inl Void ui_grid_pop_         (Void *) { ui_grid_pop(); }
 inl Void ui_grid_cell_pop_    (Void *) { ui_grid_cell_pop(); }

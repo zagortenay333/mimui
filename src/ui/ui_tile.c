@@ -2,6 +2,14 @@
 #include "ui/ui_widgets.h"
 #include "window/window.h"
 
+istruct (DragState) {
+    Bool active;
+    U64 tab_id;
+    UiTileNode *node;
+};
+
+static DragState drag;
+
 static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
     U32 splitter_width = 8;
@@ -71,7 +79,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
         ui_box(0, "leaf") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
-            ui_box(0, "tabs_panel") {
+            UiBox *tabs_panel = ui_scroll_box(str("tabs_panel"), false) {
                 ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
                 ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -83,15 +91,23 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
                 // @todo We wouldn't need this if the padding style were a vec4 instead of a vec2.
                 ui_box(0, "top_padding") ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, padding.x, 1});
 
-                ui_box (0, "tabs") {
+                ui_box(0, "tabs") {
                     ui_style_vec2(UI_PADDING, vec2(padding.x, 0));
                     ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
+                    F32 min_tab_width = 32;
+                    F32 max_tab_width = 128;
+                    F32 tab_width = (tabs_panel->rect.w - 32) / cast(F32, node->tab_ids.count) - 2*padding.x;
+                    tab_width = clamp(tab_width, min_tab_width, max_tab_width);
+
                     array_iter (id, &node->tab_ids) {
-                        ui_box_fmt (0, "tab%lu", ARRAY_IDX) {
-                            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-                            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                        UiBox *tab = ui_box_fmt(UI_BOX_REACTIVE, "tab%lu", ARRAY_IDX) {
                             F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+
+                            ui_style_vec2(UI_PADDING, vec2(2, 0));
+                            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, tab_width, 1});
+                            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                             ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
                             ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
 
@@ -102,20 +118,38 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
                                 ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
                             }
 
+                            if (tab->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+                                drag.active = true;
+                                drag.tab_id = id;
+                                drag.node = node;
+                                printf("-------\n");
+                            }
+
                             ui_box (0, "label_box") {
                                 ui_style_vec2(UI_PADDING, vec2(6, 4));
                                 ui_label(0, "label", astr_fmt(tm, "%lu", id));
                             }
 
-                            ui_button(str("close_button")) {
+                            ui_hspacer();
+
+                            UiBox *close_button = ui_button(str("close_button")) {
                                 ui_style_vec2(UI_PADDING, vec2(2, 2));
                                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
                                 ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
-                                ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
                                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+                                close_button->next_style.size.width.strictness = 1;
                                 ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_CLOSE);
                             }
                         }
+                    }
+
+                    UiBox *close_button = ui_button(str("close_button")) {
+                        ui_style_vec2(UI_PADDING, vec2(4, 4));
+                        ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
+                        ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
+                        ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
+                        close_button->next_style.size.width.strictness = 1;
+                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PLUS);
                     }
                 }
             }

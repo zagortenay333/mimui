@@ -81,7 +81,7 @@ static Void build_tile_view () {
 }
 
 static Void build_misc_view () {
-    ui_scroll_box("misc_view") {
+    ui_scroll_box(str("misc_view"), true) {
         ui_tag("vbox");
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
@@ -127,7 +127,7 @@ static Void build_misc_view () {
             ui_button_label("Foo11");
         }
 
-        ui_scroll_box("box2_4") {
+        ui_scroll_box(str("box2_4"), true) {
             ui_tag("hbox");
             ui_tag("item");
             for (U64 i = 0; i < cast(U64, 10*app->slider); ++i) {
@@ -136,7 +136,7 @@ static Void build_misc_view () {
             }
         }
 
-        ui_box_fmt(0, "slider") {
+        ui_box(0, "slider") {
             ui_tag("hbox");
             ui_tag("item");
             ui_slider("Slider", &app->slider);
@@ -173,7 +173,7 @@ static Void build_misc_view () {
             UiBox *popup_button = ui_button_label("calendar");
             if (app->calendar_popup_shown || popup_button->signals.clicked) {
                 ui_tag_box(popup_button, "press");
-                ui_popup("popup", &app->calendar_popup_shown, false, popup_button) {
+                ui_popup(str("popup"), &app->calendar_popup_shown, false, popup_button) {
                     ui_date_picker(str("date_picker"), &app->date);
                 }
             }
@@ -196,7 +196,7 @@ static Void build_misc_view () {
 }
 
 static Void build_grid_view () {
-    ui_scroll_box("second_view") {
+    ui_scroll_box(str("second_view"), true) {
         ui_tag("vbox");
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
@@ -204,7 +204,7 @@ static Void build_grid_view () {
 
         ui_style_rule("#second_view") ui_style_vec2(UI_PADDING, vec2(80, 16));
 
-        ui_grid("test_grid") {
+        ui_grid(str("test_grid")) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
 
             ui_style_rule(".grid_cell") {
@@ -220,7 +220,7 @@ static Void build_grid_view () {
             ui_grid_cell(0, 2, 3, 5) { ui_button_label("1"); }
             ui_grid_cell(3, 2, 5, 2) { ui_button_label("1"); }
             ui_grid_cell(3, 4, 3, 2) {
-                ui_grid("test_grid") {
+                ui_grid(str("test_grid")) {
                     ui_grid_cell(0, 0, 3, 2);
                     ui_grid_cell(3, 0, 5, 2);
                     ui_grid_cell(0, 2, 3, 5);
@@ -237,7 +237,7 @@ static Void build_grid_view () {
 }
 
 static Void show_modal () {
-    ui_modal("modal", &app->modal_shown) {
+    ui_modal(str("modal"), &app->modal_shown) {
     }
 }
 
