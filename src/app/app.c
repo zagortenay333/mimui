@@ -2,6 +2,7 @@
 #include "ui/ui.h"
 #include "ui/ui_widgets.h"
 #include "ui/ui_text_box.h"
+#include "ui/ui_tile.h"
 #include "buffer/buffer.h"
 #include "window/window.h"
 
@@ -12,6 +13,8 @@ istruct (App) {
     Bool modal_shown;
     Bool popup_shown;
     Bool calendar_popup_shown;
+
+    UiTileNode *tile_tree_root;
 
     Date date;
     Time time;
@@ -66,11 +69,11 @@ static Void build_clock_view () {
 }
 
 static Void build_tile_view () {
-    ui_box(0, "asfd") {
-        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 89, 1});
-        ui_style_vec4(UI_BG_COLOR, vec4(1, 0, 0, 1));
-        ui_label(0, "asdf", str("hello there sailor!"));
-    }
+    tmem_new(tm);
+    ArrayUiTileLeaf leafs;
+    array_init(&leafs, tm);
+
+    ui_tile(str("tiles"), app->tile_tree_root, &leafs);
 }
 
 static Void build_misc_view () {
@@ -313,7 +316,7 @@ Void app_build () {
 
 Void app_init () {
     app = mem_new(ui->perm_mem, App);
-    app->view = 0;
+    app->view = 3;
     app->image = dr_image("data/images/screenshot.png", false);
     app->slider = .5;
     app->buf1 = buf_new_from_file(ui->perm_mem, str("/home/zagor/Documents/test.txt"));
@@ -328,4 +331,54 @@ Void app_init () {
     array_init(&a, ui->perm_mem);
     array_push_n(&a, str("Hello"), str("There"), str("Sailor"), str("How"), str("Are"));
     app->selections.slice = a.as_slice;
+
+    { // Build initial tile tree:
+        // Layout Visual:
+        // +---------+------------------------+
+        // |         |                        |
+        // |  Tab 1  |       Tab 3            |
+        // |  Tab 2  |                        |
+        // |         +------------------------+
+        // |         |       Tab 4            |
+        // +---------+------------------------+
+
+        // Root: Horizontal split (Left sidebar 25%, Right main area 75%)
+        app->tile_tree_root = mem_new(ui->perm_mem, UiTileNode);
+        app->tile_tree_root->split = UI_TILE_SPLIT_HORI;
+        app->tile_tree_root->ratio = 0.25f;
+
+        // Left Sidebar (Leaf node)
+        UiTileNode *left_panel = mem_new(ui->perm_mem, UiTileNode);
+        left_panel->split = UI_TILE_SPLIT_NONE;
+        array_init(&left_panel->tab_ids, ui->perm_mem);
+        array_push(&left_panel->tab_ids, 1); // E.g., VIEW_PROFILER
+        array_push(&left_panel->tab_ids, 2); // E.g., VIEW_ASSET_TREE
+        left_panel->active_tab_idx = 0;      // Focus the first tab
+
+        // Right Main Area: Vertical split (Top Viewport 70%, Bottom Console 30%)
+        UiTileNode *right_split = mem_new(ui->perm_mem, UiTileNode);
+        right_split->split = UI_TILE_SPLIT_VERT;
+        right_split->ratio = 0.7f;
+
+        // Top Viewport (Leaf node)
+        UiTileNode *main_panel = mem_new(ui->perm_mem, UiTileNode);
+        main_panel->split = UI_TILE_SPLIT_NONE;
+        array_init(&main_panel->tab_ids, ui->perm_mem);
+        array_push(&main_panel->tab_ids, 3); // E.g., VIEW_VIEWPORT
+        main_panel->active_tab_idx = 0;
+
+        // Bottom Console (Leaf node)
+        UiTileNode *bottom_panel = mem_new(ui->perm_mem, UiTileNode);
+        bottom_panel->split = UI_TILE_SPLIT_NONE;
+        array_init(&bottom_panel->tab_ids, ui->perm_mem);
+        array_push(&bottom_panel->tab_ids, 4); // E.g., VIEW_CONSOLE
+        bottom_panel->active_tab_idx = 0;
+
+        // Link the tree together
+        app->tile_tree_root->child[0] = left_panel;
+        app->tile_tree_root->child[1] = right_split;
+
+        right_split->child[0] = main_panel;
+        right_split->child[1] = bottom_panel;
+    }
 }
