@@ -45,18 +45,33 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
 
             ui_box(0, "tabs_panel") {
+                ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
-                ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
                 ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                 ui_style_vec4(UI_BORDER_WIDTHS, vec4(0, 0, 0, b));
                 ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
-                array_iter (id, &node->tab_ids) {
-                    ui_box_fmt (0, "tab%lu", ARRAY_IDX) {
-                        ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_4);
+                Vec2 padding = ui_config_get_vec2(UI_CONFIG_PADDING_1);
 
-                        ui_label(0, "label", astr_fmt(tm, "%lu", id));
+                // @todo We wouldn't need this if the padding style were a vec4 instead of a vec2.
+                ui_box(0, "top_padding") ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, padding.x, 1});
+
+                ui_box (0, "tabs") {
+                    ui_style_vec2(UI_PADDING, vec2(padding.x, 0));
+                    ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
+
+                    array_iter (id, &node->tab_ids) {
+                        ui_box_fmt (0, "tab%lu", ARRAY_IDX) {
+                            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
+                            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                            F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+                            F32 w = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
+                            ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
+                            ui_style_vec4(UI_BORDER_WIDTHS, vec4(w, w, w, 0));
+
+                            ui_label(0, "label", astr_fmt(tm, "%lu", id));
+                        }
                     }
                 }
             }
