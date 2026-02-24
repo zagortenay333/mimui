@@ -83,16 +83,6 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
             }
 
             if (info->drag.active && ui_within_box(tabs_panel->rect, ui->mouse)) {
-                U64 ghost_tab_idx = tabs->children.count;
-
-                array_iter (tab, &tabs->children) {
-                    F32 midpoint = tab->rect.x + tab->rect.w/2;
-                    if (midpoint > ui->mouse.x) {
-                        ghost_tab_idx = ARRAY_IDX;
-                        break;
-                    }
-                }
-
                 ui_box(UI_BOX_REACTIVE, "ghost_tab") {
                     F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
                     ui_style_vec2(UI_PADDING, vec2(2, 0));
@@ -103,6 +93,15 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                     ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
                     ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                }
+
+                U64 ghost_tab_idx = tabs->children.count;
+                array_iter (tab, &tabs->children) {
+                    F32 midpoint = tab->rect.x + tab->rect.w/2;
+                    if (midpoint > ui->mouse.x) {
+                        ghost_tab_idx = ARRAY_IDX;
+                        break;
+                    }
                 }
 
                 array_insert(&tabs->children, array_pop(&tabs->children), ghost_tab_idx);
