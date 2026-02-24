@@ -26,7 +26,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
         F32 drag_x = -1;
-        if (info->drag.active && ui_within_box(tabs_panel->rect, ui->mouse)) drag_x = ui->mouse.x;
+        if (info->drag.active && ui_within_box(tabs_panel->parent->rect, ui->mouse)) drag_x = ui->mouse.x;
 
         Vec2 padding = ui_config_get_vec2(UI_CONFIG_PADDING_1);
 
@@ -110,24 +110,6 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     }
                     array_insert(&tabs->children, array_pop(&tabs->children), ghost_tab_idx);
                 }
-            }
-
-            if (info->drag.active) {
-                ui_push_parent(ui->root);
-                ui_push_clip(ui->root, false);
-                ui_box(0, "dragged_tab") {
-                    F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
-                    ui_style_f32(UI_FLOAT_X, ui->mouse.x);
-                    ui_style_f32(UI_FLOAT_Y, ui->mouse.y);
-                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, tab_width, 1});
-                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, array_get(&tabs->children, 0)->rect.h, 1});
-                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-                    ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                }
-                ui_pop_clip();
-                ui_pop_parent();
             }
 
             UiBox *close_button = ui_button(str("close_button")) {
@@ -232,6 +214,24 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
         build_node(info, tree, out_leafs);
+
+        if (info->drag.active) {
+            ui_push_parent(ui->root);
+            ui_push_clip(ui->root, false);
+            ui_box(0, "dragged_tab") {
+                F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+                ui_style_f32(UI_FLOAT_X, ui->mouse.x);
+                ui_style_f32(UI_FLOAT_Y, ui->mouse.y);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 64, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 20, 1});
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
+                ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            }
+            ui_pop_clip();
+            ui_pop_parent();
+        }
     }
 
     return container;
