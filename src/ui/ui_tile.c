@@ -2,16 +2,18 @@
 #include "ui/ui_widgets.h"
 #include "window/window.h"
 
-istruct (DragState) {
-    Bool active;
-    U64 tab_id;
-    U64 tab_idx;
-    UiTileNode *node;
+istruct (UiTile) {
+    Mem *mem;
+
+    struct {
+        Bool active;
+        U64 tab_id;
+        U64 tab_idx;
+        UiTileNode *node;
+    } drag;
 };
 
-static DragState drag;
-
-static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
+static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     tmem_new(tm)
 
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
@@ -34,7 +36,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, node->ratio, 1});
             }
 
-            build_node(node->child[0], out_leafs);
+            build_node(info, node->child[0], out_leafs);
         }
 
         UiBox *splitter = ui_box(UI_BOX_REACTIVE, "splitter") {
@@ -73,7 +75,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
             }
 
-            build_node(node->child[1], out_leafs);
+            build_node(info, node->child[1], out_leafs);
         }
     } else {
         UiBox *box;
@@ -84,7 +86,7 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
 
             F32 drag_x = -1;
-            if (drag.active && ui_within_box(leaf_box->rect, ui->mouse)) drag_x = ui->mouse.x;
+            if (info->drag.active && ui_within_box(leaf_box->rect, ui->mouse)) drag_x = ui->mouse.x;
 
             UiBox *tabs_panel = ui_scroll_box(str("tabs_panel"), false) {
                 ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
@@ -126,10 +128,10 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
                             }
 
                             if (tab->signals.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
-                                drag.active = true;
-                                drag.node = node;
-                                drag.tab_id = id;
-                                drag.tab_idx = ARRAY_IDX;
+                                info->drag.active = true;
+                                info->drag.node = node;
+                                info->drag.tab_id = id;
+                                info->drag.tab_idx = ARRAY_IDX;
                             }
 
                             ui_box (0, "label_box") {
@@ -206,8 +208,8 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
 
             box = ui_box(0, "content");
 
-            if (drag.active && ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                drag.active = false;
+            if (info->drag.active && ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                info->drag.active = false;
             }
         }
 
@@ -218,9 +220,10 @@ static Void build_node (UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
 
 UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
     UiBox *container = ui_box_str(0, id) {
+        UiTile *info = ui_get_box_data(container, sizeof(UiTile), 3*sizeof(UiTile));
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
-        build_node(tree, out_leafs);
+        build_node(info, tree, out_leafs);
     }
 
     return container;
