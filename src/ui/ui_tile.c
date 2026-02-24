@@ -112,12 +112,11 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                 }
             }
 
-            UiBox *close_button = ui_button(str("close_button")) {
+            ui_button(str("add_button")) {
                 ui_style_vec2(UI_PADDING, vec2(4, 4));
                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
                 ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
                 ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
-                close_button->next_style.size.width.strictness = 1;
                 ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PLUS);
             }
         }
