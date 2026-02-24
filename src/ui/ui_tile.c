@@ -82,7 +82,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                 }
             }
 
-            if (info->drag.active && ui_within_box(tabs_panel->parent->rect, ui->mouse)) {
+            if (info->drag.active && ui_within_box(tabs_panel->rect, ui->mouse)) {
                 U64 ghost_tab_idx = tabs->children.count;
 
                 array_iter (tab, &tabs->children) {
@@ -104,6 +104,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
                     ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
                 }
+
                 array_insert(&tabs->children, array_pop(&tabs->children), ghost_tab_idx);
             }
 
