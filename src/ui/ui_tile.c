@@ -26,7 +26,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
 
         F32 drag_x = -1;
-        if (info->drag.active && ui_within_box(tabs_panel->rect, ui->mouse)) drag_x = ui->mouse.x;
+        if (info->drag.active && ui_within_box(tabs_panel->parent->rect, ui->mouse)) drag_x = ui->mouse.x;
 
         Vec2 padding = ui_config_get_vec2(UI_CONFIG_PADDING_1);
 
