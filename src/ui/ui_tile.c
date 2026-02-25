@@ -299,14 +299,14 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                     ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
 
                     if (node->split == UI_TILE_SPLIT_VERT) {
-                        ui_style_f32(UI_FLOAT_X, first->rect.w/2);
-                        ui_style_f32(UI_FLOAT_Y, first->rect.h - 10);
                         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                        ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x + first->rect.w/2 - splitter->rect.w/2);
+                        ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y + first->rect.h - splitter->rect.h/2);
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_UP);
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_DOWN);
                     } else {
-                        ui_style_f32(UI_FLOAT_X, first->rect.w - 10);
-                        ui_style_f32(UI_FLOAT_Y, first->rect.h / 2);
+                        ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x + first->rect.w - splitter->rect.w/2);
+                        ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y + first->rect.h/2 - splitter->rect.h/2);
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_LEFT);
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_RIGHT);
                     }
