@@ -308,7 +308,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[1], out_leafs);
         }
 
-        build_tile_resizer(info, node, first->rect.w);
+        build_tile_resizer(info, node, node->split == UI_TILE_SPLIT_HORI ? first->rect.w : first->rect.h);
     } else {
         ui_box(0, "leaf") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
