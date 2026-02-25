@@ -397,6 +397,10 @@ static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile
                     }
                 }
             }
+
+            if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                printf("------------\n");
+            }
         }
     }
 }
