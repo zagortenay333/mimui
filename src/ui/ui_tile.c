@@ -21,6 +21,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
     UiBox *tabs_panel = ui_scroll_box(str("tabs_panel"), false) {
         ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 1, 1});
         ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
         ui_style_vec4(UI_BORDER_WIDTHS, vec4(0, 0, 0, b));
         ui_style_f32(UI_EDGE_SOFTNESS, 0);
@@ -116,6 +117,159 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
     }
 }
 
+static void build_tile_ring (UiTile *info, UiTileNode *node) {
+    UiBox *left;
+    UiBox *right;
+    UiBox *top;
+    UiBox *bottom;
+    UiBox *tile_preview_container;
+
+    UiBox *overlay = ui_box(0, "overlay") {
+        ui_style_f32(UI_FLOAT_X, 0);
+        ui_style_f32(UI_FLOAT_Y, 0);
+        ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .3));
+        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, overlay->parent->rect.w, 0});
+        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, overlay->parent->rect.h, 0});
+
+        tile_preview_container = ui_box(0, "tile_preview_container") {
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        }
+
+        ui_box(0, "ring_container") {
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+
+            ui_box(0, "ring") {
+                ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+
+                ui_style_rule(".tile") {
+                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                    ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+                    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                }
+
+                top = ui_box(UI_BOX_REACTIVE, "top") {
+                    ui_tag("tile");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
+                }
+                ui_box(0, "middle_row"){
+                    left = ui_box(UI_BOX_REACTIVE, "left") {
+                        ui_tag("tile");
+                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
+                    }
+                    ui_box(UI_BOX_INVISIBLE, "spacer") {
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, left->rect.w, 0});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, left->rect.h, 0});
+                    }
+                    right = ui_box(UI_BOX_REACTIVE, "right") {
+                        ui_tag("tile");
+                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
+                    }
+                }
+                bottom = ui_box(UI_BOX_REACTIVE, "bottom") {
+                    ui_tag("tile");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
+                }
+            }
+        }
+    }
+
+    ui_style_rule("#preview_tile") {
+        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+        ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+    }
+
+    F32 preview_tile_width = 80;
+
+    if (left->signals.hovered) {
+        ui_parent(tile_preview_container) {
+            ui_box(0, "preview_tile") {
+                ui_style_f32(UI_FLOAT_X, 0);
+                ui_style_f32(UI_FLOAT_Y, 0);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            }
+        }
+    }
+
+    if (right->signals.hovered) {
+        ui_parent(tile_preview_container) {
+            ui_box(0, "preview_tile") {
+                ui_style_f32(UI_FLOAT_X, tile_preview_container->rect.w - preview_tile_width);
+                ui_style_f32(UI_FLOAT_Y, 0);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            }
+        }
+    }
+
+    if (top->signals.hovered) {
+        ui_parent(tile_preview_container) {
+            ui_box(0, "preview_tile") {
+                ui_style_f32(UI_FLOAT_X, 0);
+                ui_style_f32(UI_FLOAT_Y, 0);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+            }
+        }
+    }
+
+    if (bottom->signals.hovered) {
+        ui_parent(tile_preview_container) {
+            ui_box(0, "preview_tile") {
+                ui_style_f32(UI_FLOAT_X, 0);
+                ui_style_f32(UI_FLOAT_Y, tile_preview_container->rect.h - preview_tile_width);
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+            }
+        }
+    }
+
+    #if 0
+
+    if (ui->mouse.x < box->rect.x + w) {
+        ui_box(0, "ghost_tile") {
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, w, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        }
+    } else if (ui->mouse.x > box->rect.x + box->rect.w - w) {
+        ui_box(0, "ghost_tile") {
+            ui_style_f32(UI_FLOAT_X, box->rect.w - w);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, w, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+        }
+    } else if (ui->mouse.y < box->rect.y + w) {
+        ui_box(0, "ghost_tile") {
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, w, 0});
+        }
+    } else if (ui->mouse.y > box->rect.y + box->rect.h - w) {
+        ui_box(0, "ghost_tile") {
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, box->rect.h - w);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, w, 0});
+        }
+    }
+    #endif
+}
+
 static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
     U32 splitter_width = 8;
@@ -179,8 +333,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[1], out_leafs);
         }
     } else {
-        UiBox *box;
-
         ui_box(0, "leaf") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
@@ -188,11 +340,18 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
 
             build_tabs_panel(info, node);
 
-            box = ui_box(0, "content");
-        }
+            UiBox *box = ui_box(0, "content") {
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-        U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
-        array_push_lit(out_leafs, .node=node, .active_tab_id=active_tab_id, .box=box);
+                U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
+                array_push_lit(out_leafs, .node=node, .active_tab_id=active_tab_id, .box=box);
+
+                if (info->drag.active && ui_within_box(box->rect, ui->mouse)) {
+                    build_tile_ring(info, node);
+                }
+            }
+        }
     }
 }
 
@@ -208,8 +367,8 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
             ui_push_clip(ui->root, false);
             ui_box(0, "dragged_tab") {
                 F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
-                ui_style_f32(UI_FLOAT_X, ui->mouse.x);
-                ui_style_f32(UI_FLOAT_Y, ui->mouse.y);
+                ui_style_f32(UI_FLOAT_X, ui->mouse.x + 10);
+                ui_style_f32(UI_FLOAT_Y, ui->mouse.y + 10);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 64, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 20, 1});
                 ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
