@@ -122,64 +122,49 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
     UiBox *right;
     UiBox *top;
     UiBox *bottom;
-    UiBox *tile_preview_container;
 
     UiBox *overlay = ui_box(0, "overlay") {
         ui_style_f32(UI_FLOAT_X, 0);
         ui_style_f32(UI_FLOAT_Y, 0);
+        ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+        ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, .3));
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, overlay->parent->rect.w, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, overlay->parent->rect.h, 0});
 
-        tile_preview_container = ui_box(0, "tile_preview_container") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, 0);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        }
-
-        ui_box(0, "ring_container") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, 0);
+        ui_box(0, "ring") {
+            ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
             ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
-            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-            ui_box(0, "ring") {
-                ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-                ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+            ui_style_rule(".tile") {
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+                ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            }
 
-                ui_style_rule(".tile") {
-                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                    ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-                    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                }
-
-                top = ui_box(UI_BOX_REACTIVE, "top") {
+            top = ui_box(UI_BOX_REACTIVE, "top") {
+                ui_tag("tile");
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
+            }
+            ui_box(0, "middle_row"){
+                left = ui_box(UI_BOX_REACTIVE, "left") {
                     ui_tag("tile");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
                 }
-                ui_box(0, "middle_row"){
-                    left = ui_box(UI_BOX_REACTIVE, "left") {
-                        ui_tag("tile");
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
-                    }
-                    ui_box(UI_BOX_INVISIBLE, "spacer") {
-                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, left->rect.w, 0});
-                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, left->rect.h, 0});
-                    }
-                    right = ui_box(UI_BOX_REACTIVE, "right") {
-                        ui_tag("tile");
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
-                    }
+                ui_box(UI_BOX_INVISIBLE, "spacer") {
+                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, left->rect.w, 0});
+                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, left->rect.h, 0});
                 }
-                bottom = ui_box(UI_BOX_REACTIVE, "bottom") {
+                right = ui_box(UI_BOX_REACTIVE, "right") {
                     ui_tag("tile");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
                 }
+            }
+            bottom = ui_box(UI_BOX_REACTIVE, "bottom") {
+                ui_tag("tile");
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
             }
         }
     }
@@ -193,7 +178,7 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
     F32 preview_tile_width = 80;
 
     if (left->signals.hovered) {
-        ui_parent(tile_preview_container) {
+        ui_parent(overlay) {
             ui_box(0, "preview_tile") {
                 ui_style_f32(UI_FLOAT_X, 0);
                 ui_style_f32(UI_FLOAT_Y, 0);
@@ -204,9 +189,9 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
     }
 
     if (right->signals.hovered) {
-        ui_parent(tile_preview_container) {
+        ui_parent(overlay) {
             ui_box(0, "preview_tile") {
-                ui_style_f32(UI_FLOAT_X, tile_preview_container->rect.w - preview_tile_width);
+                ui_style_f32(UI_FLOAT_X, overlay->rect.w - preview_tile_width);
                 ui_style_f32(UI_FLOAT_Y, 0);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
@@ -215,7 +200,7 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
     }
 
     if (top->signals.hovered) {
-        ui_parent(tile_preview_container) {
+        ui_parent(overlay) {
             ui_box(0, "preview_tile") {
                 ui_style_f32(UI_FLOAT_X, 0);
                 ui_style_f32(UI_FLOAT_Y, 0);
@@ -226,15 +211,18 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
     }
 
     if (bottom->signals.hovered) {
-        ui_parent(tile_preview_container) {
+        ui_parent(overlay) {
             ui_box(0, "preview_tile") {
                 ui_style_f32(UI_FLOAT_X, 0);
-                ui_style_f32(UI_FLOAT_Y, tile_preview_container->rect.h - preview_tile_width);
+                ui_style_f32(UI_FLOAT_Y, overlay->rect.h - preview_tile_width);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
             }
         }
     }
+
+    // Move tile preview below the tile ring.
+    if (overlay->children.count == 2) array_swap(&overlay->children, 0, 1);
 }
 
 static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
@@ -294,6 +282,33 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[0], out_leafs);
         }
 
+        if (info->drag.active) {
+            ui_box(0, "tile_splitter") {
+                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+                ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+
+                if (node->split == UI_TILE_SPLIT_VERT) {
+                    ui_style_f32(UI_FLOAT_X, first->rect.w/2);
+                    ui_style_f32(UI_FLOAT_Y, first->rect.h - 10);
+
+                    ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_UP);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_DOWN);
+                } else {
+                    ui_style_f32(UI_FLOAT_X, first->rect.w - 10);
+                    ui_style_f32(UI_FLOAT_Y, first->rect.h / 2);
+
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_LEFT);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_RIGHT);
+                }
+            }
+        }
+
+        build_tile_resizer(info, node, node->split == UI_TILE_SPLIT_HORI ? first->rect.w : first->rect.h);
+
         ui_box(UI_BOX_CLICK_THROUGH, "second") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
 
@@ -307,8 +322,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
 
             build_node(info, node->child[1], out_leafs);
         }
-
-        build_tile_resizer(info, node, node->split == UI_TILE_SPLIT_HORI ? first->rect.w : first->rect.h);
     } else {
         ui_box(0, "leaf") {
             ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
