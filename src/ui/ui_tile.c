@@ -334,8 +334,7 @@ static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, width, 1});
             if (! info->drag.active) {
                 if (resizer->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
-                    F32 parent_h = resizer->parent->rect.h;
-                    if (parent_h > 0) node->ratio += ui->mouse_dt.y / parent_h;
+                    node->ratio = (ui->mouse.y - resizer->parent->rect.y) / resizer->parent->rect.h;
                 }
                 if (resizer->signals.hovered || resizer->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_NS_RESIZE;
             }
