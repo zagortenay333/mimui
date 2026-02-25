@@ -20,6 +20,11 @@ istruct (UiTile) {
 
 static F32 preview_tile_width = 80;
 
+Void ui_tile_insert (UiTile *info, UiTile *node, UiTileSplit split, U64 idx) {
+    assert_dbg(idx == 0 || idx == 1);
+    assert_dbg(split != UI_TILE_SPLIT_NONE);
+}
+
 Void ui_tile_split_leaf (UiTile *info, UiTileNode *node, U64 tab_id_to_insert, UiTileSplit split, U64 index) {
     assert_dbg(split != UI_TILE_SPLIT_NONE);
     assert_dbg(index == 0 || index == 1);
@@ -355,6 +360,8 @@ static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
 }
 
 static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile_rect) {
+    assert_dbg(node->split != UI_TILE_SPLIT_NONE);
+
     ui_parent(info->tile_splitter_container) {
         UiBox *splitter = ui_box_fmt(UI_BOX_REACTIVE, "tile_splitter%lu", info->tile_splitter_container->children.count) {
             ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
@@ -399,7 +406,7 @@ static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile
             }
 
             if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                printf("------------\n");
+                ui_tile_insert(info, node->child[0], node->split, 1);
             }
         }
     }
@@ -435,6 +442,10 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                     }
                 }
+
+                if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_HORI, 0);
+                }
             }
         }
 
@@ -457,6 +468,10 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                         ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
                         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                     }
+                }
+
+                if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_HORI, 1);
                 }
             }
         }
@@ -481,6 +496,10 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                     }
                 }
+
+                if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_VERT, 0);
+                }
             }
         }
 
@@ -503,6 +522,10 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                         ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
                         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
                     }
+                }
+
+                if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_VERT, 1);
                 }
             }
         }
@@ -543,8 +566,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[0], out_leafs);
         }
 
-        if (info->drag.active) build_tile_splitter(info, node, first->rect);
-
         ui_box(UI_BOX_CLICK_THROUGH, "second") {
             ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
 
@@ -559,6 +580,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[1], out_leafs);
         }
 
+        if (info->drag.active) build_tile_splitter(info, node, first->rect);
         build_tile_resizer(info, node, node->split == UI_TILE_SPLIT_HORI ? first->rect.w : first->rect.h);
     } else {
         ui_box(0, "leaf") {
