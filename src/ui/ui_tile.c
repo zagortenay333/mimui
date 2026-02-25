@@ -76,8 +76,10 @@ Void ui_tile_remove_empty_leaf (UiTile *info, UiTileNode *node) {
         } else {
             parent->parent->child[1] = sibling;
         }
+    } else {
+        *info->root = sibling;
     }
-}
+} 
 
 static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
     tmem_new(tm);
@@ -636,10 +638,8 @@ UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root, ArrayUiTileLeaf *ou
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         }
 
-        if ((*root)->parent) {
-            for (UiTileNode *n = (*root)->parent; n; n = n->parent) {
-                *root = n;
-            }
+        while ((*root)->parent) {
+            *root = (*root)->parent;
         }
 
         ui_box(UI_BOX_INVISIBLE, "content_box") {
