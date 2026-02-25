@@ -242,7 +242,7 @@ static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
 
     UiBox *resizer = ui_box(UI_BOX_REACTIVE, "resizer") {
         if (node->split == UI_TILE_SPLIT_HORI) {
-            ui_style_f32(UI_FLOAT_X, offset - width);
+            ui_style_f32(UI_FLOAT_X, offset - width/2);
             ui_style_f32(UI_FLOAT_Y, 0);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, width, 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
@@ -254,7 +254,7 @@ static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
             }
         } else {
             ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, offset - width);
+            ui_style_f32(UI_FLOAT_Y, offset - width/2);
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, width, 1});
             if (! info->drag.active) {
