@@ -34,10 +34,8 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
             ui_style_vec2(UI_PADDING, vec2(padding.x, 0));
             ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
-            F32 min_tab_width = 64;
-            F32 max_tab_width = 128;
             F32 tab_width = (tabs_panel->rect.w - 32) / cast(F32, node->tab_ids.count) - 2*padding.x;
-            tab_width = clamp(tab_width, min_tab_width, max_tab_width);
+            tab_width = clamp(tab_width, 64, 128);
 
             array_iter (id, &node->tab_ids) {
                 UiBox *tab = ui_box_fmt(UI_BOX_REACTIVE, "tab%lu", ARRAY_IDX) {
@@ -192,9 +190,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
 
             box = ui_box(0, "content");
 
-            if (info->drag.active && ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                info->drag.active = false;
-            }
         }
 
         U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
@@ -225,6 +220,10 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
             }
             ui_pop_clip();
             ui_pop_parent();
+        }
+
+        if (info->drag.active && ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+            info->drag.active = false;
         }
     }
 
