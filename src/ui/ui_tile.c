@@ -266,6 +266,53 @@ static Void build_tile_resizer (UiTile *info, UiTileNode *node, F32 offset) {
 
 }
 
+static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile_rect) {
+    ui_parent(info->tile_splitter_container) {
+        UiBox *splitter = ui_box_fmt(UI_BOX_REACTIVE, "tile_splitter%lu", info->tile_splitter_container->children.count) {
+            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+            ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
+            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+
+            if (node->split == UI_TILE_SPLIT_VERT) {
+                ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
+                ui_style_f32(UI_FLOAT_X, first_tile_rect.x - info->tile_preview_container->rect.x + first_tile_rect.w/2 - splitter->rect.w/2);
+                ui_style_f32(UI_FLOAT_Y, first_tile_rect.y - info->tile_preview_container->rect.y + first_tile_rect.h - splitter->rect.h/2);
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_UP);
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_DOWN);
+            } else {
+                ui_style_f32(UI_FLOAT_X, first_tile_rect.x - info->tile_preview_container->rect.x + first_tile_rect.w - splitter->rect.w/2);
+                ui_style_f32(UI_FLOAT_Y, first_tile_rect.y - info->tile_preview_container->rect.y + first_tile_rect.h/2 - splitter->rect.h/2);
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_LEFT);
+                ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_RIGHT);
+            }
+        }
+
+        if (splitter->signals.hovered) {
+            ui_parent(info->tile_preview_container) {
+                ui_box(0, "tile_preview") {
+                    ui_style_f32(UI_EDGE_SOFTNESS, 0);
+                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                    ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+
+                    if (node->split == UI_TILE_SPLIT_VERT) {
+                        ui_style_f32(UI_FLOAT_X, first_tile_rect.x - info->tile_preview_container->rect.x);
+                        ui_style_f32(UI_FLOAT_Y, first_tile_rect.y - info->tile_preview_container->rect.y + first_tile_rect.h - 40);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, first_tile_rect.w, 1});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 80, 1});
+                    } else {
+                        ui_style_f32(UI_FLOAT_X, first_tile_rect.x - info->tile_preview_container->rect.x + first_tile_rect.w - 40);
+                        ui_style_f32(UI_FLOAT_Y, first_tile_rect.y - info->tile_preview_container->rect.y);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 1});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, first_tile_rect.h, 1});
+                    }
+                }
+            }
+        }
+    }
+}
+
 static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
 
@@ -289,53 +336,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[0], out_leafs);
         }
 
-        if (info->drag.active) {
-            ui_parent(info->tile_splitter_container) {
-                UiBox *splitter = ui_box_fmt(UI_BOX_REACTIVE, "tile_splitter%lu", info->tile_splitter_container->children.count) {
-                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                    ui_style_from_config(UI_RADIUS, UI_CONFIG_RADIUS_1);
-                    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-
-                    if (node->split == UI_TILE_SPLIT_VERT) {
-                        ui_style_u32(UI_AXIS, UI_AXIS_VERTICAL);
-                        ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x + first->rect.w/2 - splitter->rect.w/2);
-                        ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y + first->rect.h - splitter->rect.h/2);
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_UP);
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_DOWN);
-                    } else {
-                        ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x + first->rect.w - splitter->rect.w/2);
-                        ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y + first->rect.h/2 - splitter->rect.h/2);
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon1", 16, UI_ICON_PAN_LEFT);
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon2", 16, UI_ICON_PAN_RIGHT);
-                    }
-                }
-
-                if (splitter->signals.hovered) {
-                    ui_parent(info->tile_preview_container) {
-                        ui_box(0, "tile_preview") {
-                            ui_style_f32(UI_EDGE_SOFTNESS, 0);
-                            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                            ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
-
-                            if (node->split == UI_TILE_SPLIT_VERT) {
-                                ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x);
-                                ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y + first->rect.h - 40);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, first->rect.w, 1});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 80, 1});
-                            } else {
-                                ui_style_f32(UI_FLOAT_X, first->rect.x - info->tile_preview_container->rect.x + first->rect.w - 40);
-                                ui_style_f32(UI_FLOAT_Y, first->rect.y - info->tile_preview_container->rect.y);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 80, 1});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, first->rect.h, 1});
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        if (info->drag.active) build_tile_splitter(info, node, first->rect);
         build_tile_resizer(info, node, node->split == UI_TILE_SPLIT_HORI ? first->rect.w : first->rect.h);
 
         ui_box(UI_BOX_CLICK_THROUGH, "second") {
