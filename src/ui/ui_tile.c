@@ -235,39 +235,6 @@ static void build_tile_ring (UiTile *info, UiTileNode *node) {
             }
         }
     }
-
-    #if 0
-
-    if (ui->mouse.x < box->rect.x + w) {
-        ui_box(0, "ghost_tile") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, 0);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, w, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        }
-    } else if (ui->mouse.x > box->rect.x + box->rect.w - w) {
-        ui_box(0, "ghost_tile") {
-            ui_style_f32(UI_FLOAT_X, box->rect.w - w);
-            ui_style_f32(UI_FLOAT_Y, 0);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, w, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        }
-    } else if (ui->mouse.y < box->rect.y + w) {
-        ui_box(0, "ghost_tile") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, 0);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, w, 0});
-        }
-    } else if (ui->mouse.y > box->rect.y + box->rect.h - w) {
-        ui_box(0, "ghost_tile") {
-            ui_style_f32(UI_FLOAT_X, 0);
-            ui_style_f32(UI_FLOAT_Y, box->rect.h - w);
-            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, w, 0});
-        }
-    }
-    #endif
 }
 
 static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
@@ -300,20 +267,24 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                 ui_style_f32(UI_FLOAT_Y, 0);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, splitter_width, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
-                if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
-                    node->ratio = (ui->mouse.x - splitter->parent->rect.x) / splitter->parent->rect.w;
+                if (! info->drag.active) {
+                    if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+                        node->ratio = (ui->mouse.x - splitter->parent->rect.x) / splitter->parent->rect.w;
+                    }
+                    if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_EW_RESIZE;
                 }
-                if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_EW_RESIZE;
             } else {
                 ui_style_f32(UI_FLOAT_X, 0);
                 ui_style_f32(UI_FLOAT_Y, first->rect.h - splitter_width);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, splitter_width, 1});
-                if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
-                    F32 parent_h = splitter->parent->rect.h;
-                    if (parent_h > 0) node->ratio += ui->mouse_dt.y / parent_h;
+                if (! info->drag.active) {
+                    if (splitter->signals.pressed && ui->event->tag == EVENT_MOUSE_MOVE) {
+                        F32 parent_h = splitter->parent->rect.h;
+                        if (parent_h > 0) node->ratio += ui->mouse_dt.y / parent_h;
+                    }
+                    if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_NS_RESIZE;
                 }
-                if (splitter->signals.hovered || splitter->signals.pressed) ui->requested_cursor = MOUSE_CURSOR_NS_RESIZE;
             }
 
             node->ratio = clamp(node->ratio, 0.1f, 0.9f);
