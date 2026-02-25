@@ -406,16 +406,61 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
             array_insert(&container->children, array_pop(&container->children), 0);
 
             ui_parent(info->tile_splitter_container) {
+                ui_style_rule(".splitter") {
+                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+                }
+
+                F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+
+                UiBox *leftmost_splitter = ui_box(0, "leftmost_splitter") {
+                    ui_tag("splitter");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
+                    ui_style_f32(UI_FLOAT_X, 0);
+                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
+                    ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
+                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                    leftmost_splitter->next_style.border_widths.z = 0;
+                }
+
+                UiBox *rightmost_splitter = ui_box(0, "rightmost_splitter") {
+                    ui_tag("splitter");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
+                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w - leftmost_splitter->rect.w);
+                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
+                    ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
+                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                    rightmost_splitter->next_style.border_widths.x = 0;
+                }
+
+                UiBox *topmost_splitter = ui_box(0, "topmost_splitter") {
+                    ui_tag("splitter");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
+                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
+                    ui_style_f32(UI_FLOAT_Y, 0);
+                    ui_style_vec4(UI_RADIUS, vec4(0, 0, r, r));
+                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                    topmost_splitter->next_style.border_widths.y = 0;
+                }
+
+                UiBox *bottommost_splitter = ui_box(0, "bottommost_splitter") {
+                    ui_tag("splitter");
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
+                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
+                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h - leftmost_splitter->rect.h);
+                    ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
+                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+                    bottommost_splitter->next_style.border_widths.w = 0;
+                }
+
                 ui_box(0, "dragged_tab") {
-                    F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+                    ui_tag("splitter");
                     ui_style_f32(UI_FLOAT_X, ui->mouse.x + 10 - info->tile_splitter_container->rect.x);
                     ui_style_f32(UI_FLOAT_Y, ui->mouse.y + 10 - info->tile_splitter_container->rect.y);
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 64, 1});
                     ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 20, 1});
-                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                     ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
                 }
             }
 
