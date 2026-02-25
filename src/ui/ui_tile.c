@@ -93,7 +93,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
                 }
 
-                U64 ghost_tab_idx = tabs->children.count;
+                U64 ghost_tab_idx = tabs->children.count - 1;
                 array_iter (tab, &tabs->children) {
                     F32 midpoint = tab->rect.x + tab->rect.w/2;
                     if (midpoint > ui->mouse.x) {
@@ -189,7 +189,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_tabs_panel(info, node);
 
             box = ui_box(0, "content");
-
         }
 
         U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
