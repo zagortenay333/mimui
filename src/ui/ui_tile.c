@@ -261,9 +261,23 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             build_node(info, node->child[0], out_leafs);
         }
 
+        ui_box(UI_BOX_CLICK_THROUGH, "second") {
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+
+            if (node->split == UI_TILE_SPLIT_HORI) {
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+            } else {
+                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
+                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
+            }
+
+            build_node(info, node->child[1], out_leafs);
+        }
+
         UiBox *splitter = ui_box(UI_BOX_REACTIVE, "splitter") {
             if (node->split == UI_TILE_SPLIT_HORI) {
-                ui_style_f32(UI_FLOAT_X, first->rect.w - splitter_width);
+                ui_style_f32(UI_FLOAT_X, 0);
                 ui_style_f32(UI_FLOAT_Y, 0);
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, splitter_width, 1});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
@@ -288,20 +302,6 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
             }
 
             node->ratio = clamp(node->ratio, 0.1f, 0.9f);
-        }
-
-        ui_box(UI_BOX_CLICK_THROUGH, "second") {
-            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-
-            if (node->split == UI_TILE_SPLIT_HORI) {
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
-            } else {
-                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 1});
-                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
-            }
-
-            build_node(info, node->child[1], out_leafs);
         }
     } else {
         ui_box(0, "leaf") {
