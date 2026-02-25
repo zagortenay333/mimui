@@ -5,8 +5,6 @@
 istruct (UiTile) {
     Mem *mem;
 
-    UiTileTree *tree;
-
     struct {
         Bool active;
         U64 tab_id;
@@ -14,39 +12,38 @@ istruct (UiTile) {
         UiTileNode *node;
     } drag;
 
+    Mem *tree_mem;
+    UiTileNode **root;
+
     UiBox *tile_preview_container;
     UiBox *tile_splitter_container;
 };
 
 static F32 preview_tile_width = 80;
 
-Void ui_tile_insert (UiTile *info, UiTile *node, UiTileSplit split, U64 idx) {
+Void ui_tile_insert (UiTile *info, UiTileNode *node, U64 tab_id_to_insert, UiTileSplit split, U64 idx) {
     assert_dbg(idx == 0 || idx == 1);
     assert_dbg(split != UI_TILE_SPLIT_NONE);
-}
 
-Void ui_tile_split_leaf (UiTile *info, UiTileNode *node, U64 tab_id_to_insert, UiTileSplit split, U64 index) {
-    assert_dbg(split != UI_TILE_SPLIT_NONE);
-    assert_dbg(index == 0 || index == 1);
-    assert_dbg(node->split == UI_TILE_SPLIT_NONE);
-
-    UiTileNode *new_child = mem_new(info->tree->mem, UiTileNode);
+    UiTileNode *new_child = mem_new(info->tree_mem, UiTileNode);
     new_child->split = UI_TILE_SPLIT_NONE;
-    array_init(&new_child->tab_ids, info->tree->mem);
+    array_init(&new_child->tab_ids, info->tree_mem);
     array_push(&new_child->tab_ids, tab_id_to_insert);
 
-    UiTileNode *new_parent = mem_new(info->tree->mem, UiTileNode);
+    UiTileNode *new_parent = mem_new(info->tree_mem, UiTileNode);
     new_parent->split = split;
     new_parent->ratio = 0.5;
     new_parent->parent = node->parent;
 
-    if (new_parent->parent->child[0] == node) {
-        new_parent->parent->child[0] = new_parent;
-    } else {
-        new_parent->parent->child[1] = new_parent;
+    if (new_parent->parent) {
+        if (new_parent->parent->child[0] == node) {
+            new_parent->parent->child[0] = new_parent;
+        } else {
+            new_parent->parent->child[1] = new_parent;
+        }
     }
 
-    if (index == 0) {
+    if (idx == 0) {
         new_parent->child[0] = new_child;
         new_parent->child[1] = node;
     } else {
@@ -269,7 +266,7 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
         }
 
         if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 0);
+            ui_tile_insert(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 0);
             ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
@@ -285,7 +282,7 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
         }
 
         if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 1);
+            ui_tile_insert(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 1);
             ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
@@ -301,7 +298,7 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
         }
 
         if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 0);
+            ui_tile_insert(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 0);
             ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
@@ -317,7 +314,7 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
         }
 
         if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 1);
+            ui_tile_insert(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 1);
             ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
@@ -406,7 +403,8 @@ static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile
             }
 
             if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                ui_tile_insert(info, node->child[0], node->split, 1);
+                ui_tile_insert(info, node->child[0], info->drag.tab_id, node->split, 1);
+                ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
             }
         }
     }
@@ -444,7 +442,8 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                 }
 
                 if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_HORI, 0);
+                    ui_tile_insert(info, *info->root, info->drag.tab_id, UI_TILE_SPLIT_HORI, 0);
+                    ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
                 }
             }
         }
@@ -471,7 +470,8 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                 }
 
                 if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_HORI, 1);
+                    ui_tile_insert(info, *info->root, info->drag.tab_id, UI_TILE_SPLIT_HORI, 1);
+                    ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
                 }
             }
         }
@@ -498,7 +498,8 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                 }
 
                 if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_VERT, 0);
+                    ui_tile_insert(info, *info->root, info->drag.tab_id, UI_TILE_SPLIT_VERT, 0);
+                    ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
                 }
             }
         }
@@ -525,7 +526,8 @@ static Void build_outermost_tile_splitters (UiTile *info) {
                 }
 
                 if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                    ui_tile_insert(info, info->tree->root, UI_TILE_SPLIT_VERT, 1);
+                    ui_tile_insert(info, *info->root, info->drag.tab_id, UI_TILE_SPLIT_VERT, 1);
+                    ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
                 }
             }
         }
@@ -612,10 +614,11 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
     }
 }
 
-UiBox *ui_tile (String id, UiTileTree *tree, ArrayUiTileLeaf *out_leafs) {
+UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root, ArrayUiTileLeaf *out_leafs) {
     UiBox *container = ui_box_str(0, id) {
         UiTile *info = ui_get_box_data(container, sizeof(UiTile), 3*sizeof(UiTile));
-        info->tree = tree;
+        info->tree_mem = tree_mem;
+        info->root = root;
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
@@ -633,10 +636,16 @@ UiBox *ui_tile (String id, UiTileTree *tree, ArrayUiTileLeaf *out_leafs) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         }
 
+        if ((*root)->parent) {
+            for (UiTileNode *n = (*root)->parent; n; n = n->parent) {
+                *root = n;
+            }
+        }
+
         ui_box(UI_BOX_INVISIBLE, "content_box") {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            build_node(info, tree->root, out_leafs);
+            build_node(info, *info->root, out_leafs);
         }
 
         if (info->drag.active) {

@@ -21,11 +21,6 @@ istruct (UiTileNode) {
     U64 active_tab_idx;
 };
 
-istruct (UiTileTree) {
-    Mem *mem;
-    UiTileNode *root;
-};
-
 istruct (UiTileLeaf) {
     UiTileNode *node;
     U64 active_tab_id;
@@ -34,4 +29,4 @@ istruct (UiTileLeaf) {
 
 array_typedef(UiTileLeaf, UiTileLeaf);
 
-UiBox *ui_tile (String id, UiTileTree *, ArrayUiTileLeaf *out_leafs);
+UiBox *ui_tile (String id, Mem *, UiTileNode **, ArrayUiTileLeaf *out_leafs);
