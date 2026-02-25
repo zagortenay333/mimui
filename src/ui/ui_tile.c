@@ -120,6 +120,10 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                         ui_style_from_config(UI_BG_COLOR, UI_CONFIG_BG_3);
                     }
 
+                    if (tab->signals.clicked) {
+                        node->active_tab_idx = ARRAY_IDX;
+                    }
+
                     if (tab->signals.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
                         info->drag.active = true;
                         info->drag.node = node;
