@@ -5,6 +5,8 @@
 istruct (UiTile) {
     Mem *mem;
 
+    UiTileTree *tree;
+
     struct {
         Bool active;
         U64 tab_id;
@@ -17,6 +19,63 @@ istruct (UiTile) {
 };
 
 static F32 preview_tile_width = 80;
+
+Void ui_tile_split_leaf (UiTile *info, UiTileNode *node, U64 tab_id_to_insert, UiTileSplit split, U64 index) {
+    assert_dbg(split != UI_TILE_SPLIT_NONE);
+    assert_dbg(index == 0 || index == 1);
+    assert_dbg(node->split == UI_TILE_SPLIT_NONE);
+
+    UiTileNode *new_child = mem_new(info->tree->mem, UiTileNode);
+    new_child->split = UI_TILE_SPLIT_NONE;
+    array_init(&new_child->tab_ids, info->tree->mem);
+    array_push(&new_child->tab_ids, tab_id_to_insert);
+
+    UiTileNode *new_parent = mem_new(info->tree->mem, UiTileNode);
+    new_parent->split = split;
+    new_parent->ratio = 0.5;
+    new_parent->parent = node->parent;
+
+    if (new_parent->parent->child[0] == node) {
+        new_parent->parent->child[0] = new_parent;
+    } else {
+        new_parent->parent->child[1] = new_parent;
+    }
+
+    if (index == 0) {
+        new_parent->child[0] = new_child;
+        new_parent->child[1] = node;
+    } else {
+        new_parent->child[1] = new_child;
+        new_parent->child[0] = node;
+    }
+
+    node->parent = new_parent;
+    new_child->parent = new_parent;
+}
+
+Void ui_tile_tab_remove (UiTile *info, UiTileNode *node, U64 tab_idx) {
+    if (node->active_tab_idx > tab_idx) node->active_tab_idx--;
+    array_remove(&node->tab_ids, tab_idx);
+}
+
+Void ui_tile_remove_empty_leaf (UiTile *info, UiTileNode *node) {
+    assert_dbg(node->split == UI_TILE_SPLIT_NONE);
+    assert_dbg(node->tab_ids.count == 0);
+
+    UiTileNode *parent = node->parent;
+    if (! parent) return;
+
+    UiTileNode *sibling = (parent->child[0] == node) ? parent->child[1] : parent->child[0];
+    sibling->parent = parent->parent;
+
+    if (parent->parent) {
+        if (parent->parent->child[0] == parent) {
+            parent->parent->child[0] = sibling;
+        } else {
+            parent->parent->child[1] = sibling;
+        }
+    }
+}
 
 static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
     tmem_new(tm);
@@ -82,6 +141,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                         ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
                         close_button->next_style.size.width.strictness = 1;
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_CLOSE);
+                        if (close_button->signals.clicked) ui_tile_tab_remove(info, node, ARRAY_IDX);
                     }
                 }
             }
@@ -193,6 +253,11 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             }
         }
+
+        if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 0);
+            ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
+        }
     }
 
     if (right->signals.hovered) {
@@ -203,6 +268,11 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             }
+        }
+
+        if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_HORI, 1);
+            ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
 
@@ -215,6 +285,11 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
             }
         }
+
+        if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 0);
+            ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
+        }
     }
 
     if (bottom->signals.hovered) {
@@ -225,6 +300,11 @@ static void build_tile_splitter_ring (UiTile *info, UiTileNode *node) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
             }
+        }
+
+        if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
+            ui_tile_split_leaf(info, node, info->drag.tab_id, UI_TILE_SPLIT_VERT, 1);
+            ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
         }
     }
 
@@ -479,8 +559,15 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-                U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
-                array_push_lit(out_leafs, .node=node, .active_tab_id=active_tab_id, .box=box);
+                if (node->tab_ids.count) {
+                    U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
+                    array_push_lit(out_leafs, .node=node, .active_tab_id=active_tab_id, .box=box);
+                } else {
+                    ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
+                    ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
+                    UiBox *close_button = ui_button_label_str(str("close_button"), str("Close Tile"));
+                    if (close_button->signals.clicked) ui_tile_remove_empty_leaf(info, node);
+                }
 
                 if (info->drag.active && ui_within_box(box->rect, ui->mouse)) {
                     build_tile_splitter_ring(info, node);
@@ -490,9 +577,10 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
     }
 }
 
-UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
+UiBox *ui_tile (String id, UiTileTree *tree, ArrayUiTileLeaf *out_leafs) {
     UiBox *container = ui_box_str(0, id) {
         UiTile *info = ui_get_box_data(container, sizeof(UiTile), 3*sizeof(UiTile));
+        info->tree = tree;
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
@@ -513,7 +601,7 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
         ui_box(UI_BOX_INVISIBLE, "content_box") {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            build_node(info, tree, out_leafs);
+            build_node(info, tree->root, out_leafs);
         }
 
         if (info->drag.active) {

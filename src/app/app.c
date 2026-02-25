@@ -14,7 +14,7 @@ istruct (App) {
     Bool popup_shown;
     Bool calendar_popup_shown;
 
-    UiTileNode *tile_tree_root;
+    UiTileTree tile_tree;
 
     Date date;
     Time time;
@@ -76,7 +76,7 @@ static Void build_tile_view () {
     ui_box(0, "asdf") {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        ui_tile(str("tiles"), app->tile_tree_root, &leafs);
+        ui_tile(str("tiles"), &app->tile_tree, &leafs);
     }
 }
 
@@ -337,23 +337,17 @@ Void app_init () {
     app->selections.slice = a.as_slice;
 
     { // Build initial tile tree:
-        // Layout Visual:
-        // +---------+------------------------+
-        // |         |                        |
-        // |  Tab 1  |       Tab 3            |
-        // |  Tab 2  |                        |
-        // |         +------------------------+
-        // |         |       Tab 4            |
-        // +---------+------------------------+
+        app->tile_tree.mem = ui->perm_mem;
 
         // Root: Horizontal split (Left sidebar 25%, Right main area 75%)
-        app->tile_tree_root = mem_new(ui->perm_mem, UiTileNode);
-        app->tile_tree_root->split = UI_TILE_SPLIT_HORI;
-        app->tile_tree_root->ratio = 0.25f;
+        app->tile_tree.root = mem_new(ui->perm_mem, UiTileNode);
+        app->tile_tree.root->split = UI_TILE_SPLIT_HORI;
+        app->tile_tree.root->ratio = 0.25f;
 
         // Left Sidebar (Leaf node)
         UiTileNode *left_panel = mem_new(ui->perm_mem, UiTileNode);
         left_panel->split = UI_TILE_SPLIT_NONE;
+        left_panel->parent = app->tile_tree.root;
         array_init(&left_panel->tab_ids, ui->perm_mem);
         array_push(&left_panel->tab_ids, 1); // E.g., VIEW_PROFILER
         array_push(&left_panel->tab_ids, 2); // E.g., VIEW_ASSET_TREE
@@ -363,6 +357,7 @@ Void app_init () {
         UiTileNode *right_split = mem_new(ui->perm_mem, UiTileNode);
         right_split->split = UI_TILE_SPLIT_VERT;
         right_split->ratio = 0.7f;
+        right_split->parent = app->tile_tree.root;
 
         // Top Viewport (Leaf node)
         UiTileNode *main_panel = mem_new(ui->perm_mem, UiTileNode);
@@ -370,6 +365,7 @@ Void app_init () {
         array_init(&main_panel->tab_ids, ui->perm_mem);
         array_push(&main_panel->tab_ids, 3); // E.g., VIEW_VIEWPORT
         main_panel->active_tab_idx = 0;
+        main_panel->parent = right_split;
 
         // Bottom Console (Leaf node)
         UiTileNode *bottom_panel = mem_new(ui->perm_mem, UiTileNode);
@@ -377,10 +373,11 @@ Void app_init () {
         array_init(&bottom_panel->tab_ids, ui->perm_mem);
         array_push(&bottom_panel->tab_ids, 4); // E.g., VIEW_CONSOLE
         bottom_panel->active_tab_idx = 0;
+        bottom_panel->parent = right_split;
 
         // Link the tree together
-        app->tile_tree_root->child[0] = left_panel;
-        app->tile_tree_root->child[1] = right_split;
+        app->tile_tree.root->child[0] = left_panel;
+        app->tile_tree.root->child[1] = right_split;
 
         right_split->child[0] = main_panel;
         right_split->child[1] = bottom_panel;

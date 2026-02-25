@@ -14,10 +14,16 @@ istruct (UiTileNode) {
     UiTileSplit split;
 
     F32 ratio;
+    UiTileNode *parent;
     UiTileNode *child[2];
 
     ArrayU64 tab_ids;
     U64 active_tab_idx;
+};
+
+istruct (UiTileTree) {
+    Mem *mem;
+    UiTileNode *root;
 };
 
 istruct (UiTileLeaf) {
@@ -28,4 +34,4 @@ istruct (UiTileLeaf) {
 
 array_typedef(UiTileLeaf, UiTileLeaf);
 
-UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs);
+UiBox *ui_tile (String id, UiTileTree *, ArrayUiTileLeaf *out_leafs);
