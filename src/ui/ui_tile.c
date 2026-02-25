@@ -121,7 +121,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     }
 
                     if (tab->signals.clicked) {
-                        node->active_tab_idx = ARRAY_IDX;
+                        if (ui->event->key == KEY_MOUSE_LEFT) node->active_tab_idx = ARRAY_IDX;
                     }
 
                     if (tab->signals.pressed && (ui->event->tag == EVENT_MOUSE_MOVE)) {
@@ -151,7 +151,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
             }
 
             if (info->drag.active && ui_within_box(tabs_panel->rect, ui->mouse)) {
-                ui_box(UI_BOX_REACTIVE, "ghost_tab") {
+                UiBox *preview_tab = ui_box(UI_BOX_REACTIVE, "preview_tab") {
                     F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
                     ui_style_vec2(UI_PADDING, vec2(2, 0));
                     ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
@@ -163,16 +163,21 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
                 }
 
-                U64 ghost_tab_idx = tabs->children.count - 1;
+                U64 preview_tab_idx = tabs->children.count - 1;
                 array_iter (tab, &tabs->children) {
                     F32 midpoint = tab->rect.x + tab->rect.w/2;
                     if (midpoint > ui->mouse.x) {
-                        ghost_tab_idx = ARRAY_IDX;
+                        preview_tab_idx = ARRAY_IDX;
                         break;
                     }
                 }
 
-                array_insert(&tabs->children, array_pop(&tabs->children), ghost_tab_idx);
+                array_insert(&tabs->children, array_pop(&tabs->children), preview_tab_idx);
+
+                if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT && preview_tab->signals.hovered) {
+                    array_insert(&node->tab_ids, info->drag.tab_id, preview_tab_idx);
+                    ui_tile_tab_remove(info, info->drag.node, info->drag.tab_idx);
+                }
             }
 
             ui_button(str("add_button")) {
