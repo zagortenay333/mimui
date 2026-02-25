@@ -313,6 +313,121 @@ static Void build_tile_splitter (UiTile *info, UiTileNode *node, Rect first_tile
     }
 }
 
+static Void build_outermost_tile_splitters (UiTile *info) {
+    ui_parent(info->tile_splitter_container) {
+        ui_style_rule(".splitter") {
+            ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+            ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+        }
+
+        F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
+
+        UiBox *leftmost_splitter = ui_box(UI_BOX_REACTIVE, "leftmost_splitter") {
+            ui_tag("splitter");
+            ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
+            ui_style_f32(UI_FLOAT_X, 0);
+            ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
+            ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            leftmost_splitter->next_style.border_widths.z = 0;
+            if (leftmost_splitter->signals.hovered) {
+                ui_parent(info->tile_preview_container) {
+                    ui_box(0, "preview_tile") {
+                        ui_style_f32(UI_FLOAT_X, 0);
+                        ui_style_f32(UI_FLOAT_Y, 0);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                        ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+                    }
+                }
+            }
+        }
+
+        UiBox *rightmost_splitter = ui_box(UI_BOX_REACTIVE, "rightmost_splitter") {
+            ui_tag("splitter");
+            ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
+            ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w - leftmost_splitter->rect.w);
+            ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
+            ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            rightmost_splitter->next_style.border_widths.x = 0;
+            if (rightmost_splitter->signals.hovered) {
+                ui_parent(info->tile_preview_container) {
+                    ui_box(0, "preview_tile") {
+                        ui_style_f32(UI_FLOAT_X, info->tile_preview_container->rect.w - preview_tile_width);
+                        ui_style_f32(UI_FLOAT_Y, 0);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                        ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+                    }
+                }
+            }
+        }
+
+        UiBox *topmost_splitter = ui_box(UI_BOX_REACTIVE, "topmost_splitter") {
+            ui_tag("splitter");
+            ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
+            ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
+            ui_style_f32(UI_FLOAT_Y, 0);
+            ui_style_vec4(UI_RADIUS, vec4(0, 0, r, r));
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            topmost_splitter->next_style.border_widths.y = 0;
+            if (topmost_splitter->signals.hovered) {
+                ui_parent(info->tile_preview_container) {
+                    ui_box(0, "preview_tile") {
+                        ui_style_f32(UI_FLOAT_X, 0);
+                        ui_style_f32(UI_FLOAT_Y, 0);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                        ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+                    }
+                }
+            }
+        }
+
+        UiBox *bottommost_splitter = ui_box(UI_BOX_REACTIVE, "bottommost_splitter") {
+            ui_tag("splitter");
+            ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
+            ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
+            ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h - leftmost_splitter->rect.h);
+            ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            bottommost_splitter->next_style.border_widths.w = 0;
+            if (bottommost_splitter->signals.hovered) {
+                ui_parent(info->tile_preview_container) {
+                    ui_box(0, "preview_tile") {
+                        ui_style_f32(UI_FLOAT_X, 0);
+                        ui_style_f32(UI_FLOAT_Y, info->tile_preview_container->rect.h - preview_tile_width);
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
+                        ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
+                        ui_style_f32(UI_EDGE_SOFTNESS, 0);
+                        ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
+                        ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
+                    }
+                }
+            }
+        }
+
+        ui_box(0, "dragged_tab") {
+            ui_tag("splitter");
+            ui_style_f32(UI_FLOAT_X, ui->mouse.x + 10 - info->tile_splitter_container->rect.x);
+            ui_style_f32(UI_FLOAT_Y, ui->mouse.y + 10 - info->tile_splitter_container->rect.y);
+            ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 64, 1});
+            ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 20, 1});
+            ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
+            ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
+            ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
+        }
+    }
+}
+
 static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
 
@@ -402,125 +517,9 @@ UiBox *ui_tile (String id, UiTileNode *tree, ArrayUiTileLeaf *out_leafs) {
         }
 
         if (info->drag.active) {
-            // Move content below the other two layers.
             array_insert(&container->children, array_pop(&container->children), 0);
-
-            ui_parent(info->tile_splitter_container) {
-                ui_style_rule(".splitter") {
-                    ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                    ui_style_from_config(UI_PADDING, UI_CONFIG_PADDING_1);
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-                }
-
-                F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
-
-                UiBox *leftmost_splitter = ui_box(UI_BOX_REACTIVE, "leftmost_splitter") {
-                    ui_tag("splitter");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_RIGHT);
-                    ui_style_f32(UI_FLOAT_X, 0);
-                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
-                    ui_style_vec4(UI_RADIUS, vec4(r, 0, r, 0));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                    leftmost_splitter->next_style.border_widths.z = 0;
-                    if (leftmost_splitter->signals.hovered) {
-                        ui_parent(info->tile_preview_container) {
-                            ui_box(0, "preview_tile") {
-                                ui_style_f32(UI_FLOAT_X, 0);
-                                ui_style_f32(UI_FLOAT_Y, 0);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-                                ui_style_f32(UI_EDGE_SOFTNESS, 0);
-                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
-                            }
-                        }
-                    }
-                }
-
-                UiBox *rightmost_splitter = ui_box(UI_BOX_REACTIVE, "rightmost_splitter") {
-                    ui_tag("splitter");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_LEFT);
-                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w - leftmost_splitter->rect.w);
-                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h/2 - leftmost_splitter->rect.h/2);
-                    ui_style_vec4(UI_RADIUS, vec4(0, r, 0, r));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                    rightmost_splitter->next_style.border_widths.x = 0;
-                    if (rightmost_splitter->signals.hovered) {
-                        ui_parent(info->tile_preview_container) {
-                            ui_box(0, "preview_tile") {
-                                ui_style_f32(UI_FLOAT_X, info->tile_preview_container->rect.w - preview_tile_width);
-                                ui_style_f32(UI_FLOAT_Y, 0);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-                                ui_style_f32(UI_EDGE_SOFTNESS, 0);
-                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
-                            }
-                        }
-                    }
-                }
-
-                UiBox *topmost_splitter = ui_box(UI_BOX_REACTIVE, "topmost_splitter") {
-                    ui_tag("splitter");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_DOWN);
-                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
-                    ui_style_f32(UI_FLOAT_Y, 0);
-                    ui_style_vec4(UI_RADIUS, vec4(0, 0, r, r));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                    topmost_splitter->next_style.border_widths.y = 0;
-                    if (topmost_splitter->signals.hovered) {
-                        ui_parent(info->tile_preview_container) {
-                            ui_box(0, "preview_tile") {
-                                ui_style_f32(UI_FLOAT_X, 0);
-                                ui_style_f32(UI_FLOAT_Y, 0);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
-                                ui_style_f32(UI_EDGE_SOFTNESS, 0);
-                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
-                            }
-                        }
-                    }
-                }
-
-                UiBox *bottommost_splitter = ui_box(UI_BOX_REACTIVE, "bottommost_splitter") {
-                    ui_tag("splitter");
-                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_PAN_UP);
-                    ui_style_f32(UI_FLOAT_X, info->tile_splitter_container->rect.w/2 - leftmost_splitter->rect.w/2);
-                    ui_style_f32(UI_FLOAT_Y, info->tile_splitter_container->rect.h - leftmost_splitter->rect.h);
-                    ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                    bottommost_splitter->next_style.border_widths.w = 0;
-                    if (bottommost_splitter->signals.hovered) {
-                        ui_parent(info->tile_preview_container) {
-                            ui_box(0, "preview_tile") {
-                                ui_style_f32(UI_FLOAT_X, 0);
-                                ui_style_f32(UI_FLOAT_Y, info->tile_preview_container->rect.h - preview_tile_width);
-                                ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-                                ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, preview_tile_width, 0});
-                                ui_style_f32(UI_EDGE_SOFTNESS, 0);
-                                ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
-                                ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH|UI_MASK_HEIGHT);
-                            }
-                        }
-                    }
-                }
-
-                ui_box(0, "dragged_tab") {
-                    ui_tag("splitter");
-                    ui_style_f32(UI_FLOAT_X, ui->mouse.x + 10 - info->tile_splitter_container->rect.x);
-                    ui_style_f32(UI_FLOAT_Y, ui->mouse.y + 10 - info->tile_splitter_container->rect.y);
-                    ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, 64, 1});
-                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, 20, 1});
-                    ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
-                    ui_style_from_config(UI_BORDER_WIDTHS, UI_CONFIG_BORDER_1_WIDTH);
-                    ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
-                }
-            }
-
-            if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) {
-                info->drag.active = false;
-            }
+            build_outermost_tile_splitters(info);
+            if (ui->event->tag == EVENT_KEY_RELEASE && ui->event->key == KEY_MOUSE_LEFT) info->drag.active = false;
         }
     }
 
