@@ -3,6 +3,7 @@
 #include "base/core.h"
 #include "base/array.h"
 #include "ui/ui.h"
+#include "ui/ui_view.h"
 
 ienum (UiTileSplit, U8) {
     UI_TILE_SPLIT_NONE,
@@ -17,8 +18,8 @@ istruct (UiTileNode) {
     UiTileNode *parent;
     UiTileNode *child[2];
 
-    ArrayU64 tab_ids;
     U64 active_tab_idx;
+    ArrayUiViewInstance tab_ids;
 };
 
 istruct (UiTileLeaf) {
@@ -29,4 +30,4 @@ istruct (UiTileLeaf) {
 
 array_typedef(UiTileLeaf, UiTileLeaf);
 
-UiBox *ui_tile (String id, Mem *, UiTileNode **);
+UiBox *ui_tile (String id, Mem *, UiTileNode **, UiViewStore *);

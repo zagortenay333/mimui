@@ -7,13 +7,14 @@ istruct (UiTile) {
 
     struct {
         Bool active;
-        U64 tab_id;
         U64 tab_idx;
+        UiViewInstance *tab_id;
         UiTileNode *node;
     } drag;
 
     Mem *tree_mem;
     UiTileNode **root;
+    UiViewStore *view_store;
 
     UiBox *tile_preview_container;
     UiBox *tile_splitter_container;
@@ -21,7 +22,7 @@ istruct (UiTile) {
 
 static F32 preview_tile_width = 80;
 
-Void ui_tile_insert (UiTile *info, UiTileNode *node, U64 tab_id_to_insert, UiTileSplit split, U64 idx) {
+Void ui_tile_insert (UiTile *info, UiTileNode *node, UiViewInstance *tab_id_to_insert, UiTileSplit split, U64 idx) {
     assert_dbg(idx == 0 || idx == 1);
     assert_dbg(split != UI_TILE_SPLIT_NONE);
 
@@ -82,8 +83,6 @@ Void ui_tile_remove_empty_leaf (UiTile *info, UiTileNode *node) {
 } 
 
 static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
-    tmem_new(tm);
-
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
 
     UiBox *tabs_panel = ui_scroll_box(str("tabs_panel"), false) {
@@ -137,7 +136,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
 
                     ui_box (0, "label_box") {
                         ui_style_vec2(UI_PADDING, vec2(6, 4));
-                        ui_label(0, "label", astr_fmt(tm, "%lu", id));
+                        // ui_label(0, "label", astr_fmt(tm, "%lu", id)); // @todo
                     }
 
                     ui_hspacer();
@@ -613,11 +612,12 @@ static Void build_node (UiTile *info, UiTileNode *node) {
     }
 }
 
-UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root) {
+UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root, UiViewStore *view_store) {
     UiBox *container = ui_box_str(0, id) {
         UiTile *info = ui_get_box_data(container, sizeof(UiTile), 3*sizeof(UiTile));
         info->tree_mem = tree_mem;
         info->root = root;
+        info->view_store = view_store;
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 

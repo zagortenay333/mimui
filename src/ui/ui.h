@@ -102,6 +102,7 @@ ienum (UiIcon, U32) {
     UI_ICON_CHECK,
     UI_ICON_BOLD,
     UI_ICON_ALARM,
+    UI_ICON_NONE,
 };
 
 typedef U64 UiKey;

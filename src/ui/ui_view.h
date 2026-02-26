@@ -4,34 +4,33 @@
 #include "base/string.h"
 #include "ui/ui.h"
 
-istruct (ViewInstance); 
+istruct (UiViewInstance);
 
-istruct (ViewType) {
-    String (*get_icon)  (ViewInstance*);
-    String (*get_title) (ViewInstance*);
-    UiBox *(*build)     (ViewInstance*);
+istruct (UiViewType) {
+    String static_name;
+    Void   (*init)      (UiViewInstance *);
+    Void   (*free)      (UiViewInstance *);
+    UiIcon (*get_icon)  (UiViewInstance *, Bool visible);
+    String (*get_title) (UiViewInstance *, Bool visible);
+    Void   (*build)     (UiViewInstance *, Bool visible);
 };
 
-typedef U64 ViewId;
-
-istruct (ViewInstance) {
-    ViewId id;
-    ViewType *type;
+istruct (UiViewInstance) {
+    UiViewType *type;
     Void *data;
 };
 
-array_typedef(ViewInstance*, ViewInstance);
-array_typedef(ViewType, ViewType);
+array_typedef(UiViewInstance*, UiViewInstance);
+array_typedef(UiViewType*, UiViewType);
 
-istruct (ViewStore) {
+istruct (UiViewStore) {
     Mem *mem;
-    ViewId next_id;
-    ArrayViewType types;
-    ArrayViewInstance instances;
+    ArrayUiViewType types;
+    ArrayUiViewInstance instances;
 };
 
-ViewStore    *ui_view_store_new       (Mem *);
-Void          ui_view_type_add        (ViewStore *, ViewType);
-ViewInstance *ui_view_instance_get    (ViewStore *, ViewId);
-ViewInstance *ui_view_instance_new    (ViewStore *, ViewType *);
-Void          ui_view_instance_remove (ViewStore *, ViewInstance *);
+UiViewStore    *ui_view_store_new       (Mem *);
+Void            ui_view_type_add        (UiViewStore *, UiViewType);
+UiViewType     *ui_view_type_get        (UiViewStore *, String);
+UiViewInstance *ui_view_instance_new    (UiViewStore *, UiViewType *);
+Void            ui_view_instance_remove (UiViewStore *, UiViewInstance *);
