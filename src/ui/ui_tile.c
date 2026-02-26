@@ -600,7 +600,11 @@ static Void build_node (UiTile *info, UiTileNode *node) {
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-                if (node->tab_ids.count == 0) {
+                if (node->tab_ids.count) {
+                    array_iter (tab, &node->tab_ids) {
+                        tab->type->build(tab, ARRAY_IDX == node->active_tab_idx);
+                    }
+                } else { 
                     ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
                     ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
                     UiBox *close_button = ui_button_label_str(str("close_button"), str("Close Tile"));
