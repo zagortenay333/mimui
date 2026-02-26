@@ -32,5 +32,5 @@ istruct (UiViewStore) {
 UiViewStore    *ui_view_store_new       (Mem *);
 Void            ui_view_type_add        (UiViewStore *, UiViewType);
 UiViewType     *ui_view_type_get        (UiViewStore *, String);
-UiViewInstance *ui_view_instance_new    (UiViewStore *, UiViewType *);
+UiViewInstance *ui_view_instance_new    (UiViewStore *, String type);
 Void            ui_view_instance_remove (UiViewStore *, UiViewInstance *);

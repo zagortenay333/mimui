@@ -16,9 +16,9 @@ UiViewType *ui_view_type_get (UiViewStore *store, String static_name) {
     return 0;
 }
 
-UiViewInstance *ui_view_instance_new (UiViewStore *store, UiViewType *type) {
+UiViewInstance *ui_view_instance_new (UiViewStore *store, String type_name) {
     UiViewInstance *instance = mem_new(store->mem, UiViewInstance);
-    instance->type = type;
+    instance->type = ui_view_type_get(store, type_name);
     instance->type->init(instance);
     return instance;
 }

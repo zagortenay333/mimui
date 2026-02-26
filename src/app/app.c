@@ -607,10 +607,10 @@ Void app_init () {
         .get_title = view_clock_get_title,
     });
 
-    UiViewInstance *view_grid  = ui_view_instance_new(app->view_store, ui_view_type_get(app->view_store, str("grid")));
-    UiViewInstance *view_clock = ui_view_instance_new(app->view_store, ui_view_type_get(app->view_store, str("clock")));
-    UiViewInstance *view_misc  = ui_view_instance_new(app->view_store, ui_view_type_get(app->view_store, str("misc")));
-    UiViewInstance *view_text  = ui_view_instance_new(app->view_store, ui_view_type_get(app->view_store, str("text")));
+    UiViewInstance *view_grid  = ui_view_instance_new(app->view_store, str("grid"));
+    UiViewInstance *view_clock = ui_view_instance_new(app->view_store, str("clock"));
+    UiViewInstance *view_misc  = ui_view_instance_new(app->view_store, str("misc"));
+    UiViewInstance *view_text  = ui_view_instance_new(app->view_store, str("text"));
 
     { // Build initial tile tree:
         // Root: Horizontal split (Left sidebar 25%, Right main area 75%)
