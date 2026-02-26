@@ -576,6 +576,7 @@ Void app_init () {
     app->view_store = ui_view_store_new(ui->perm_mem);
 
     ui_view_type_add(app->view_store, (UiViewType){
+        .static_name = str("misc"),
         .init = view_misc_init,
         .free = view_misc_free,
         .build = view_misc_build,
@@ -584,6 +585,7 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
+        .static_name = str("grid"),
         .init = view_grid_init,
         .free = view_grid_free,
         .build = view_grid_build,
@@ -592,6 +594,7 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
+        .static_name = str("text"),
         .init = view_text_init,
         .free = view_text_free,
         .build = view_text_build,
@@ -600,6 +603,7 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
+        .static_name = str("clock"),
         .init = view_clock_init,
         .free = view_clock_free,
         .build = view_clock_build,

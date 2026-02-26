@@ -136,7 +136,8 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
 
                     ui_box (0, "label_box") {
                         ui_style_vec2(UI_PADDING, vec2(6, 4));
-                        // ui_label(0, "label", astr_fmt(tm, "%lu", id)); // @todo
+                        String title = id->type->get_title(id, ARRAY_IDX == node->active_tab_idx);
+                        ui_label(0, "label", title);
                     }
 
                     ui_hspacer();

@@ -13,7 +13,7 @@ UiViewType *ui_view_type_get (UiViewStore *store, String static_name) {
         if (str_match(it->static_name, static_name)) return it;
     }
 
-    return 0;
+    badpath;
 }
 
 UiViewInstance *ui_view_instance_new (UiViewStore *store, String type_name) {
