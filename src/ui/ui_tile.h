@@ -29,4 +29,4 @@ istruct (UiTileLeaf) {
 
 array_typedef(UiTileLeaf, UiTileLeaf);
 
-UiBox *ui_tile (String id, Mem *, UiTileNode **, ArrayUiTileLeaf *out_leafs);
+UiBox *ui_tile (String id, Mem *, UiTileNode **);

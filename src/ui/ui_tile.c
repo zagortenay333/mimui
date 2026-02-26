@@ -547,7 +547,7 @@ static Void build_outermost_tile_splitters (UiTile *info) {
     }
 }
 
-static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_leafs) {
+static Void build_node (UiTile *info, UiTileNode *node) {
     F32 b = ui_config_get_vec4(UI_CONFIG_BORDER_1_WIDTH).x;
 
     if (node->split != UI_TILE_SPLIT_NONE) {
@@ -567,7 +567,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, node->ratio, 1});
             }
 
-            build_node(info, node->child[0], out_leafs);
+            build_node(info, node->child[0]);
         }
 
         ui_box(UI_BOX_CLICK_THROUGH, "second") {
@@ -581,7 +581,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1.f - node->ratio, 1});
             }
 
-            build_node(info, node->child[1], out_leafs);
+            build_node(info, node->child[1]);
         }
 
         if (info->drag.active) build_tile_splitter(info, node, first->rect);
@@ -598,10 +598,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
                 ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
                 ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
 
-                if (node->tab_ids.count) {
-                    U64 active_tab_id = array_get(&node->tab_ids, node->active_tab_idx);
-                    array_push_lit(out_leafs, .node=node, .active_tab_id=active_tab_id, .box=box);
-                } else {
+                if (node->tab_ids.count == 0) {
                     ui_style_u32(UI_ALIGN_X, UI_ALIGN_MIDDLE);
                     ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
                     UiBox *close_button = ui_button_label_str(str("close_button"), str("Close Tile"));
@@ -616,7 +613,7 @@ static Void build_node (UiTile *info, UiTileNode *node, ArrayUiTileLeaf *out_lea
     }
 }
 
-UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root, ArrayUiTileLeaf *out_leafs) {
+UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root) {
     UiBox *container = ui_box_str(0, id) {
         UiTile *info = ui_get_box_data(container, sizeof(UiTile), 3*sizeof(UiTile));
         info->tree_mem = tree_mem;
@@ -645,7 +642,7 @@ UiBox *ui_tile (String id, Mem *tree_mem, UiTileNode **root, ArrayUiTileLeaf *ou
         ui_box(UI_BOX_INVISIBLE, "content_box") {
             ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            build_node(info, *info->root, out_leafs);
+            build_node(info, *info->root);
         }
 
         if (info->drag.active) {

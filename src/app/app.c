@@ -69,14 +69,10 @@ static Void build_clock_view () {
 }
 
 static Void build_tile_view () {
-    tmem_new(tm);
-    ArrayUiTileLeaf leafs;
-    array_init(&leafs, tm);
-
     ui_box(0, "asdf") {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-        ui_tile(str("tiles"), ui->perm_mem, &app->tile_root, &leafs);
+        ui_tile(str("tiles"), ui->perm_mem, &app->tile_root);
     }
 }
 
