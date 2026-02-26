@@ -100,16 +100,18 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
 
         UiBox *tabs = ui_box(0, "tabs") {
             ui_style_vec2(UI_PADDING, vec2(padding.x, 0));
+            ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
             ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
             F32 tab_width = (tabs_panel->rect.w - 32) / cast(F32, node->tab_ids.count) - 2*padding.x;
-            tab_width = clamp(tab_width, 64, 128);
+            tab_width = clamp(tab_width, 96, 256);
 
             array_iter (id, &node->tab_ids) {
                 UiBox *tab = ui_box_fmt(UI_BOX_REACTIVE, "tab%lu", ARRAY_IDX) {
                     F32 r = ui_config_get_vec4(UI_CONFIG_RADIUS_1).x;
 
-                    ui_style_vec2(UI_PADDING, vec2(2, 0));
+                    ui_style_vec2(UI_PADDING, vec2(5, 5));
+                    ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
                     ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, tab_width, 1});
                     ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -134,13 +136,11 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                         info->drag.tab_idx = ARRAY_IDX;
                     }
 
-                    ui_box (0, "label_box") {
-                        ui_style_vec2(UI_PADDING, vec2(6, 4));
-                        UiIcon icon  = id->type->get_icon(id, ARRAY_IDX == node->active_tab_idx);
-                        String title = id->type->get_title(id, ARRAY_IDX == node->active_tab_idx);
-                        ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, icon);
-                        ui_label(UI_BOX_CLICK_THROUGH, "title", title);
-                    }
+                    UiIcon icon  = id->type->get_icon(id, ARRAY_IDX == node->active_tab_idx);
+                    ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, icon);
+
+                    String title = id->type->get_title(id, ARRAY_IDX == node->active_tab_idx);
+                    ui_label(UI_BOX_CLICK_THROUGH, "title", title);
 
                     ui_hspacer();
 
@@ -149,7 +149,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                         ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
                         ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
                         ui_style_f32(UI_OUTSET_SHADOW_WIDTH, 0);
-                        close_button->next_style.size.width.strictness = 1;
+                        ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
                         ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, UI_ICON_CLOSE);
                         if (close_button->signals.clicked) ui_tile_tab_remove(info, node, ARRAY_IDX);
                     }
