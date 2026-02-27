@@ -8,8 +8,8 @@ istruct (UiTile) {
     struct {
         Bool active;
         U64 tab_idx;
-        UiViewInstance *tab_id;
         UiTileNode *node;
+        UiViewInstance *tab_id;
     } drag;
 
     Mem *tree_mem;
@@ -63,7 +63,7 @@ static Void tile_tab_remove (UiTile *info, UiTileNode *node, U64 tab_idx) {
 }
 
 static Void tile_tab_add (UiTile *info, UiTileNode *node, UiViewType *type) {
-    UiViewInstance *instance = ui_view_instance_new(info->view_store, type->static_name);
+    UiViewInstance *instance = ui_view_instance_new(info->view_store, type->get_title(0, 0));
     array_push(&node->tab_ids, instance);
     node->active_tab_idx = node->tab_ids.count - 1;
 }
@@ -220,7 +220,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                                 }
 
                                 ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, t->get_icon(0, 0));
-                                ui_label(UI_BOX_CLICK_THROUGH, "label", t->static_name);
+                                ui_label(UI_BOX_CLICK_THROUGH, "label", t->get_title(0, 0));
                             }
                         }
                     }

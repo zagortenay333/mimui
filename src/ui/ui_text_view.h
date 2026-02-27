@@ -5,4 +5,4 @@
 #include "base/string.h"
 #include "ui/ui.h"
 
-UiBox *ui_text_box (UiBoxFlags flags, String id, String text);
+UiBox *ui_text_view (UiBoxFlags flags, String id, String text);

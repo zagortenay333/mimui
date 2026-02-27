@@ -6,8 +6,10 @@
 
 istruct (UiViewInstance);
 
+// The functions get_icon/get_title can be called
+// with the UiViewInstance param set to 0, which
+// indicates that we want the static title/icon.
 istruct (UiViewType) {
-    String static_name;
     Void   (*init)      (UiViewInstance *);
     Void   (*free)      (UiViewInstance *);
     UiIcon (*get_icon)  (UiViewInstance *, Bool visible);

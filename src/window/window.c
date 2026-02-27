@@ -10,7 +10,7 @@ SDL_Window *window;
 SDL_GLContext gl_ctx;
 ArrayEvent events;
 
-Int win_width  = 800;
+Int win_width  = 1000;
 Int win_height = 600;
 
 SDL_Cursor *cursors[SDL_SYSTEM_CURSOR_COUNT];
@@ -543,7 +543,7 @@ Void win_init (CString title) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    window = SDL_CreateWindow(title, 800, 600, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    window = SDL_CreateWindow(title, win_width, win_height, SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
     gl_ctx = SDL_GL_CreateContext(window);
     gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
     SDL_StartTextInput(window);

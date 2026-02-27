@@ -2,6 +2,7 @@
 #include "ui/ui.h"
 #include "ui/ui_widgets.h"
 #include "ui/ui_text_editor.h"
+#include "ui/ui_text_view.h"
 #include "ui/ui_tile.h"
 #include "buffer/buffer.h"
 #include "window/window.h"
@@ -75,6 +76,26 @@ Void view_clock_build (UiViewInstance *instance, Bool visible) {
         ui_style_box_from_config(clock, UI_FONT, UI_CONFIG_FONT_MONO);
         ui_style_box_f32(clock, UI_FONT_SIZE, 100.0);
     }
+}
+
+Void view_markup_init (UiViewInstance *instance) {
+}
+
+Void view_markup_free (UiViewInstance *instance) {
+}
+
+UiIcon view_markup_get_icon (UiViewInstance *instance, Bool visible) {
+    return UI_ICON_HAMBURGER;
+}
+
+String view_markup_get_title (UiViewInstance *instance, Bool visible) {
+    return str("Markup");
+}
+
+Void view_markup_build (UiViewInstance *instance, Bool visible) {
+    if (! visible) return;
+    String text = fs_read_entire_file(ui->perm_mem, str("src/ui/ui_view.c"), 0);
+    ui_text_view(0, str("text"), text);
 }
 
 Void view_text_init (UiViewInstance *instance) {
@@ -342,7 +363,14 @@ Void app_init () {
     app->view_store = ui_view_store_new(ui->perm_mem);
 
     ui_view_type_add(app->view_store, (UiViewType){
-        .static_name = str("misc"),
+        .init = view_markup_init,
+        .free = view_markup_free,
+        .build = view_markup_build,
+        .get_icon = view_markup_get_icon,
+        .get_title = view_markup_get_title,
+    });
+
+    ui_view_type_add(app->view_store, (UiViewType){
         .init = view_misc_init,
         .free = view_misc_free,
         .build = view_misc_build,
@@ -351,7 +379,6 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
-        .static_name = str("grid"),
         .init = view_grid_init,
         .free = view_grid_free,
         .build = view_grid_build,
@@ -360,7 +387,6 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
-        .static_name = str("text"),
         .init = view_text_init,
         .free = view_text_free,
         .build = view_text_build,
@@ -369,7 +395,6 @@ Void app_init () {
     });
 
     ui_view_type_add(app->view_store, (UiViewType){
-        .static_name = str("clock"),
         .init = view_clock_init,
         .free = view_clock_free,
         .build = view_clock_build,
@@ -377,40 +402,37 @@ Void app_init () {
         .get_title = view_clock_get_title,
     });
 
-    UiViewInstance *view_grid  = ui_view_instance_new(app->view_store, str("grid"));
-    UiViewInstance *view_clock = ui_view_instance_new(app->view_store, str("clock"));
-    UiViewInstance *view_misc  = ui_view_instance_new(app->view_store, str("misc"));
-    UiViewInstance *view_text  = ui_view_instance_new(app->view_store, str("text"));
+    UiViewInstance *view_markup = ui_view_instance_new(app->view_store, str("Markup"));
+    UiViewInstance *view_grid   = ui_view_instance_new(app->view_store, str("Grid"));
+    UiViewInstance *view_clock  = ui_view_instance_new(app->view_store, str("Clock"));
+    UiViewInstance *view_misc   = ui_view_instance_new(app->view_store, str("Misc"));
+    UiViewInstance *view_text   = ui_view_instance_new(app->view_store, str("Text"));
 
     { // Build initial tile tree:
-        // Root: Horizontal split (Left sidebar 25%, Right main area 75%)
         app->tile_root = mem_new(ui->perm_mem, UiTileNode);
         app->tile_root->split = UI_TILE_SPLIT_HORI;
-        app->tile_root->ratio = 0.25f;
+        app->tile_root->ratio = 0.5f;
 
-        // Left Sidebar (Leaf node)
         UiTileNode *left_panel = mem_new(ui->perm_mem, UiTileNode);
         left_panel->split = UI_TILE_SPLIT_NONE;
         left_panel->parent = app->tile_root;
         array_init(&left_panel->tab_ids, ui->perm_mem);
-        array_push(&left_panel->tab_ids, view_grid);
+        array_push(&left_panel->tab_ids, view_markup);
         array_push(&left_panel->tab_ids, view_clock);
 
-        // Right Main Area: Vertical split (Top Viewport 70%, Bottom Console 30%)
         UiTileNode *right_split = mem_new(ui->perm_mem, UiTileNode);
         right_split->split = UI_TILE_SPLIT_VERT;
         right_split->ratio = 0.7f;
         right_split->parent = app->tile_root;
 
-        // Top Viewport (Leaf node)
         UiTileNode *main_panel = mem_new(ui->perm_mem, UiTileNode);
         main_panel->split = UI_TILE_SPLIT_NONE;
         array_init(&main_panel->tab_ids, ui->perm_mem);
         array_push(&main_panel->tab_ids, view_text);
+        array_push(&main_panel->tab_ids, view_grid);
         main_panel->active_tab_idx = 0;
         main_panel->parent = right_split;
 
-        // Bottom Console (Leaf node)
         UiTileNode *bottom_panel = mem_new(ui->perm_mem, UiTileNode);
         bottom_panel->split = UI_TILE_SPLIT_NONE;
         array_init(&bottom_panel->tab_ids, ui->perm_mem);
@@ -418,10 +440,8 @@ Void app_init () {
         bottom_panel->active_tab_idx = 0;
         bottom_panel->parent = right_split;
 
-        // Link the tree together
         app->tile_root->child[0] = left_panel;
         app->tile_root->child[1] = right_split;
-
         right_split->child[0] = main_panel;
         right_split->child[1] = bottom_panel;
     }

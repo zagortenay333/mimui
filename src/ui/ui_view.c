@@ -8,9 +8,9 @@ UiViewStore *ui_view_store_new (Mem *mem) {
     return store;
 }
 
-UiViewType *ui_view_type_get (UiViewStore *store, String static_name) {
+UiViewType *ui_view_type_get (UiViewStore *store, String title) {
     array_iter (it, &store->types) {
-        if (str_match(it->static_name, static_name)) return it;
+        if (str_match(it->get_title(0, 0), title)) return it;
     }
 
     badpath;
