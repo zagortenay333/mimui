@@ -1,4 +1,4 @@
-#include "ui/ui_text_box.h"
+#include "ui/ui_text_editor.h"
 #include "ui/ui_widgets.h"
 #include "base/string.h"
 

@@ -1,5 +1,5 @@
+#include "ui/ui_text_editor.h"
 #include "ui/ui_widgets.h"
-#include "ui/ui_text_box.h"
 #include "base/string.h"
 
 UiBox *ui_hspacer () {

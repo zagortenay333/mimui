@@ -1,7 +1,7 @@
 #include "app/app.h"
 #include "ui/ui.h"
 #include "ui/ui_widgets.h"
-#include "ui/ui_text_box.h"
+#include "ui/ui_text_editor.h"
 #include "ui/ui_tile.h"
 #include "buffer/buffer.h"
 #include "window/window.h"
@@ -121,8 +121,6 @@ Void view_grid_build (UiViewInstance *instance, Bool visible) {
         ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
         ui_style_u32(UI_ANIMATION, UI_MASK_WIDTH);
-
-        ui_style_rule("#second_view") ui_style_vec2(UI_PADDING, vec2(80, 16));
 
         ui_grid(str("test_grid")) {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 3./4, 0});

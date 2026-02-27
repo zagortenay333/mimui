@@ -13,9 +13,9 @@ RELEASE_FLAGS := -fno-omit-frame-pointer -g -O2 -DBUILD_RELEASE=1 -DBUILD_DEBUG=
 DEBUG_FLAGS   := -g3 -DBUILD_RELEASE=0 -DBUILD_DEBUG=1 -fno-omit-frame-pointer
 CFLAGS        := -std=c23 -fno-delete-null-pointer-checks -fno-strict-aliasing -fwrapv -Werror=vla \
                  -Wall -Wextra -Wimplicit-fallthrough -Wswitch -Wno-unused-function -Wno-unused-value -Wno-unused-parameter -Wno-missing-braces \
-				 -I$(SRC_DIR) -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=600 $(shell pkg-config --cflags freetype2 sdl3)
-LDFLAGS       := -lm -lGL -lX11 -lpthread -lXrandr -lXi -ldl \
-				 $(shell pkg-config --static --libs freetype2 sdl3)
+				 -I$(SRC_DIR) -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=600 $(shell pkg-config --cflags freetype2 harfbuzz sdl3)
+LDFLAGS       := -lm -lGL -lpthread \
+				 $(shell pkg-config --static --libs freetype2 harfbuzz sdl3)
 
 ifeq ($(CC), clang)
 	CFLAGS    += -ferror-limit=2 -fno-spell-checking -Wno-initializer-overrides
@@ -36,8 +36,7 @@ endif
 $(EXE): $(OBJ_FILES)
 	@$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-release: CFLAGS  += $(RELEASE_FLAGS) -Wno-unused -g # -flto
-release: LDFLAGS += # -flto
+release: CFLAGS  += $(RELEASE_FLAGS) -Wno-unused -g
 release: $(EXE)
 
 debug: CFLAGS  += $(DEBUG_FLAGS)
@@ -53,9 +52,6 @@ pp:
 
 clean_pp:
 	rm -rf $(SRC_FILES:.c=.pp)
-
-bt:
-	coredumpctl debug
 
 clean:
 	rm -rf $(EXE) $(SRC_FILES:.c=.pp) $(DEP_FILES) $(OBJ_FILES) $(COVERAGE_DIR)
