@@ -206,6 +206,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_popup(str("popup"), &open, false, add_button) {
                         array_iter (t, &info->view_store->types) {
                             UiBox *btn = ui_button(astr_fmt(tm, "button%lu", ARRAY_IDX)) {
+                                ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
                                 ui_style_u32(UI_ALIGN_X, UI_ALIGN_START);
                                 ui_style_vec4(UI_BG_COLOR, vec4(0, 0, 0, 0));
                                 ui_style_vec4(UI_BG_COLOR2, vec4(-1, 0, 0, 0));
@@ -218,6 +219,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                                     tile_tab_add(info, node, t);
                                 }
 
+                                ui_icon(UI_BOX_CLICK_THROUGH, "icon", 16, t->get_icon(0, 0));
                                 ui_label(UI_BOX_CLICK_THROUGH, "label", t->static_name);
                             }
                         }
