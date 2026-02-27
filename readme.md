@@ -12,7 +12,7 @@ There is support for:
  - Basic widgets: buttons, scrollview, scrollbars, dialogs, grids/tables, ...
  - Keyboard focus navigation.
  - Blur effect.
- - Very basic text support (using harfbuzz and freetype; including emojis 😀).
+ - A simple text editor.
 
 Big thanks to the raddbg and orca projects for many of the ideas.
 
