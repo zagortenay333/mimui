@@ -169,7 +169,7 @@ static Void build_tabs_panel (UiTile *info, UiTileNode *node) {
                     ui_style_vec2(UI_PADDING, vec2(2, 0));
                     ui_style_from_config(UI_BG_COLOR, UI_CONFIG_FG_4);
                     ui_style_u32(UI_ALIGN_Y, UI_ALIGN_MIDDLE);
-                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, array_get(&tabs->children, 0)->rect.h, 1});
+                    ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_PIXELS, array_get(&tabs->children, 0)->rect.h ?: 12, 1});
                     ui_style_size(UI_WIDTH, (UiSize){UI_SIZE_PIXELS, tab_width, 1});
                     ui_style_from_config(UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
                     ui_style_vec4(UI_RADIUS, vec4(r, r, 0, 0));
