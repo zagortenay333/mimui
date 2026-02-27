@@ -3,7 +3,6 @@
 
 SRC_DIR       := src
 SRC_FILES     := $(shell find $(SRC_DIR) \
-				   -path $(SRC_DIR)"/gfx" -prune -false -o \
 				   -path $(SRC_DIR)"/os/linux" -prune -false -o \
 				   -iname *.c)
 OBJ_FILES     := $(SRC_FILES:.c=.o)
