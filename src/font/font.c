@@ -232,6 +232,7 @@ SliceGlyphInfo font_get_glyph_infos (Font *font, Mem *mem, String text) {
             .y_advance = pos.y_advance >> 6,
             .glyph_index = info.codepoint, // After shaping harfbuzz sets this field to the glyph index.
             .codepoint = codepoint.codepoint,
+            .byte_offset = info.cluster,
         );
 
         cursor_x += pos.x_advance >> 6;

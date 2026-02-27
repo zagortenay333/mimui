@@ -13,6 +13,7 @@ istruct (GlyphInfo) {
     U32 y_advance;
     U32 codepoint;
     U32 glyph_index;
+    U32 byte_offset;
 };
 
 istruct (AtlasSlot) {
