@@ -2,10 +2,10 @@
 #include "ui/ui_widgets.h"
 #include "base/string.h"
 
-static Vec2 cursor_to_coord (UiTextBoxInfo *info, UiBox *box, UiTextBoxCursor *pos);
-static UiTextBoxCursor coord_to_cursor (UiTextBoxInfo *info, UiBox *box, Vec2 coord);
+static Vec2 cursor_to_coord (UiTextEditorInfo *info, UiBox *box, UiTextEditorCursor *pos);
+static UiTextEditorCursor coord_to_cursor (UiTextEditorInfo *info, UiBox *box, Vec2 coord);
 
-static U32 get_visual_col_count (UiTextBoxInfo *info, U32 ch, U32 column) {
+static U32 get_visual_col_count (UiTextEditorInfo *info, U32 ch, U32 column) {
     if (ch != '\t') {
         return 1;
     } else {
@@ -13,7 +13,7 @@ static U32 get_visual_col_count (UiTextBoxInfo *info, U32 ch, U32 column) {
     }
 }
 
-static Void compute_visual_lines (UiTextBoxInfo *info) {
+static Void compute_visual_lines (UiTextEditorInfo *info) {
     if (! info->dirty) return;
     info->dirty = false;
 
@@ -31,7 +31,7 @@ static Void compute_visual_lines (UiTextBoxInfo *info) {
             str_utf8_iter (it, line->text) logical_len += get_visual_col_count(info, it.decode.codepoint, logical_len);
             if (logical_len > info->widest_line) info->widest_line = logical_len;
 
-            UiTextBoxVisualLine *vline = array_push_slot(&info->visual_lines);
+            UiTextEditorVisualLine *vline = array_push_slot(&info->visual_lines);
             vline->logical_line_offset = line->offset;
             vline->logical_line_count = line->text.count;
             vline->logical_col = 0;
@@ -53,7 +53,7 @@ static Void compute_visual_lines (UiTextBoxInfo *info) {
                 U32 cols = get_visual_col_count(info, it.decode.codepoint, vcol);
 
                 if (vcol + cols > viewport_width_in_chars) {
-                    UiTextBoxVisualLine *vline = array_push_slot(&info->visual_lines);
+                    UiTextEditorVisualLine *vline = array_push_slot(&info->visual_lines);
                     vline->logical_line_offset = line->offset;
                     vline->logical_line_count = line->text.count;
                     vline->logical_col = total_col;
@@ -71,7 +71,7 @@ static Void compute_visual_lines (UiTextBoxInfo *info) {
             }
 
             if (vcount || line->text.count == 0) {
-                UiTextBoxVisualLine *vline = array_push_slot(&info->visual_lines);
+                UiTextEditorVisualLine *vline = array_push_slot(&info->visual_lines);
                 vline->logical_line_offset = line->offset;
                 vline->logical_line_count = line->text.count;
                 vline->logical_col = total_col;
@@ -83,16 +83,16 @@ static Void compute_visual_lines (UiTextBoxInfo *info) {
     }
 }
 
-static String get_line_text (UiTextBoxInfo *info, Mem *mem, U64 idx) {
+static String get_line_text (UiTextEditorInfo *info, Mem *mem, U64 idx) {
     if (idx >= info->visual_lines.count) return (String){};
-    UiTextBoxVisualLine *line = array_ref(&info->visual_lines, idx);
+    UiTextEditorVisualLine *line = array_ref(&info->visual_lines, idx);
     return buf_get_slice(info->buf, mem, line->offset, line->count);
 }
 
-U64 ui_tbox_cursor_line_col_to_offset (UiTextBoxInfo *info, UiTextBoxCursor *cursor) {
+U64 ui_ted_cursor_line_col_to_offset (UiTextEditorInfo *info, UiTextEditorCursor *cursor) {
     tmem_new(tm);
     if (cursor->line >= info->visual_lines.count) return 0;
-    UiTextBoxVisualLine *line = array_ref(&info->visual_lines, cursor->line);
+    UiTextEditorVisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
     U64 off = 0;
     U64 idx = 0;
@@ -104,7 +104,7 @@ U64 ui_tbox_cursor_line_col_to_offset (UiTextBoxInfo *info, UiTextBoxCursor *cur
     return line->offset + off;
 }
 
-Void ui_tbox_cursor_offset_to_line_col (UiTextBoxInfo *info, UiTextBoxCursor *cursor) {
+Void ui_ted_cursor_offset_to_line_col (UiTextEditorInfo *info, UiTextEditorCursor *cursor) {
     compute_visual_lines(info);
 
     cursor->line = sat_sub64(info->visual_lines.count, 1);
@@ -121,7 +121,7 @@ Void ui_tbox_cursor_offset_to_line_col (UiTextBoxInfo *info, UiTextBoxCursor *cu
     if (cursor->line >= info->visual_lines.count) return;
 
     tmem_new(tm);
-    UiTextBoxVisualLine *line = array_ref(&info->visual_lines, cursor->line);
+    UiTextEditorVisualLine *line = array_ref(&info->visual_lines, cursor->line);
     String line_text = buf_get_slice(info->buf, tm, line->offset, line->count);
     U64 off = line->offset;
     str_utf8_iter (c, line_text) {
@@ -131,40 +131,40 @@ Void ui_tbox_cursor_offset_to_line_col (UiTextBoxInfo *info, UiTextBoxCursor *cu
     }
 }
 
-Void ui_tbox_cursor_swap_offset (UiTextBoxInfo *info, UiTextBoxCursor *cursor) {
+Void ui_ted_cursor_swap_offset (UiTextEditorInfo *info, UiTextEditorCursor *cursor) {
     swap(cursor->byte_offset, cursor->selection_offset);
-    ui_tbox_cursor_offset_to_line_col(info, cursor);
+    ui_ted_cursor_offset_to_line_col(info, cursor);
 }
 
-Void ui_tbox_cursor_delete (UiTextBoxInfo *info, UiTextBoxCursor *cursor) {
-    if (cursor->byte_offset > cursor->selection_offset) ui_tbox_cursor_swap_offset(info, cursor);
+Void ui_ted_cursor_delete (UiTextEditorInfo *info, UiTextEditorCursor *cursor) {
+    if (cursor->byte_offset > cursor->selection_offset) ui_ted_cursor_swap_offset(info, cursor);
     buf_delete(info->buf, cursor->byte_offset, cursor->selection_offset - cursor->byte_offset);
     info->dirty = true;
     cursor->selection_offset = cursor->byte_offset;
     cursor->preferred_column = cursor->column;
 }
 
-Void ui_tbox_cursor_insert (UiTextBoxInfo *info, UiTextBoxCursor *cursor, String str) {
-    if (cursor->byte_offset != cursor->selection_offset) ui_tbox_cursor_delete(info, cursor);
+Void ui_ted_cursor_insert (UiTextEditorInfo *info, UiTextEditorCursor *cursor, String str) {
+    if (cursor->byte_offset != cursor->selection_offset) ui_ted_cursor_delete(info, cursor);
     buf_insert(info->buf, cursor->byte_offset, str);
     info->dirty = true;
     cursor->byte_offset += str.count;
     cursor->selection_offset = cursor->byte_offset;
-    ui_tbox_cursor_offset_to_line_col(info, cursor);
+    ui_ted_cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
 }
 
-UiTextBoxCursor cursor_new (UiTextBoxInfo *info, U64 line, U64 column) {
-    UiTextBoxCursor cursor = {};
+UiTextEditorCursor cursor_new (UiTextEditorInfo *info, U64 line, U64 column) {
+    UiTextEditorCursor cursor = {};
     cursor.line = line;
     cursor.column = column;
     cursor.preferred_column = column;
-    cursor.byte_offset = ui_tbox_cursor_line_col_to_offset(info, &cursor);
+    cursor.byte_offset = ui_ted_cursor_line_col_to_offset(info, &cursor);
     cursor.selection_offset = cursor.byte_offset;
     return cursor;
 }
 
-Void ui_tbox_cursor_move_left (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_left (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     if (cursor->column > 0) {
         cursor->preferred_column--;
     } else if (cursor->line > 0) {
@@ -175,11 +175,11 @@ Void ui_tbox_cursor_move_left (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Boo
     }
 
     cursor->column = cursor->preferred_column;
-    cursor->byte_offset = ui_tbox_cursor_line_col_to_offset(info, cursor);
+    cursor->byte_offset = ui_ted_cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_right (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_right (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     tmem_new(tm);
     String line = get_line_text(info, tm, cursor->line);
     U64 count = str_codepoint_count(line);
@@ -193,11 +193,11 @@ Void ui_tbox_cursor_move_right (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bo
         cursor->preferred_column = 0;
     }
 
-    cursor->byte_offset = ui_tbox_cursor_line_col_to_offset(info, cursor);
+    cursor->byte_offset = ui_ted_cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_up (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_up (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     if (cursor->line > 0) cursor->line--;
 
     tmem_new(tm);
@@ -209,25 +209,25 @@ Void ui_tbox_cursor_move_up (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool 
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = ui_tbox_cursor_line_col_to_offset(info, cursor);
+    cursor->byte_offset = ui_ted_cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_left_word (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_left_word (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     cursor->byte_offset = buf_find_prev_word(info->buf, cursor->byte_offset);
-    ui_tbox_cursor_offset_to_line_col(info, cursor);
+    ui_ted_cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_right_word (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_right_word (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     cursor->byte_offset = buf_find_next_word(info->buf, cursor->byte_offset);
-    ui_tbox_cursor_offset_to_line_col(info, cursor);
+    ui_ted_cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_down (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_down (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     if (cursor->line < sat_sub64(info->visual_lines.count, 1)) cursor->line++;
 
     tmem_new(tm);
@@ -239,11 +239,11 @@ Void ui_tbox_cursor_move_down (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Boo
         cursor->column = cursor->preferred_column;
     }
 
-    cursor->byte_offset = ui_tbox_cursor_line_col_to_offset(info, cursor);
+    cursor->byte_offset = ui_ted_cursor_line_col_to_offset(info, cursor);
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_move_to_start (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_to_start (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     cursor->byte_offset = 0;
     cursor->line = 0;
     cursor->column = 0;
@@ -251,20 +251,20 @@ Void ui_tbox_cursor_move_to_start (UiTextBoxInfo *info, UiTextBoxCursor *cursor,
     if (move_selection) cursor->selection_offset = 0;
 }
 
-Void ui_tbox_cursor_move_to_end (UiTextBoxInfo *info, UiTextBoxCursor *cursor, Bool move_selection) {
+Void ui_ted_cursor_move_to_end (UiTextEditorInfo *info, UiTextEditorCursor *cursor, Bool move_selection) {
     cursor->byte_offset = buf_get_count(info->buf);
-    ui_tbox_cursor_offset_to_line_col(info, cursor);
+    ui_ted_cursor_offset_to_line_col(info, cursor);
     cursor->preferred_column = cursor->column;
     if (move_selection) cursor->selection_offset = cursor->byte_offset;
 }
 
-Void ui_tbox_cursor_clamp (UiTextBoxInfo *info, UiTextBoxCursor *cursor) {
+Void ui_ted_cursor_clamp (UiTextEditorInfo *info, UiTextEditorCursor *cursor) {
     if (cursor->byte_offset > buf_get_count(info->buf)) {
-        ui_tbox_cursor_move_to_end(info, cursor, true);
+        ui_ted_cursor_move_to_end(info, cursor, true);
     }
 }
 
-String ui_tbox_cursor_get_selection (UiTextBoxInfo *info, Mem *mem, UiTextBoxCursor *cursor) {
+String ui_ted_cursor_get_selection (UiTextEditorInfo *info, Mem *mem, UiTextEditorCursor *cursor) {
     U64 start = cursor->byte_offset;
     U64 end = cursor->selection_offset;
     if (start > end) swap(start, end);
@@ -272,7 +272,7 @@ String ui_tbox_cursor_get_selection (UiTextBoxInfo *info, Mem *mem, UiTextBoxCur
 }
 
 
-static Void draw_line (UiTextBoxInfo *info, UiBox *box, U64 line_idx, UiTextBoxVisualLine *line, Vec4 color, F32 x, F32 y) {
+static Void draw_line (UiTextEditorInfo *info, UiBox *box, U64 line_idx, UiTextEditorVisualLine *line, Vec4 color, F32 x, F32 y) {
     tmem_new(tm);
     dr_bind_texture(&ui->font->atlas_texture);
 
@@ -299,7 +299,7 @@ static Void draw_line (UiTextBoxInfo *info, UiBox *box, U64 line_idx, UiTextBoxV
         F32 advance = cell_w * cols;
 
         if (x + advance > box->rect.x) {
-            UiTextBoxCursor current = cursor_new(info, line_idx, ARRAY_IDX);
+            UiTextEditorCursor current = cursor_new(info, line_idx, ARRAY_IDX);
             Bool selected = current.byte_offset >= selection_start && current.byte_offset < selection_end;
 
             if (selected) dr_rect(
@@ -332,7 +332,7 @@ static Void draw_line (UiTextBoxInfo *info, UiBox *box, U64 line_idx, UiTextBoxV
 
 static Void draw (UiBox *box) {
     UiBox *container = box->parent;
-    UiTextBoxInfo *info = ui_get_box_data(container, 0, 0);
+    UiTextEditorInfo *info = ui_get_box_data(container, 0, 0);
 
     compute_visual_lines(info);
 
@@ -346,7 +346,7 @@ static Void draw (UiBox *box) {
     info->total_height = info->visual_lines.count * (cell_h + line_spacing);
 
     F32 line_height = cell_h + line_spacing;
-    UiTextBoxCursor pos = coord_to_cursor(info, box, box->rect.top_left);
+    UiTextEditorCursor pos = coord_to_cursor(info, box, box->rect.top_left);
     F32 y = box->rect.y + (pos.line+1) * line_height - info->scroll_coord.y;
 
     array_iter_from (line, &info->visual_lines, pos.line, *) {
@@ -363,7 +363,7 @@ static Void draw (UiBox *box) {
     );
 }
 
-static Void vscroll (UiTextBoxInfo *info, UiBox *box, U64 line, UiAlign align) {
+static Void vscroll (UiTextEditorInfo *info, UiBox *box, U64 line, UiAlign align) {
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
     U64 cell_h = ui->font->height;
     info->scroll_coord_n.y = cast(F32, line) * (cell_h + line_spacing);
@@ -379,7 +379,7 @@ static Void vscroll (UiTextBoxInfo *info, UiBox *box, U64 line, UiAlign align) {
     }
 }
 
-static Void hscroll (UiTextBoxInfo *info, UiBox *box, U64 line, U64 column, UiAlign align) {
+static Void hscroll (UiTextEditorInfo *info, UiBox *box, U64 line, U64 column, UiAlign align) {
     tmem_new(tm);
     String line_text = get_line_text(info, tm, line);
 
@@ -407,7 +407,7 @@ static Void hscroll (UiTextBoxInfo *info, UiBox *box, U64 line, U64 column, UiAl
     }
 }
 
-static Void text_box_scroll_into_view (UiTextBoxInfo *info, UiBox *box, UiTextBoxCursor *pos, U64 padding) {
+static Void text_box_scroll_into_view (UiTextEditorInfo *info, UiBox *box, UiTextEditorCursor *pos, U64 padding) {
     U64 cell_w = ui->font->width;
     U64 cell_h = ui->font->height;
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
@@ -430,7 +430,7 @@ static Void text_box_scroll_into_view (UiTextBoxInfo *info, UiBox *box, UiTextBo
     }
 }
 
-static UiTextBoxCursor coord_to_cursor (UiTextBoxInfo *info, UiBox *box, Vec2 coord) {
+static UiTextEditorCursor coord_to_cursor (UiTextEditorInfo *info, UiBox *box, Vec2 coord) {
     F32 cell_w = ui->font->width;
     F32 cell_h = ui->font->height;
     F32 line_spacing = ui_config_get_f32(UI_CONFIG_LINE_SPACING);
@@ -458,7 +458,7 @@ static UiTextBoxCursor coord_to_cursor (UiTextBoxInfo *info, UiBox *box, Vec2 co
     return cursor_new(info, line_idx, col);
 }
 
-static Vec2 cursor_to_coord (UiTextBoxInfo *info, UiBox *box, UiTextBoxCursor *pos) {
+static Vec2 cursor_to_coord (UiTextEditorInfo *info, UiBox *box, UiTextEditorCursor *pos) {
     Vec2 coord = {};
 
     F32 char_width  = ui->font->width;
@@ -486,9 +486,9 @@ static Vec2 cursor_to_coord (UiTextBoxInfo *info, UiBox *box, UiTextBoxCursor *p
     return coord;
 }
 
-UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode wrap_mode) {
+UiBox *ui_ted (String label, Buf *buf, Bool single_line_mode, UiTextEditorWrapMode wrap_mode) {
     UiBox *container = ui_box_str(0, label) {
-        UiTextBoxInfo *info = ui_get_box_data(container, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
+        UiTextEditorInfo *info = ui_get_box_data(container, sizeof(UiTextEditorInfo), sizeof(UiTextEditorInfo));
         Font *font = ui_config_get_font(UI_CONFIG_FONT_MONO);
 
         info->buf = buf;
@@ -508,7 +508,7 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
             info->buf_version = v;
         }
 
-        ui_tbox_cursor_clamp(info, &info->cursor); // In case the buffer changed.
+        ui_ted_cursor_clamp(info, &info->cursor); // In case the buffer changed.
 
         ui_set_font(container);
         ui_style_font(UI_FONT, font);
@@ -593,27 +593,27 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
             switch (ui->event->key) {
             case KEY_DEL:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    ui_tbox_cursor_move_right_word(info, &info->cursor, false);
-                    ui_tbox_cursor_delete(info, &info->cursor);
+                    ui_ted_cursor_move_right_word(info, &info->cursor, false);
+                    ui_ted_cursor_delete(info, &info->cursor);
                 } else {
-                    ui_tbox_cursor_move_right(info, &info->cursor, false);
-                    ui_tbox_cursor_delete(info, &info->cursor);
+                    ui_ted_cursor_move_right(info, &info->cursor, false);
+                    ui_ted_cursor_delete(info, &info->cursor);
                 }
                 ui_eat_event();
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 break;
             case KEY_W:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    ui_tbox_cursor_move_left_word(info, &info->cursor, false);
-                    ui_tbox_cursor_delete(info, &info->cursor);
+                    ui_ted_cursor_move_left_word(info, &info->cursor, false);
+                    ui_ted_cursor_delete(info, &info->cursor);
                     text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
                 break;
             case KEY_A:
                 if (ui->event->mods & KEY_MOD_CTRL) {
-                    ui_tbox_cursor_move_to_end(info, &info->cursor, true);
-                    ui_tbox_cursor_move_to_start(info, &info->cursor, false);
+                    ui_ted_cursor_move_to_end(info, &info->cursor, true);
+                    ui_ted_cursor_move_to_start(info, &info->cursor, false);
                     text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                     ui_eat_event();
                 }
@@ -623,23 +623,23 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
                     tmem_new(tm);
                     String text = win_get_clipboard_text(tm);
                     array_iter (c, &text, *) if (*c == '\n' || *c == '\r') *c = ' ';
-                    ui_tbox_cursor_insert(info, &info->cursor, text);
+                    ui_ted_cursor_insert(info, &info->cursor, text);
                 }
                 break;
             case KEY_X:
                 if (ui->event->mods & KEY_MOD_CTRL) {
                     tmem_new(tm);
-                    String text = ui_tbox_cursor_get_selection(info, tm, &info->cursor);
+                    String text = ui_ted_cursor_get_selection(info, tm, &info->cursor);
                     if (text.count) {
                         win_set_clipboard_text(text);
-                        ui_tbox_cursor_delete(info, &info->cursor);
+                        ui_ted_cursor_delete(info, &info->cursor);
                     }
                 }
                 break;
             case KEY_C:
                 if (ui->event->mods & KEY_MOD_CTRL) {
                     tmem_new(tm);
-                    String text = ui_tbox_cursor_get_selection(info, tm, &info->cursor);
+                    String text = ui_ted_cursor_get_selection(info, tm, &info->cursor);
                     if (text.count) win_set_clipboard_text(text);
                 }
                 break;
@@ -647,40 +647,40 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
                 if (info->single_line_mode) break;
 
                 Bool special_case = (info->cursor.byte_offset == buf_get_count(info->buf)) && !buf_ends_with_newline(info->buf);
-                ui_tbox_cursor_insert(info, &info->cursor, str("\n"));
+                ui_ted_cursor_insert(info, &info->cursor, str("\n"));
 
                 if (special_case) {
                     info->cursor.byte_offset--;
                     info->cursor.selection_offset--;
-                    ui_tbox_cursor_insert(info, &info->cursor, str("\n"));
+                    ui_ted_cursor_insert(info, &info->cursor, str("\n"));
                 }
 
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case KEY_BACKSPACE:
-                if (info->cursor.byte_offset == info->cursor.selection_offset) ui_tbox_cursor_move_left(info, &info->cursor, false);
-                ui_tbox_cursor_delete(info, &info->cursor);
+                if (info->cursor.byte_offset == info->cursor.selection_offset) ui_ted_cursor_move_left(info, &info->cursor, false);
+                ui_ted_cursor_delete(info, &info->cursor);
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case KEY_LEFT:
-                ui_tbox_cursor_move_left(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
+                ui_ted_cursor_move_left(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case KEY_RIGHT:
-                ui_tbox_cursor_move_right(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
+                ui_ted_cursor_move_right(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case KEY_UP:
-                ui_tbox_cursor_move_up(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
+                ui_ted_cursor_move_up(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
             case KEY_DOWN:
-                ui_tbox_cursor_move_down(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
+                ui_ted_cursor_move_down(info, &info->cursor, !(ui->event->mods & KEY_MOD_SHIFT));
                 text_box_scroll_into_view(info, text_box, &info->cursor, 4);
                 ui_eat_event();
                 break;
@@ -708,7 +708,7 @@ UiBox *ui_tbox (String label, Buf *buf, Bool single_line_mode, UiTextBoxWrapMode
         }
 
         if (text_box->signals.focused && ui->event->tag == EVENT_TEXT_INPUT) {
-            ui_tbox_cursor_insert(info, &info->cursor, ui->event->text);
+            ui_ted_cursor_insert(info, &info->cursor, ui->event->text);
             text_box_scroll_into_view(info, text_box, &info->cursor, 4);
             ui_eat_event();
         }

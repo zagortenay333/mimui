@@ -93,7 +93,7 @@ String view_text_get_title (UiViewInstance *instance, Bool visible) {
 
 Void view_text_build (UiViewInstance *instance, Bool visible) {
     if (! visible) return;
-    UiBox *box = ui_tbox(str("text_box"), app->buf1, false, LINE_WRAP_NONE);
+    UiBox *box = ui_ted(str("text_box"), app->buf1, false, LINE_WRAP_NONE);
     ui_style_box_size(box, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_size(box, UI_HEIGHT, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
     ui_style_box_vec2(box, UI_PADDING, (Vec2){8, 8});

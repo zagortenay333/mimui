@@ -764,7 +764,7 @@ UiBox *ui_entry (String id, Buf *buf, F32 width_in_chars, String hint) {
     UiBox *container = ui_box_str(UI_BOX_INVISIBLE, id) {
         ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
 
-        UiBox *text_box = ui_tbox(str("text_box"), buf, true, LINE_WRAP_NONE);
+        UiBox *text_box = ui_ted(str("text_box"), buf, true, LINE_WRAP_NONE);
         ui_style_box_from_config(text_box, UI_RADIUS, UI_CONFIG_RADIUS_1);
         ui_style_box_from_config(text_box, UI_BG_COLOR, UI_CONFIG_BG_3);
         ui_style_box_from_config(text_box, UI_BORDER_COLOR, UI_CONFIG_BORDER_1_COLOR);
@@ -1644,7 +1644,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
         ui_style_from_config(UI_SPACING, UI_CONFIG_SPACING_1);
 
         UiBox *ok_button;
-        UiTextBoxInfo *search_text_box_info;
+        UiTextEditorInfo *search_text_box_info;
 
         ui_box(0, "header") {
             ui_style_size(UI_HEIGHT, (UiSize){UI_SIZE_CHILDREN_SUM, 0, 1});
@@ -1653,10 +1653,10 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
             UiBox *entry = ui_entry(str("entry"), info->search, 64, str(""));
             UiBox *inner = array_get(&entry->children, 0);
             ui_style_box_size(inner, UI_WIDTH, (UiSize){UI_SIZE_PCT_PARENT, 1, 0});
-            search_text_box_info = ui_get_box_data(inner, sizeof(UiTextBoxInfo), sizeof(UiTextBoxInfo));
+            search_text_box_info = ui_get_box_data(inner, sizeof(UiTextEditorInfo), sizeof(UiTextEditorInfo));
             if (entry->start_frame == ui->frame) {
                 ui_grab_focus(array_get(&inner->children, 0));
-                ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
+                ui_ted_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
             }
 
             ok_button = ui_button_label_str(str("ok_button"), str("Ok"));
@@ -1703,9 +1703,9 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
                         if (selected != ARRAY_NIL_IDX) {
                             array_remove_fast(&info->selections, selected);
                         } else if (r->is_dir && !dir_only) {
-                            ui_tbox_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
-                            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, r->name);
-                            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, str("/"));
+                            ui_ted_cursor_move_to_end(search_text_box_info, &search_text_box_info->cursor, true);
+                            ui_ted_cursor_insert(search_text_box_info, &search_text_box_info->cursor, r->name);
+                            ui_ted_cursor_insert(search_text_box_info, &search_text_box_info->cursor, str("/"));
                         } else {
                             array_push(&info->selections, r->full_path);
                         }
@@ -1727,7 +1727,7 @@ UiBox *ui_file_picker (String id, Buf *buf, Bool *shown, Bool multiple, Bool dir
             String prefix = str_prefix_to_last(search, '/');
             String new_str = astr_fmt(tm, "%.*s/%.*s%s", STR(prefix), STR(r.name), r.is_dir ? "/" : "");
             buf_clear(info->search);
-            ui_tbox_cursor_insert(search_text_box_info, &search_text_box_info->cursor, new_str);
+            ui_ted_cursor_insert(search_text_box_info, &search_text_box_info->cursor, new_str);
             ui_eat_event();
         }
 
