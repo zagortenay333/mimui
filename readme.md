@@ -6,13 +6,14 @@ It's implemented on top of openGl and sdl3.
 
 There is support for:
 
- - A fairly comprehensive layout system.
+ - A simple layout system.
  - A css-like styling mechanism.
  - Simple animation.
  - Basic widgets: buttons, scrollview, scrollbars, dialogs, grids/tables, ...
  - Keyboard focus navigation.
  - Blur effect.
  - A simple text editor.
+ - Support for tiles/tabs.
 
 Big thanks to the raddbg and orca projects for many of the ideas.
 

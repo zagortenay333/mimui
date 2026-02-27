@@ -1109,6 +1109,5 @@ Void ui_init () {
 
 // @todo
 //
-// - tile widgets with tabs
 // - scrollbox for large homogenous lists
 // - rich text (markup) in labels
