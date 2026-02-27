@@ -23,7 +23,6 @@ ifeq ($(CC), clang)
 	CC_DEPGEN := clang
 else ifeq ($(CC), gcc)
 	CFLAGS    += -fmax-errors=2 -Wno-empty-body -Wno-override-init
-	# CFLAGS    += -Wc++-compat
 	CC_DEPGEN := gcc
 endif
 
