@@ -48,6 +48,8 @@ Void *ui_get_box_data (UiBox *box, U64 size, U64 arena_block_size) {
     Void *data = map_get_ptr(&ui->box_data, box->key);
 
     if (! data) {
+        assert_always(size);
+        assert_always(arena_block_size);
         Arena *arena = arena_new(mem_root, arena_block_size);
         Mem **header = mem_alloc(arena, Mem*, .size=size, .zeroed=true);
         *header = cast(Mem*, arena);

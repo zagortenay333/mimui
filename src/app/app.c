@@ -95,7 +95,11 @@ String view_markup_get_title (UiViewInstance *instance, Bool visible) {
 Void view_markup_build (UiViewInstance *instance, Bool visible) {
     if (! visible) return;
     String text = fs_read_entire_file(ui->perm_mem, str("src/ui/ui_view.c"), 0);
-    ui_text_view(0, str("text"), text);
+    UiBox *view = ui_text_view(UI_BOX_REACTIVE, str("text"), text);
+    if (view->signals.clicked) {
+        U64 offset = ui_text_view_coord_to_offset(view, ui->mouse);
+        printf("===== %lu\n", offset);
+    }
 }
 
 Void view_text_init (UiViewInstance *instance) {
